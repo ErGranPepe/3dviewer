@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
-import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { 
-  Environment, 
   ContactShadows, 
   Float, 
   PresentationControls,
@@ -284,11 +283,12 @@ function Scene({
 }) {
   return (
     <>
-      <Environment preset="studio" />
-      <ambientLight intensity={0.5} />
-      <spotLight position={[10, 15, 10]} angle={0.3} penumbra={1} intensity={1.5} />
-      <spotLight position={[-8, 10, -5]} angle={0.4} penumbra={1} intensity={0.8} color="#FF6B9D" />
-      <spotLight position={[5, -5, 10]} angle={0.3} penumbra={0.5} intensity={0.5} color="#A855F7" />
+      {/* Basic lighting without HDR */}
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[10, 10, 5]} intensity={1.2} />
+      <directionalLight position={[-10, 10, -5]} intensity={0.8} color="#FF6B9D" />
+      <directionalLight position={[0, -10, 5]} intensity={0.5} color="#A855F7" />
+      <pointLight position={[0, 5, 0]} intensity={0.5} />
 
       <PresentationControls global rotation={[0.1, 0, 0]} polar={[-Math.PI / 4, Math.PI / 4]} azimuth={[-Math.PI / 3, Math.PI / 3]}>
         <Float speed={0.5} rotationIntensity={0.1} floatIntensity={0.05}>
@@ -296,7 +296,7 @@ function Scene({
         </Float>
       </PresentationControls>
 
-      <ContactShadows position={[0, -3, 0]} opacity={0.5} scale={20} blur={2.5} far={4} />
+      <ContactShadows position={[0, -3, 0]} opacity={0.4} scale={20} blur={2} far={4} />
     </>
   )
 }
