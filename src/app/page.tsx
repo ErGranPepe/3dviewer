@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback, useMemo, useEffect } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { 
   ContactShadows, 
@@ -20,40 +20,69 @@ type DeviceType = 'iphone15' | 'iphone14' | 'pixel' | 'galaxy' | 'ipad' | 'macbo
 type AnimationType = 'rotate' | 'float' | 'tilt' | 'reveal' | 'showcase'
 type ColorPreset = 'pink' | 'purple' | 'blue' | 'green' | 'orange' | 'dark'
 
-// Device configurations
+// Device configurations - Realistic proportions
 const deviceConfigs = {
   iphone15: { 
     name: 'iPhone 15 Pro', 
-    width: 2.81, height: 5.81, depth: 0.31,
-    borderRadius: 0.55, bezelWidth: 0.06,
-    hasDynamicIsland: true, cameraModule: 'pro'
+    width: 2.78, height: 5.97, depth: 0.17, // Real dimensions: 70.6mm x 146.6mm x 8.25mm
+    borderRadius: 0.48,
+    bezelWidth: 0.05,
+    bezelDepth: 0.02,
+    screenToBody: 0.88,
+    hasDynamicIsland: true, 
+    cameraModule: 'pro',
+    cameraSize: 0.48
   },
   iphone14: { 
     name: 'iPhone 14', 
-    width: 2.78, height: 5.78, depth: 0.31,
-    borderRadius: 0.45, bezelWidth: 0.08,
-    hasNotch: true, cameraModule: 'standard'
+    width: 2.82, height: 5.78, depth: 0.18,
+    borderRadius: 0.42,
+    bezelWidth: 0.06,
+    bezelDepth: 0.025,
+    screenToBody: 0.86,
+    hasNotch: true, 
+    cameraModule: 'standard',
+    cameraSize: 0.42
   },
   pixel: { 
     name: 'Pixel 8 Pro', 
-    width: 2.89, height: 6.0, depth: 0.34,
-    borderRadius: 0.4, bezelWidth: 0.05, cameraModule: 'pixel'
+    width: 2.89, height: 6.0, depth: 0.19,
+    borderRadius: 0.35,
+    bezelWidth: 0.04,
+    bezelDepth: 0.02,
+    screenToBody: 0.89,
+    cameraModule: 'pixel',
+    cameraSize: 0.52
   },
   galaxy: { 
     name: 'Galaxy S24', 
-    width: 2.78, height: 5.89, depth: 0.32,
-    borderRadius: 0.4, bezelWidth: 0.04, cameraModule: 'samsung'
+    width: 2.78, height: 5.89, depth: 0.17,
+    borderRadius: 0.38,
+    bezelWidth: 0.035,
+    bezelDepth: 0.018,
+    screenToBody: 0.91,
+    cameraModule: 'samsung',
+    cameraSize: 0.38
   },
   ipad: { 
     name: 'iPad Pro', 
-    width: 7.0, height: 9.4, depth: 0.24,
-    borderRadius: 0.3, bezelWidth: 0.12, cameraModule: 'ipad'
+    width: 6.65, height: 9.1, depth: 0.14,
+    borderRadius: 0.22,
+    bezelWidth: 0.12,
+    bezelDepth: 0.015,
+    screenToBody: 0.85,
+    cameraModule: 'ipad',
+    cameraSize: 0.25
   },
   macbook: { 
     name: 'MacBook Pro', 
-    width: 9.8, height: 6.1, depth: 0.45,
-    borderRadius: 0.15, bezelWidth: 0.15,
-    hasNotch: true, isLaptop: true
+    width: 9.77, height: 6.13, depth: 0.37,
+    borderRadius: 0.12,
+    bezelWidth: 0.1,
+    bezelDepth: 0.02,
+    screenToBody: 0.87,
+    hasNotch: true, 
+    isLaptop: true
   }
 }
 
@@ -65,35 +94,6 @@ const colorPresets: Record<ColorPreset, { primary: string; secondary: string; na
   green: { primary: '#10B981', secondary: '#059669', name: 'Green' },
   orange: { primary: '#F97316', secondary: '#EA580C', name: 'Orange' },
   dark: { primary: '#1F2937', secondary: '#111827', name: 'Dark' }
-}
-
-// Screen content with uploaded image
-function ScreenContent({ 
-  texture, 
-  width, 
-  height, 
-  depth 
-}: { 
-  texture: THREE.Texture | null
-  width: number
-  height: number
-  depth: number
-}) {
-  const materialRef = useRef<THREE.MeshBasicMaterial>(null)
-  
-  useEffect(() => {
-    if (materialRef.current && texture) {
-      materialRef.current.map = texture
-      materialRef.current.needsUpdate = true
-    }
-  }, [texture])
-
-  return (
-    <mesh position={[0, 0, depth / 2 + 0.002]}>
-      <planeGeometry args={[width, height]} />
-      <meshBasicMaterial ref={materialRef} color={texture ? undefined : "#1a1a2e"} />
-    </mesh>
-  )
 }
 
 // 3D Device Component
@@ -112,11 +112,12 @@ function Device3D({
   
   const screenWidth = config.width - config.bezelWidth * 2
   const screenHeight = config.height - config.bezelWidth * 2
+  const frameDepth = config.bezelDepth || 0.02
 
   // Animation state
   const animState = useRef({
     rotationY: 0,
-    rotationX: 0.1,
+    rotationX: 0.08,
     positionY: 0
   })
 
@@ -129,21 +130,21 @@ function Device3D({
       switch (animation) {
         case 'rotate':
           animState.current.rotationY += delta * 0.5
-          animState.current.rotationX = Math.sin(t * 0.3) * 0.1 + 0.15
+          animState.current.rotationX = Math.sin(t * 0.3) * 0.08 + 0.08
           break
         case 'float':
-          animState.current.rotationY = Math.sin(t * 0.3) * 0.3
-          animState.current.positionY = Math.sin(t * 0.6) * 0.1
-          animState.current.rotationX = Math.sin(t * 0.4) * 0.08
+          animState.current.rotationY = Math.sin(t * 0.3) * 0.25
+          animState.current.positionY = Math.sin(t * 0.6) * 0.08
+          animState.current.rotationX = Math.sin(t * 0.4) * 0.06
           break
         case 'tilt':
-          animState.current.rotationY = Math.sin(t * 0.4) * 0.4
-          animState.current.rotationX = Math.sin(t * 0.5) * 0.2
+          animState.current.rotationY = Math.sin(t * 0.4) * 0.35
+          animState.current.rotationX = Math.sin(t * 0.5) * 0.15
           break
         case 'reveal':
           animState.current.rotationY = THREE.MathUtils.lerp(
             animState.current.rotationY,
-            Math.sin(t * 0.3) * 0.5,
+            Math.sin(t * 0.3) * 0.4,
             0.02
           )
           break
@@ -172,38 +173,60 @@ function Device3D({
 
   return (
     <group ref={groupRef}>
-      {/* Main device body */}
+      {/* Main device body - Titanium frame */}
       <RoundedBox 
         args={[config.width, config.height, config.depth]} 
         radius={config.borderRadius}
         smoothness={4}
       >
         <meshPhysicalMaterial 
-          color="#1a1a1a"
-          metalness={0.9}
-          roughness={0.15}
-          clearcoat={0.8}
-          clearcoatRoughness={0.1}
-          envMapIntensity={2}
+          color="#2a2a2a"
+          metalness={0.95}
+          roughness={0.1}
+          clearcoat={1}
+          clearcoatRoughness={0.05}
+          envMapIntensity={1.5}
         />
       </RoundedBox>
 
-      {/* Screen bezel */}
-      <mesh position={[0, 0, config.depth / 2 + 0.001]}>
-        <planeGeometry args={[screenWidth + 0.02, screenHeight + 0.02]} />
-        <meshBasicMaterial color="#000000" />
+      {/* Back glass panel */}
+      <mesh position={[0, 0, -config.depth / 2 + 0.001]}>
+        <planeGeometry args={[config.width - 0.02, config.height - 0.02]} />
+        <meshPhysicalMaterial 
+          color="#1a1a1a"
+          metalness={0.1}
+          roughness={0.05}
+          clearcoat={1}
+          clearcoatRoughness={0}
+        />
       </mesh>
 
-      {/* Screen with texture */}
-      <ScreenContent 
-        texture={texture}
-        width={screenWidth}
-        height={screenHeight}
-        depth={config.depth}
-      />
+      {/* Front frame (screen bezel) */}
+      <RoundedBox 
+        args={[config.width - 0.01, config.height - 0.01, config.depth - 0.01]} 
+        radius={config.borderRadius - 0.02}
+        smoothness={4}
+        position={[0, 0, 0.005]}
+      >
+        <meshPhysicalMaterial 
+          color="#0a0a0a"
+          metalness={0}
+          roughness={0.9}
+        />
+      </RoundedBox>
 
-      {/* Screen glass */}
-      <mesh position={[0, 0, config.depth / 2 + 0.003]}>
+      {/* Screen */}
+      <mesh position={[0, 0, config.depth / 2 - 0.005]}>
+        <planeGeometry args={[screenWidth, screenHeight]} />
+        {texture ? (
+          <meshBasicMaterial map={texture} />
+        ) : (
+          <meshBasicMaterial color="#1a1a2e" />
+        )}
+      </mesh>
+
+      {/* Screen glass overlay */}
+      <mesh position={[0, 0, config.depth / 2 - 0.003]}>
         <planeGeometry args={[screenWidth, screenHeight]} />
         <meshPhysicalMaterial 
           color="#ffffff"
@@ -211,60 +234,168 @@ function Device3D({
           opacity={0.02}
           metalness={1}
           roughness={0}
+          clearcoat={1}
         />
       </mesh>
 
       {/* Dynamic Island */}
       {config.hasDynamicIsland && (
-        <mesh position={[0, config.height / 2 - 0.45, config.depth / 2 + 0.004]}>
-          <capsuleGeometry args={[0.1, 0.42, 8, 16]} />
-          <meshBasicMaterial color="#000000" />
-        </mesh>
+        <group position={[0, config.height / 2 - 0.35, config.depth / 2]}>
+          <mesh>
+            <capsuleGeometry args={[0.08, 0.35, 8, 16]} />
+            <meshBasicMaterial color="#000000" />
+          </mesh>
+        </group>
       )}
 
       {/* Notch */}
       {config.hasNotch && !config.hasDynamicIsland && (
-        <mesh position={[0, config.height / 2 - 0.18, config.depth / 2 + 0.004]}>
-          <RoundedBox args={[0.9, 0.22, 0.01]} radius={0.08}>
+        <mesh position={[0, config.height / 2 - 0.15, config.depth / 2]}>
+          <RoundedBox args={[0.85, 0.18, 0.01]} radius={0.06}>
             <meshBasicMaterial color="#000000" />
           </RoundedBox>
         </mesh>
       )}
 
-      {/* Camera module */}
+      {/* Camera module for iPhone Pro */}
       {config.cameraModule === 'pro' && (
-        <group position={[-config.width / 2 + 0.4, config.height / 2 - 0.45, -config.depth / 2 - 0.02]}>
-          <RoundedBox args={[0.55, 0.55, 0.06]} radius={0.12}>
-            <meshPhysicalMaterial color="#2a2a2a" metalness={0.95} roughness={0.1} />
+        <group position={[-config.width / 2 + (config.cameraSize || 0.48) / 2 + 0.12, config.height / 2 - (config.cameraSize || 0.48) / 2 - 0.18, -config.depth / 2]}>
+          {/* Camera housing */}
+          <RoundedBox 
+            args={[config.cameraSize || 0.48, config.cameraSize || 0.48, 0.04]} 
+            radius={0.1}
+          >
+            <meshPhysicalMaterial 
+              color="#1f1f1f"
+              metalness={0.9}
+              roughness={0.15}
+              clearcoat={0.5}
+            />
           </RoundedBox>
-          {[[-0.12, 0.12], [0.12, 0.12], [-0.12, -0.12]].map((pos, i) => (
-            <group key={i} position={[pos[0], pos[1], 0.03]}>
+          
+          {/* Camera lenses */}
+          {[[-0.1, 0.1], [0.1, 0.1], [-0.1, -0.1]].map((pos, i) => (
+            <group key={i} position={[pos[0], pos[1], 0.02]}>
+              {/* Outer ring */}
               <mesh>
-                <cylinderGeometry args={[0.09, 0.09, 0.03, 32]} />
-                <meshPhysicalMaterial color="#1a1a1a" metalness={0.9} roughness={0.2} />
+                <cylinderGeometry args={[0.08, 0.08, 0.025, 32]} />
+                <meshPhysicalMaterial 
+                  color="#1a1a1a" 
+                  metalness={0.95} 
+                  roughness={0.1}
+                  clearcoat={0.5}
+                />
+              </mesh>
+              {/* Inner lens */}
+              <mesh position={[0, 0, 0.015]}>
+                <cylinderGeometry args={[0.055, 0.055, 0.01, 32]} />
+                <meshPhysicalMaterial 
+                  color="#0d0d0d" 
+                  metalness={1} 
+                  roughness={0}
+                  clearcoat={1}
+                />
+              </mesh>
+              {/* Lens reflection */}
+              <mesh position={[0, 0, 0.021]}>
+                <cylinderGeometry args={[0.04, 0.04, 0.002, 32]} />
+                <meshPhysicalMaterial 
+                  color="#1a1a3a"
+                  metalness={0.9}
+                  roughness={0}
+                  transparent
+                  opacity={0.8}
+                />
+              </mesh>
+            </group>
+          ))}
+          
+          {/* Flash */}
+          <mesh position={[0.1, -0.1, 0.025]}>
+            <cylinderGeometry args={[0.035, 0.035, 0.01, 32]} />
+            <meshPhysicalMaterial 
+              color="#fffde7"
+              emissive="#fffde7"
+              emissiveIntensity={0.3}
+              metalness={0.5}
+              roughness={0.2}
+            />
+          </mesh>
+        </group>
+      )}
+
+      {/* Camera module for Pixel */}
+      {config.cameraModule === 'pixel' && (
+        <group position={[0, config.height / 2 - 0.6, -config.depth / 2]}>
+          <RoundedBox args={[config.width - 0.15, 0.95, 0.03]} radius={0.12}>
+            <meshPhysicalMaterial 
+              color="#1a1a1a"
+              metalness={0.8}
+              roughness={0.2}
+            />
+          </RoundedBox>
+          {[[0, 0.25], [0, 0], [0, -0.25]].map((pos, i) => (
+            <group key={i} position={[pos[0], pos[1], 0.02]}>
+              <mesh>
+                <cylinderGeometry args={[0.08, 0.08, 0.02, 32]} />
+                <meshPhysicalMaterial color="#0d0d0d" metalness={0.95} roughness={0.1} />
               </mesh>
             </group>
           ))}
         </group>
       )}
 
-      {/* Side buttons */}
-      <mesh position={[-config.width / 2 - 0.015, 0.6, 0]}>
-        <boxGeometry args={[0.025, 0.35, 0.06]} />
-        <meshPhysicalMaterial color="#3a3a3a" metalness={0.9} roughness={0.2} />
+      {/* Camera module for Samsung */}
+      {config.cameraModule === 'samsung' && (
+        <group position={[0, config.height / 2 - 0.35, -config.depth / 2]}>
+          {[[0.25, 0], [0, 0], [-0.25, 0]].map((pos, i) => (
+            <group key={i} position={[pos[0], pos[1], 0.01]}>
+              <mesh>
+                <cylinderGeometry args={[0.09, 0.09, 0.025, 32]} />
+                <meshPhysicalMaterial color="#1a1a1a" metalness={0.9} roughness={0.15} />
+              </mesh>
+              <mesh position={[0, 0, 0.015]}>
+                <cylinderGeometry args={[0.06, 0.06, 0.01, 32]} />
+                <meshPhysicalMaterial color="#0a0a0a" metalness={1} roughness={0} />
+              </mesh>
+            </group>
+          ))}
+        </group>
+      )}
+
+      {/* Side buttons - Volume */}
+      <mesh position={[-config.width / 2 - 0.012, 0.5, 0]}>
+        <boxGeometry args={[0.02, 0.28, 0.04]} />
+        <meshPhysicalMaterial color="#3a3a3a" metalness={0.9} roughness={0.15} />
       </mesh>
-      <mesh position={[-config.width / 2 - 0.015, 0.05, 0]}>
-        <boxGeometry args={[0.025, 0.2, 0.06]} />
-        <meshPhysicalMaterial color="#3a3a3a" metalness={0.9} roughness={0.2} />
+      <mesh position={[-config.width / 2 - 0.012, 0.08, 0]}>
+        <boxGeometry args={[0.02, 0.14, 0.04]} />
+        <meshPhysicalMaterial color="#3a3a3a" metalness={0.9} roughness={0.15} />
       </mesh>
-      <mesh position={[-config.width / 2 - 0.015, -0.25, 0]}>
-        <boxGeometry args={[0.025, 0.2, 0.06]} />
-        <meshPhysicalMaterial color="#3a3a3a" metalness={0.9} roughness={0.2} />
+      <mesh position={[-config.width / 2 - 0.012, -0.15, 0]}>
+        <boxGeometry args={[0.02, 0.14, 0.04]} />
+        <meshPhysicalMaterial color="#3a3a3a" metalness={0.9} roughness={0.15} />
       </mesh>
-      <mesh position={[config.width / 2 + 0.015, 0.3, 0]}>
-        <boxGeometry args={[0.025, 0.5, 0.06]} />
-        <meshPhysicalMaterial color="#3a3a3a" metalness={0.9} roughness={0.2} />
+
+      {/* Side button - Power */}
+      <mesh position={[config.width / 2 + 0.012, 0.25, 0]}>
+        <boxGeometry args={[0.02, 0.4, 0.04]} />
+        <meshPhysicalMaterial color="#3a3a3a" metalness={0.9} roughness={0.15} />
       </mesh>
+
+      {/* USB-C port */}
+      <mesh position={[0, -config.height / 2, 0]}>
+        <boxGeometry args={[0.2, 0.015, 0.04]} />
+        <meshPhysicalMaterial color="#2a2a2a" metalness={0.9} roughness={0.1} />
+      </mesh>
+
+      {/* Speaker grills */}
+      {[-0.35, -0.28, -0.21, 0.21, 0.28, 0.35].map((x, i) => (
+        <mesh key={i} position={[x, -config.height / 2 + 0.02, config.depth / 2 - 0.01]}>
+          <boxGeometry args={[0.02, 0.08, 0.005]} />
+          <meshBasicMaterial color="#1a1a1a" />
+        </mesh>
+      ))}
     </group>
   )
 }
