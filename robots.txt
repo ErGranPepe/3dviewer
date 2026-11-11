@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://parrilla-neuronal.vercel.app/sitemap.xml
