@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://ergranpepe.github.io/3dviewer/sitemap.xml
