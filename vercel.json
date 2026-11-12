@@ -1,0 +1,32 @@
+{
+ "cleanUrls": true,
+ "headers": [
+  {
+   "source": "/a/(.*)",
+   "headers": [
+    {
+     "key": "Cache-Control",
+     "value": "public, max-age=31536000, immutable"
+    }
+   ]
+  },
+  {
+   "source": "/t/(.*)",
+   "headers": [
+    {
+     "key": "Cache-Control",
+     "value": "public, max-age=31536000, immutable"
+    }
+   ]
+  },
+  {
+   "source": "/config.js",
+   "headers": [
+    {
+     "key": "Cache-Control",
+     "value": "public, max-age=300"
+    }
+   ]
+  }
+ ]
+}
