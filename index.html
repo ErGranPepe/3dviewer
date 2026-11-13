@@ -12,9 +12,9 @@
 <meta property="og:url" content="https://ergranpepe.github.io/3dviewer/"><meta property="og:image" content="https://ergranpepe.github.io/3dviewer/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Parrilla Neuronal — Simulador de carreras gratis en el navegador con circuitos reales"><meta name="twitter:description" content="Simulador de carreras de monoplazas gratis y sin descargas: 16 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada."><meta name="twitter:image" content="https://ergranpepe.github.io/3dviewer/og.jpg">
 <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="manifest" href="manifest.webmanifest">
-<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.13083d7184.js" as="script"><link rel="preload" href="a/data.40d9e4a62d.js" as="script">
+<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.76e7f61f1c.js" as="script"><link rel="preload" href="a/data.92d3bdb2db.js" as="script">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "VideoGame", "name": "Parrilla Neuronal", "url": "https://ergranpepe.github.io/3dviewer/", "description": "Simulador de carreras de monoplazas gratis y sin descargas: 16 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada.", "inLanguage": "es", "genre": ["Carreras", "Simulación", "Estrategia"], "gamePlatform": "Navegador web", "applicationCategory": "Game", "operatingSystem": "Cualquiera", "image": "https://ergranpepe.github.io/3dviewer/og.jpg", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}}</script>
-<script>(function(){var B="13083d718440d9";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0)location.replace(location.pathname+"?v="+v.b)}).catch(function(){})}catch(e){}})()</script>
+<script>(function(){var B="76e7f61f1c92d3";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0)location.replace(location.pathname+"?v="+v.b)}).catch(function(){})}catch(e){}})()</script>
 
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -313,6 +313,7 @@ html.fslock,html.fslock body{overflow:hidden!important}
   #stage.fsx .onb,#stage:fullscreen .onb{transform:scale(.78);transform-origin:100% 100%;right:56px}#stage.fsx .titlecard h3,#stage:fullscreen .titlecard h3{font-size:30px}}
 #stage.fsx.rot .f1tower{transform:scale(.74);transform-origin:0 0;top:40px}#stage.fsx.rot .f1tower .r:nth-child(n+11){display:none}#stage.fsx.rot .f1tower .r:nth-child(n+7):nth-child(-n+10){display:grid}
 #stage.fsx.rot .onb{transform:scale(.78);transform-origin:100% 100%;right:56px}#stage.fsx.rot .mini{display:block}
+.geo-attr{position:absolute;left:8px;bottom:6px;z-index:25;font:600 10px/1.3 Barlow,Arial,sans-serif;color:#fff;text-shadow:0 1px 2px #000,0 0 6px rgba(0,0,0,.6);pointer-events:none;max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.geo-attr b{font:700 13px Arial,sans-serif;letter-spacing:-.2px;margin-right:4px}
 </style>
 <style>#loader{position:fixed;inset:0;z-index:100;background:#0c0f12;display:grid;place-items:center;transition:opacity .45s}
 #loader.out{opacity:0;pointer-events:none}
@@ -464,6 +465,8 @@ html.fslock,html.fslock body{overflow:hidden!important}
           <label class="full">Voz del narrador<span class="vrow"><select id="rVoice"><option value="">Automática (la más natural disponible)</option></select><button type="button" id="rVoiceTest" class="mini-btn">Probar</button></span><small id="voiceHint"></small></label>
           <label>Vista<select id="rView"><option value="3d">3D televisión</option><option value="2d">Mapa 2D</option></select></label>
           <label>Calidad 3D<select id="rQual"><option value="ultra">Ultra (profundidad de campo)</option><option value="high">Alta</option><option value="med">Media (móviles)</option><option value="low">Ligera</option></select></label>
+          <label>Mundo real (Google 3D)<select id="rGeo"><option value="1">Activado</option><option value="0">Desactivado</option></select></label>
+          <label>Clave de Google Maps o Cesium ion<input id="rGkey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza… (Google) o eyJ… (Cesium ion)"><small id="geoHint">Edificios, árboles y terreno reales de Google bajo la pista. Necesita una clave propia.</small></label>
           <div class="full" id="driveOpts" hidden style="display:grid;gap:8px 10px;grid-template-columns:1fr 1fr">
             <label>Tu equipo<select id="pTeam"></select></label>
             <label>Rivales<select id="pRivals"><option value="19">Parrilla completa</option><option value="9">10 rivales</option><option value="0">Solo (contrarreloj)</option></select></label>
@@ -588,8 +591,8 @@ html.fslock,html.fslock body{overflow:hidden!important}
 </div>
 <script src="config.js"></script>
 <script src="a/three.04d0db4a9b.js"></script>
-<script src="a/data.40d9e4a62d.js"></script>
-<script src="a/app.13083d7184.js"></script>
+<script src="a/data.92d3bdb2db.js"></script>
+<script src="a/app.76e7f61f1c.js"></script>
 <script src="a/site.d8caeb0496.js"></script>
 </body>
 </html>
