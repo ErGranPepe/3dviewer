@@ -1,0 +1,18 @@
+name: osm-fetch
+on:
+  push:
+    branches: [osm-fetch]
+permissions:
+  contents: write
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/fetch_osm.py
+      - name: Publicar datos en la rama osm-out
+        run: |
+          cd out && git init -q && git checkout -q -b osm-out && git add -A
+          git -c user.name=osm-bot -c user.email=osm-bot@users.noreply.github.com commit -q -m "Datos OSM (ODbL) y relieve Terrarium (AWS Open Data)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" osm-out
