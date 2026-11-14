@@ -1,0 +1,1332 @@
+{
+ "tex": [],
+ "models": [
+  {
+   "id": "anthurium_botany_01",
+   "tags": [
+    "nature",
+    "bush",
+    "leaf",
+    "shrub",
+    "leaves",
+    "forest",
+    "plant",
+    "green",
+    "jungle",
+    "outdoor",
+    "botany"
+   ],
+   "cats": [
+    "plants",
+    "nature",
+    "collection: the_shed",
+    "collection: smugglers_cove"
+   ],
+   "dir": "models/anthurium_botany_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "barrel_stove",
+   "tags": [
+    "urban",
+    "city",
+    "night",
+    "fire",
+    "heating",
+    "outdoor",
+    "barrel"
+   ],
+   "cats": [
+    "industrial",
+    "containers",
+    "collection: hidden_alley"
+   ],
+   "dir": "models/barrel_stove",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "bolt_action_rifle_7_62",
+   "tags": [
+    "vintage",
+    "worn",
+    "old",
+    "weathered",
+    "aged",
+    "gun",
+    "scope",
+    "bullet"
+   ],
+   "cats": [
+    "collection: project_lighthouse",
+    "weapons",
+    "firearms"
+   ],
+   "dir": "models/bolt_action_rifle_7_62",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "calathea_orbifolia_01",
+   "tags": [
+    "nature",
+    "bush",
+    "leaf",
+    "shrub",
+    "green",
+    "leaves",
+    "forest",
+    "plant",
+    "jungle",
+    "outdoor",
+    "botany",
+    "decorative"
+   ],
+   "cats": [
+    "plants",
+    "nature",
+    "ground cover",
+    "collection: smugglers_cove"
+   ],
+   "dir": "models/calathea_orbifolia_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "celandine_01",
+   "tags": [
+    "field",
+    "nature",
+    "green",
+    "shrub",
+    "plant",
+    "outdoor",
+    "leaf",
+    "botany",
+    "leaves",
+    "meadow",
+    "floral",
+    "flower",
+    "small",
+    "natural",
+    "celandine"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "ground cover",
+    "flowers"
+   ],
+   "dir": "models/celandine_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "dandelion_01",
+   "tags": [
+    "plant",
+    "nature",
+    "green",
+    "shrub",
+    "outdoor",
+    "leaf",
+    "bush",
+    "botany",
+    "field",
+    "flower",
+    "meadow",
+    "foliage",
+    "small",
+    "floral"
+   ],
+   "cats": [
+    "plants",
+    "flowers",
+    "nature",
+    "ground cover"
+   ],
+   "dir": "models/dandelion_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "didelta_spinosa",
+   "tags": [
+    "green",
+    "dessert",
+    "shrub",
+    "leaves",
+    "nature",
+    "botany",
+    "natural",
+    "bush",
+    "foliage",
+    "leaf",
+    "flower"
+   ],
+   "cats": [
+    "plants",
+    "collection: namaqualand"
+   ],
+   "dir": "models/didelta_spinosa",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "fern_02",
+   "tags": [
+    "plant",
+    "fern",
+    "foliage",
+    "jungle",
+    "shrub",
+    "bush",
+    "leaf",
+    "leaves",
+    "green",
+    "nature",
+    "forest",
+    "outdoor"
+   ],
+   "cats": [
+    "plants",
+    "nature",
+    "collection: smugglers_cove",
+    "collection: pine_forest"
+   ],
+   "dir": "models/fern_02",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "fire_alarm",
+   "tags": [
+    "alarm",
+    "emergency",
+    "red",
+    "safety",
+    "firefighting"
+   ],
+   "cats": [
+    "collection: project_lighthouse",
+    "industrial",
+    "office",
+    "wall decoration"
+   ],
+   "dir": "models/fire_alarm",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "fire_hydrant",
+   "tags": [
+    "city",
+    "urban",
+    "street",
+    "road",
+    "emergency",
+    "valve",
+    "extinguisher",
+    "utility",
+    "municipal",
+    "infrastructure"
+   ],
+   "cats": [
+    "industrial",
+    "structures",
+    "collection: hidden_alley"
+   ],
+   "dir": "models/fire_hydrant",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "gallinera_chair",
+   "tags": [
+    "vintage",
+    "antique",
+    "philippines",
+    "traditional",
+    "old",
+    "wooden"
+   ],
+   "cats": [
+    "furniture",
+    "seating"
+   ],
+   "dir": "models/gallinera_chair",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "gallinera_table",
+   "tags": [
+    "vintage",
+    "antique",
+    "philippines",
+    "traditional",
+    "old",
+    "wooden"
+   ],
+   "cats": [
+    "furniture",
+    "table"
+   ],
+   "dir": "models/gallinera_table",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "grass_bermuda_01",
+   "tags": [
+    "plant",
+    "grass",
+    "nature",
+    "shrub",
+    "field",
+    "foliage",
+    "natural",
+    "outdoor",
+    "botany",
+    "small",
+    "green",
+    "bermuda"
+   ],
+   "cats": [
+    "grass",
+    "nature",
+    "ground cover",
+    "collection: smugglers_cove"
+   ],
+   "dir": "models/grass_bermuda_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "grass_medium_01",
+   "tags": [
+    "plant",
+    "grass",
+    "nature",
+    "green",
+    "shrub",
+    "outdoor",
+    "field",
+    "meadow",
+    "natural",
+    "foliage",
+    "small",
+    "botany"
+   ],
+   "cats": [
+    "grass",
+    "nature",
+    "ground cover",
+    "collection: pine_forest"
+   ],
+   "dir": "models/grass_medium_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "grass_medium_02",
+   "tags": [
+    "grass",
+    "field",
+    "meadow",
+    "shrub",
+    "small",
+    "green",
+    "nature",
+    "plant",
+    "foliage",
+    "natural",
+    "geometry nodes",
+    "ground cover",
+    "vegetation",
+    "undergrowth",
+    "ground",
+    "lawn",
+    "environment",
+    "pasture"
+   ],
+   "cats": [
+    "nature",
+    "ground cover",
+    "grass",
+    "plants",
+    "collection: verdant_trail"
+   ],
+   "dir": "models/grass_medium_02",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "hatchet",
+   "tags": [
+    "weapon",
+    "axe",
+    "lumber",
+    "hatchet",
+    "chopping",
+    "woodwork",
+    "camping",
+    "forestry",
+    "hiking",
+    "firewood",
+    "hand tool"
+   ],
+   "cats": [
+    "tools"
+   ],
+   "dir": "models/hatchet",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "korean_fire_extinguisher_01",
+   "tags": [
+    "fire",
+    "saftey",
+    "fireman",
+    "extinguisher",
+    "emergency",
+    "equipment",
+    "red",
+    "firefighting",
+    "asian",
+    "utility",
+    "infrastructure"
+   ],
+   "cats": [
+    "industrial",
+    "props"
+   ],
+   "dir": "models/korean_fire_extinguisher_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "mantel_clock_01",
+   "tags": [
+    "vintage",
+    "antique",
+    "old",
+    "clock",
+    "time",
+    "wooden",
+    "shelf",
+    "mantel",
+    "fireplace",
+    "ornate"
+   ],
+   "cats": [
+    "decorative",
+    "appliances",
+    "rigged"
+   ],
+   "dir": "models/mantel_clock_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "medical_box",
+   "tags": [
+    "worn",
+    "metal",
+    "green",
+    "medical",
+    "first aid",
+    "storage",
+    "scratched"
+   ],
+   "cats": [
+    "collection: project_lighthouse",
+    "props",
+    "containers"
+   ],
+   "dir": "models/medical_box",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "modular_electricity_poles",
+   "tags": [
+    "urban",
+    "infrastructure",
+    "city",
+    "road",
+    "utility",
+    "street",
+    "electrical",
+    "power",
+    "circuit",
+    "transformer",
+    "junction box",
+    "cables"
+   ],
+   "cats": [
+    "industrial",
+    "structures",
+    "collection: hidden_alley"
+   ],
+   "dir": "models/modular_electricity_poles",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "modular_fire_escape",
+   "tags": [
+    "modular",
+    "pieces",
+    "emergency",
+    "building",
+    "urban",
+    "evacuation",
+    "safety",
+    "fire egress",
+    "stairs",
+    "utility",
+    "infrastructure"
+   ],
+   "cats": [
+    "industrial",
+    "structures",
+    "collection: hidden_alley"
+   ],
+   "dir": "models/modular_fire_escape",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "modular_street_seating",
+   "tags": [
+    "chair",
+    "outdoor",
+    "urban",
+    "cityscape",
+    "contemporary",
+    "bench",
+    "city",
+    "infrastructure"
+   ],
+   "cats": [
+    "furniture",
+    "seating",
+    "collection: hidden_alley"
+   ],
+   "dir": "models/modular_street_seating",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "moss_01",
+   "tags": [
+    "moss",
+    "ground cover",
+    "forest",
+    "woodland",
+    "foliage",
+    "nature",
+    "plant",
+    "natural",
+    "botany",
+    "small",
+    "geometry nodes",
+    "outdoor",
+    "undergrowth",
+    "vegetation",
+    "shrubs"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "ground cover",
+    "collection: pine_forest"
+   ],
+   "dir": "models/moss_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "nettle_plant",
+   "tags": [
+    "nettle",
+    "plant",
+    "green",
+    "nature",
+    "shrub",
+    "outdoor",
+    "leaf",
+    "bush",
+    "botany",
+    "leaves",
+    "forest",
+    "jungle",
+    "foliage",
+    "field",
+    "meadow",
+    "natural",
+    "floral"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "ground cover",
+    "collection: the_shed"
+   ],
+   "dir": "models/nettle_plant",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "othonna_cerarioides",
+   "tags": [
+    "karoo",
+    "south africa",
+    "succulent",
+    "bush",
+    "shrub",
+    "botany",
+    "green",
+    "leaf"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "trees",
+    "collection: namaqualand"
+   ],
+   "dir": "models/othonna_cerarioides",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "outdoor_table_chair_set_01",
+   "tags": [
+    "outdoor",
+    "foldable",
+    "folding",
+    "seating",
+    "coffee",
+    "diner",
+    "street",
+    "urban",
+    "deli",
+    "wood",
+    "city",
+    "cafe"
+   ],
+   "cats": [
+    "furniture",
+    "seating"
+   ],
+   "dir": "models/outdoor_table_chair_set_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "pachira_aquatica_01",
+   "tags": [
+    "nature",
+    "plant",
+    "shrub",
+    "leaves",
+    "forest",
+    "jungle",
+    "outdoor",
+    "bush",
+    "green",
+    "leaf",
+    "botany"
+   ],
+   "cats": [
+    "plants",
+    "nature",
+    "collection: smugglers_cove"
+   ],
+   "dir": "models/pachira_aquatica_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "periwinkle_plant",
+   "tags": [
+    "small flowers",
+    "shrub",
+    "bush",
+    "spring",
+    "botanical",
+    "garden plant",
+    "foliage",
+    "leaf",
+    "leaves",
+    "meadow",
+    "wildflower"
+   ],
+   "cats": [
+    "nature",
+    "ground cover",
+    "plants",
+    "flowers"
+   ],
+   "dir": "models/periwinkle_plant",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "quiver_tree_01",
+   "tags": [
+    "karoo",
+    "south africa",
+    "desert",
+    "succulent",
+    "aloe"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "trees",
+    "collection: namaqualand"
+   ],
+   "dir": "models/quiver_tree_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "quiver_tree_02",
+   "tags": [
+    "south africa",
+    "karoo",
+    "succulent",
+    "aloe"
+   ],
+   "cats": [
+    "nature",
+    "trees",
+    "plants",
+    "collection: namaqualand"
+   ],
+   "dir": "models/quiver_tree_02",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "rock_moss_set_01",
+   "tags": [
+    "rocks",
+    "outdoor",
+    "stones",
+    "pebbles",
+    "rock",
+    "dirt"
+   ],
+   "cats": [
+    "rocks",
+    "nature",
+    "collection: pine_forest"
+   ],
+   "dir": "models/rock_moss_set_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "rock_moss_set_02",
+   "tags": [
+    "rocks",
+    "outdoor",
+    "stones",
+    "pebbles",
+    "rock",
+    "dirt"
+   ],
+   "cats": [
+    "rocks",
+    "nature",
+    "collection: pine_forest"
+   ],
+   "dir": "models/rock_moss_set_02",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "root_cluster_01",
+   "tags": [
+    "root",
+    "tree",
+    "forest",
+    "foliage",
+    "bark",
+    "nature",
+    "plant",
+    "leaves",
+    "environment"
+   ],
+   "cats": [
+    "nature",
+    "collection: verdant_trail",
+    "plants",
+    "ground cover"
+   ],
+   "dir": "models/root_cluster_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "scandinavian_masonry_heater",
+   "tags": [
+    "heater",
+    "home heating",
+    "furnace",
+    "fireplace",
+    "wood stove",
+    "central heating"
+   ],
+   "cats": [
+    "appliances"
+   ],
+   "dir": "models/scandinavian_masonry_heater",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "searsia_burchellii",
+   "tags": [
+    "karoo",
+    "bush",
+    "shrub",
+    "large",
+    "dry",
+    "south africa"
+   ],
+   "cats": [
+    "nature",
+    "trees",
+    "collection: namaqualand"
+   ],
+   "dir": "models/searsia_burchellii",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "searsia_lucida",
+   "tags": [
+    "karoo",
+    "bush",
+    "shrub",
+    "dry",
+    "stick",
+    "botany",
+    "south africa"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "trees",
+    "collection: namaqualand"
+   ],
+   "dir": "models/searsia_lucida",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "service_pistol",
+   "tags": [
+    "vintage",
+    "semi-automatic",
+    "metal",
+    "cold war",
+    "bullet",
+    "gun",
+    "handgun"
+   ],
+   "cats": [
+    "collection: project_lighthouse",
+    "props",
+    "weapons",
+    "firearms"
+   ],
+   "dir": "models/service_pistol",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "shrub_01",
+   "tags": [
+    "plant",
+    "foliage",
+    "nature",
+    "forest",
+    "leaf",
+    "botany",
+    "green",
+    "leaves",
+    "bush",
+    "shrub",
+    "small",
+    "meadow",
+    "flower",
+    "floral",
+    "ground cover",
+    "garden",
+    "environment",
+    "ageratina adenophora"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "ground cover",
+    "flowers",
+    "collection: verdant_trail"
+   ],
+   "dir": "models/shrub_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "shrub_02",
+   "tags": [
+    "sapling",
+    "vegetation",
+    "environment",
+    "ground cover",
+    "foliage",
+    "forest",
+    "leaves",
+    "bush",
+    "jungle",
+    "nature",
+    "leaf",
+    "plant",
+    "green"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "ground cover",
+    "collection: verdant_trail"
+   ],
+   "dir": "models/shrub_02",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "shrub_03",
+   "tags": [
+    "meadow",
+    "field",
+    "shrub",
+    "botany",
+    "green",
+    "nature",
+    "plant",
+    "leaf",
+    "bush",
+    "foliage",
+    "small",
+    "ground cover",
+    "undergrowth",
+    "garden",
+    "flora",
+    "environment",
+    "vegetation"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "ground cover",
+    "collection: verdant_trail"
+   ],
+   "dir": "models/shrub_03",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "shrub_04",
+   "tags": [
+    "plant",
+    "shrub",
+    "bush",
+    "nature",
+    "green",
+    "leaf",
+    "foliage",
+    "ground cover",
+    "vegetation",
+    "undergrowth"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "ground cover",
+    "collection: verdant_trail"
+   ],
+   "dir": "models/shrub_04",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "single_root",
+   "tags": [
+    "roots",
+    "tree",
+    "forest",
+    "natural",
+    "nature",
+    "leaf",
+    "plant",
+    "foliage",
+    "bark",
+    "forest floor",
+    "environment",
+    "woodland"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "ground cover",
+    "collection: verdant_trail"
+   ],
+   "dir": "models/single_root",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "spray_paint_bottles_02",
+   "tags": [
+    "graffiti",
+    "street art",
+    "spray paint",
+    "paint",
+    "urban art"
+   ],
+   "cats": [
+    "industrial",
+    "props",
+    "tools",
+    "collection: hidden_alley"
+   ],
+   "dir": "models/spray_paint_bottles_02",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "stone_fire_pit",
+   "tags": [
+    "outdoor",
+    "garden",
+    "fire",
+    "bbq",
+    "farm",
+    "farmhouse",
+    "landscaping",
+    "patio",
+    "backyard",
+    "entertainment",
+    "relaxation",
+    "stone"
+   ],
+   "cats": [
+    "structures",
+    "buildings",
+    "furniture",
+    "collection: the_shed"
+   ],
+   "dir": "models/stone_fire_pit",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "street_lamp_01",
+   "tags": [
+    "street",
+    "road",
+    "light",
+    "lamppost",
+    "outdoor",
+    "pole",
+    "sidewalk",
+    "night",
+    " urban",
+    "city"
+   ],
+   "cats": [
+    "lighting",
+    "industrial",
+    "collection: hidden_alley"
+   ],
+   "dir": "models/street_lamp_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "street_lamp_02",
+   "tags": [
+    "street",
+    "road",
+    "light",
+    "lamppost",
+    "outdoor",
+    "pole",
+    "sidewalk",
+    "night",
+    "urban",
+    "city"
+   ],
+   "cats": [
+    "lighting",
+    "industrial",
+    "collection: hidden_alley"
+   ],
+   "dir": "models/street_lamp_02",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "street_rat",
+   "tags": [
+    "rat",
+    "mouse",
+    "animal",
+    "vermin",
+    "rodent",
+    "alleyway",
+    "pest",
+    "feral"
+   ],
+   "cats": [
+    "nature",
+    "creature",
+    "collection: hidden_alley"
+   ],
+   "dir": "models/street_rat",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "trashbag",
+   "tags": [
+    "garbage bag",
+    "refuse",
+    "street waste",
+    "trash",
+    "street",
+    "scrapyard",
+    "junkyard",
+    "garbage",
+    "bin",
+    "dumpster",
+    "disposal",
+    "litter",
+    "rubbish"
+   ],
+   "cats": [
+    "collection: project_lighthouse",
+    "props"
+   ],
+   "dir": "models/trashbag",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "water_manhole_cover",
+   "tags": [
+    "infrastructure",
+    "drainage",
+    "utility",
+    "manhole",
+    "underground",
+    "maintenance",
+    "access cover",
+    "sewer",
+    "city",
+    "drain",
+    "road",
+    "street"
+   ],
+   "cats": [
+    "industrial",
+    "structures",
+    "collection: hidden_alley"
+   ],
+   "dir": "models/water_manhole_cover",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "weed_plant_02",
+   "tags": [
+    "nature",
+    "natural",
+    "bush",
+    "shrub",
+    "green",
+    "plant",
+    "outdoor",
+    "leaf",
+    "botany",
+    "leaves",
+    "forest",
+    "jungle",
+    "foliage",
+    "small",
+    "field",
+    "meadow"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "ground cover",
+    "collection: the_shed"
+   ],
+   "dir": "models/weed_plant_02",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "wheelchair_01",
+   "tags": [
+    "infirmary",
+    "hospital",
+    "wheelchair",
+    "medical",
+    "clinic",
+    "mobilityaid",
+    "foldingwheelchair"
+   ],
+   "cats": [
+    "props"
+   ],
+   "dir": "models/wheelchair_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "wild_rooibos_bush",
+   "tags": [
+    "karoo",
+    "south africa",
+    "desert",
+    "dried",
+    "dry",
+    "shrub"
+   ],
+   "cats": [
+    "nature",
+    "plants",
+    "collection: namaqualand"
+   ],
+   "dir": "models/wild_rooibos_bush",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "wooden_axe",
+   "tags": [
+    "tool",
+    "axe",
+    "weapon",
+    "sharp",
+    "lumberjack",
+    "forestry",
+    "forestry tools",
+    "chopping",
+    "gardening",
+    "garden",
+    "firewood",
+    "camping",
+    "survival",
+    "hand tool"
+   ],
+   "cats": [
+    "props"
+   ],
+   "dir": "models/wooden_axe",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "wooden_axe_02",
+   "tags": [
+    "tool",
+    "axe",
+    "weapon",
+    "hatchet",
+    "forestry",
+    "firewood",
+    "camping",
+    "hand tool",
+    "lumber",
+    "survival"
+   ],
+   "cats": [
+    "props"
+   ],
+   "dir": "models/wooden_axe_02",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "wooden_axe_03",
+   "tags": [
+    "forest",
+    "gardening",
+    "garden",
+    "lumberjack",
+    "woodwork",
+    "firewood",
+    "fireman",
+    "saw",
+    "cutting",
+    "chopping"
+   ],
+   "cats": [
+    "props",
+    "tools"
+   ],
+   "dir": "models/wooden_axe_03",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "wooden_display_shelves_01",
+   "tags": [
+    "modern",
+    "wood",
+    "pine",
+    "square",
+    "display",
+    "shelf",
+    "bookshelf"
+   ],
+   "cats": [
+    "furniture",
+    "shelves"
+   ],
+   "dir": "models/wooden_display_shelves_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "GothicCabinet_01",
+   "tags": [
+    "vintage",
+    "wood",
+    "gothic",
+    "furniture",
+    "table",
+    "shelf",
+    "decorative"
+   ],
+   "cats": [
+    "furniture",
+    "shelves"
+   ],
+   "dir": "models/GothicCabinet_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "bench_vice_01",
+   "tags": [
+    "workshop",
+    "garage",
+    "used",
+    "metal",
+    "old",
+    "shed",
+    "woodwork"
+   ],
+   "cats": [
+    "tools",
+    "industrial",
+    "rigged",
+    "collection: the_shed"
+   ],
+   "dir": "models/bench_vice_01",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "binder_notebook",
+   "tags": [
+    "old",
+    "leather",
+    "vintage",
+    "worn",
+    "paper",
+    "pencil",
+    "pen",
+    "journal"
+   ],
+   "cats": [
+    "collection: project_lighthouse",
+    "books",
+    "props"
+   ],
+   "dir": "models/binder_notebook",
+   "src": "Poly Haven (CC0)"
+  },
+  {
+   "id": "binoculars",
+   "tags": [
+    "leather",
+    "strap",
+    "vintage",
+    "antique",
+    "optical"
+   ],
+   "cats": [
+    "collection: project_lighthouse",
+    "props",
+    "tools"
+   ],
+   "dir": "models/binoculars",
+   "src": "Poly Haven (CC0)"
+  }
+ ],
+ "hdri": []
+}
