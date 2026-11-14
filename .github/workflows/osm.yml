@@ -1,4 +1,4 @@
-name: osm-fetch
+name: sat-fetch
 on:
   push:
     branches: [osm-fetch]
@@ -7,12 +7,13 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tools/fetch_osm.py
-      - name: Publicar datos en la rama osm-out
+      - run: pip install pillow
+      - run: python3 tools/fetch_sat.py
+      - name: Publicar en la rama sat-out
         run: |
-          cd out && git init -q && git checkout -q -b osm-out && git add -A
-          git -c user.name=osm-bot -c user.email=osm-bot@users.noreply.github.com commit -q -m "Datos OSM (ODbL) y relieve Terrarium (AWS Open Data)"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" osm-out
+          cd sat && git init -q && git checkout -q -b sat-out && git add -A
+          git -c user.name=sat-bot -c user.email=sat-bot@users.noreply.github.com commit -q -m "Ortofotos con licencia abierta"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" sat-out
