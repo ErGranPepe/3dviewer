@@ -1,4 +1,4 @@
-name: sat-fetch
+name: assets-fetch
 on:
   push:
     branches: [osm-fetch]
@@ -7,13 +7,13 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - run: pip install pillow
-      - run: python3 tools/fetch_sat.py
-      - name: Publicar en la rama sat-out
+      - run: python3 tools/fetch_assets.py
+      - name: Publicar en la rama assets-out
         run: |
-          cd sat && git init -q && git checkout -q -b sat-out && git add -A
-          git -c user.name=sat-bot -c user.email=sat-bot@users.noreply.github.com commit -q -m "Ortofotos con licencia abierta"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" sat-out
+          cd out && git init -q && git checkout -q -b assets-out && git add -A
+          git -c user.name=asset-bot -c user.email=asset-bot@users.noreply.github.com commit -q -m "Texturas y modelos CC0 (ambientCG, Poly Haven)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" assets-out
