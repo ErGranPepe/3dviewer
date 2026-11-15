@@ -1,0 +1,996 @@
+[
+ {
+  "id": "Grass005",
+  "q": "grass",
+  "tags": [
+   "5",
+   "clean",
+   "grass",
+   "green",
+   "lawn",
+   "short"
+  ],
+  "files": {
+   "color": "tex/Grass005_color.jpg",
+   "normal": "tex/Grass005_normal.jpg",
+   "rough": "tex/Grass005_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Grass004",
+  "q": "grass",
+  "tags": [
+   "004",
+   "4",
+   "dense",
+   "garden",
+   "grass",
+   "grass004",
+   "green",
+   "ground",
+   "lawn",
+   "lush",
+   "natural",
+   "park",
+   "short",
+   "soft",
+   "suburban"
+  ],
+  "files": {
+   "color": "tex/Grass004_color.jpg",
+   "normal": "tex/Grass004_normal.jpg",
+   "rough": "tex/Grass004_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Grass001",
+  "q": "grass",
+  "tags": [
+   "001",
+   "1",
+   "cover",
+   "dark",
+   "dense",
+   "fresh",
+   "garden",
+   "grass",
+   "grass001",
+   "green",
+   "ground",
+   "lawn",
+   "natural",
+   "park",
+   "short",
+   "soft"
+  ],
+  "files": {
+   "color": "tex/Grass001_color.jpg",
+   "normal": "tex/Grass001_normal.jpg",
+   "rough": "tex/Grass001_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Ground037",
+  "q": "grass",
+  "tags": [
+   "037",
+   "37",
+   "damp",
+   "earth",
+   "forest",
+   "grass",
+   "green",
+   "ground",
+   "moss",
+   "natural",
+   "overgrown",
+   "rough",
+   "woodland"
+  ],
+  "files": {
+   "color": "tex/Ground037_color.jpg",
+   "normal": "tex/Ground037_normal.jpg",
+   "rough": "tex/Ground037_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Snow015",
+  "q": "grass",
+  "tags": [
+   "015",
+   "15",
+   "brown",
+   "cold",
+   "dirty",
+   "frozen",
+   "grass",
+   "green",
+   "ground",
+   "icy",
+   "melting",
+   "natural",
+   "outdoor",
+   "rough",
+   "snow",
+   "wet",
+   "white",
+   "winter"
+  ],
+  "files": {
+   "color": "tex/Snow015_color.jpg",
+   "normal": "tex/Snow015_normal.jpg",
+   "rough": "tex/Snow015_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Grass008",
+  "q": "grass",
+  "tags": [
+   "8",
+   "grass",
+   "lawn"
+  ],
+  "files": {
+   "color": "tex/Grass008_color.jpg",
+   "normal": "tex/Grass008_normal.jpg",
+   "rough": "tex/Grass008_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Grass006",
+  "q": "grass",
+  "tags": [
+   "6",
+   "grass",
+   "lawn"
+  ],
+  "files": {
+   "color": "tex/Grass006_color.jpg",
+   "normal": "tex/Grass006_normal.jpg",
+   "rough": "tex/Grass006_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Grass007",
+  "q": "grass",
+  "tags": [
+   "7",
+   "grass",
+   "lawn",
+   "moss",
+   "weeds"
+  ],
+  "files": {
+   "color": "tex/Grass007_color.jpg",
+   "normal": "tex/Grass007_normal.jpg",
+   "rough": "tex/Grass007_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Grass003",
+  "q": "grass",
+  "tags": [
+   "3",
+   "grass",
+   "green",
+   "ground"
+  ],
+  "files": {
+   "color": "tex/Grass003_color.jpg",
+   "normal": "tex/Grass003_normal.jpg",
+   "rough": "tex/Grass003_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Grass002",
+  "q": "grass",
+  "tags": [
+   "2",
+   "grass",
+   "green",
+   "ground"
+  ],
+  "files": {
+   "color": "tex/Grass002_color.jpg",
+   "normal": "tex/Grass002_normal.jpg",
+   "rough": "tex/Grass002_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Ground111",
+  "q": "ground",
+  "tags": [
+   "111",
+   "brick",
+   "brown",
+   "construction",
+   "debris",
+   "dirt",
+   "fragments",
+   "gravel",
+   "gray",
+   "ground",
+   "ground111",
+   "orange",
+   "rock",
+   "rough",
+   "rubble",
+   "scattered",
+   "urban"
+  ],
+  "files": {
+   "color": "tex/Ground111_color.jpg",
+   "normal": "tex/Ground111_normal.jpg",
+   "rough": "tex/Ground111_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Ground110",
+  "q": "ground",
+  "tags": [
+   "110",
+   "brown",
+   "dirt",
+   "dry",
+   "gravel",
+   "gray",
+   "ground",
+   "ground110",
+   "rocky",
+   "rough",
+   "scattered",
+   "uneven"
+  ],
+  "files": {
+   "color": "tex/Ground110_color.jpg",
+   "normal": "tex/Ground110_normal.jpg",
+   "rough": "tex/Ground110_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Ground112",
+  "q": "ground",
+  "tags": [
+   "112",
+   "ground",
+   "ground112"
+  ],
+  "files": {
+   "color": "tex/Ground112_color.jpg",
+   "normal": "tex/Ground112_normal.jpg",
+   "rough": "tex/Ground112_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Ground109",
+  "q": "ground",
+  "tags": [
+   "109",
+   "beige",
+   "brown",
+   "dirt",
+   "dry",
+   "ground",
+   "ground109",
+   "mud",
+   "natural",
+   "pebbles",
+   "rocky",
+   "rough",
+   "scattered",
+   "soil"
+  ],
+  "files": {
+   "color": "tex/Ground109_color.jpg",
+   "normal": "tex/Ground109_normal.jpg",
+   "rough": "tex/Ground109_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Ground108",
+  "q": "ground",
+  "tags": [
+   "108",
+   "brown",
+   "debris",
+   "dirt",
+   "gravel",
+   "gray",
+   "ground",
+   "ground108",
+   "river",
+   "riverbed",
+   "rocky",
+   "rough",
+   "rubble",
+   "scattered",
+   "uneven"
+  ],
+  "files": {
+   "color": "tex/Ground108_color.jpg",
+   "normal": "tex/Ground108_normal.jpg",
+   "rough": "tex/Ground108_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Ground106",
+  "q": "ground",
+  "tags": [
+   "106",
+   "beige",
+   "brown",
+   "dirt",
+   "earth",
+   "forest",
+   "ground",
+   "ground106",
+   "leaves",
+   "mud",
+   "muddy",
+   "natural",
+   "river",
+   "riverbed",
+   "rough",
+   "scattered",
+   "soil",
+   "uneven"
+  ],
+  "files": {
+   "color": "tex/Ground106_color.jpg",
+   "normal": "tex/Ground106_normal.jpg",
+   "rough": "tex/Ground106_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Gravel043",
+  "q": "ground",
+  "tags": [
+   "043",
+   "43",
+   "fine",
+   "grained",
+   "granular",
+   "gravel",
+   "gravel043",
+   "gray",
+   "ground",
+   "industrial",
+   "natural",
+   "pathway",
+   "rough",
+   "stone"
+  ],
+  "files": {
+   "color": "tex/Gravel043_color.jpg",
+   "normal": "tex/Gravel043_normal.jpg",
+   "rough": "tex/Gravel043_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Ground103",
+  "q": "ground",
+  "tags": [
+   "103",
+   "brown",
+   "dirt",
+   "earth",
+   "ground",
+   "natural",
+   "old",
+   "outdoor",
+   "rough",
+   "soil",
+   "uneven"
+  ],
+  "files": {
+   "color": "tex/Ground103_color.jpg",
+   "normal": "tex/Ground103_normal.jpg",
+   "rough": "tex/Ground103_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "ScatteredLeaves009",
+  "q": "ground",
+  "tags": [
+   "009",
+   "9",
+   "autumn",
+   "brown",
+   "cover",
+   "dry",
+   "fallen",
+   "forest",
+   "green",
+   "ground",
+   "leaves",
+   "natural",
+   "rough",
+   "scattered",
+   "scatteredleaves009",
+   "yellow"
+  ],
+  "files": {
+   "color": "tex/ScatteredLeaves009_color.jpg",
+   "normal": "tex/ScatteredLeaves009_normal.jpg",
+   "rough": "tex/ScatteredLeaves009_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Ground107",
+  "q": "ground",
+  "tags": [
+   "107",
+   "brick",
+   "brown",
+   "debris",
+   "dirt",
+   "fragments",
+   "gray",
+   "ground",
+   "ground107",
+   "old",
+   "path",
+   "red",
+   "rough",
+   "rubble",
+   "scattered",
+   "stones",
+   "uneven",
+   "urban"
+  ],
+  "files": {
+   "color": "tex/Ground107_color.jpg",
+   "normal": "tex/Ground107_normal.jpg",
+   "rough": "tex/Ground107_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Rock064",
+  "q": "rock",
+  "tags": [
+   "064",
+   "64",
+   "forest",
+   "gray",
+   "green",
+   "irregular",
+   "moss",
+   "mossy",
+   "natural",
+   "old",
+   "rock",
+   "rock064",
+   "rough",
+   "stacked",
+   "stone"
+  ],
+  "files": {
+   "color": "tex/Rock064_color.jpg",
+   "normal": "tex/Rock064_normal.jpg",
+   "rough": "tex/Rock064_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Rock063",
+  "q": "rock",
+  "tags": [
+   "063",
+   "63",
+   "aged",
+   "cliff",
+   "cracked",
+   "damaged",
+   "dirty",
+   "eroded",
+   "gray",
+   "green",
+   "layered",
+   "mossy",
+   "natural",
+   "outdoor",
+   "rock",
+   "rough",
+   "rustic",
+   "stone"
+  ],
+  "files": {
+   "color": "tex/Rock063_color.jpg",
+   "normal": "tex/Rock063_normal.jpg",
+   "rough": "tex/Rock063_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Rock058",
+  "q": "rock",
+  "tags": [
+   "58",
+   "cliff",
+   "grey",
+   "rock"
+  ],
+  "files": {
+   "color": "tex/Rock058_color.jpg",
+   "normal": "tex/Rock058_normal.jpg",
+   "rough": "tex/Rock058_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Ground068",
+  "q": "rock",
+  "tags": [
+   "68",
+   "dirt",
+   "ground",
+   "moss",
+   "rock",
+   "stone"
+  ],
+  "files": {
+   "color": "tex/Ground068_color.jpg",
+   "normal": "tex/Ground068_normal.jpg",
+   "rough": "tex/Ground068_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Rock051",
+  "q": "rock",
+  "tags": [
+   "51",
+   "cliff",
+   "mountain",
+   "rock",
+   "stone",
+   "wall"
+  ],
+  "files": {
+   "color": "tex/Rock051_color.jpg",
+   "normal": "tex/Rock051_normal.jpg",
+   "rough": "tex/Rock051_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Rock060",
+  "q": "rock",
+  "tags": [
+   "60",
+   "cliff",
+   "rock",
+   "rough"
+  ],
+  "files": {
+   "color": "tex/Rock060_color.jpg",
+   "normal": "tex/Rock060_normal.jpg",
+   "rough": "tex/Rock060_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Rock035",
+  "q": "rock",
+  "tags": [
+   "35",
+   "black",
+   "cave",
+   "cliff",
+   "grey",
+   "rock",
+   "stone"
+  ],
+  "files": {
+   "color": "tex/Rock035_color.jpg",
+   "normal": "tex/Rock035_normal.jpg",
+   "rough": "tex/Rock035_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Fabric086",
+  "q": "fabric",
+  "tags": [
+   "086",
+   "86",
+   "fabric",
+   "fabric086"
+  ],
+  "files": {
+   "color": "tex/Fabric086_color.jpg",
+   "normal": "tex/Fabric086_normal.jpg",
+   "rough": "tex/Fabric086_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Fabric085",
+  "q": "fabric",
+  "tags": [
+   "085",
+   "85",
+   "fabric",
+   "fabric085",
+   "orange",
+   "red",
+   "wool"
+  ],
+  "files": {
+   "color": "tex/Fabric085_color.jpg",
+   "normal": "tex/Fabric085_normal.jpg",
+   "rough": "tex/Fabric085_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Fabric084",
+  "q": "fabric",
+  "tags": [
+   "084",
+   "84",
+   "blue",
+   "fabric",
+   "fabric084",
+   "fur",
+   "microfiber",
+   "soft"
+  ],
+  "files": {
+   "color": "tex/Fabric084_color.jpg",
+   "normal": "tex/Fabric084_normal.jpg",
+   "rough": "tex/Fabric084_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Carpet016",
+  "q": "fabric",
+  "tags": [
+   "16",
+   "beige",
+   "carpet",
+   "fabric",
+   "floor",
+   "soft",
+   "white",
+   "wool"
+  ],
+  "files": {
+   "color": "tex/Carpet016_color.jpg",
+   "normal": "tex/Carpet016_normal.jpg",
+   "rough": "tex/Carpet016_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Fabric081C",
+  "q": "fabric",
+  "tags": [
+   "81",
+   "fabric",
+   "plastisol",
+   "printed",
+   "white"
+  ],
+  "files": {
+   "color": "tex/Fabric081C_color.jpg",
+   "normal": "tex/Fabric081C_normal.jpg",
+   "rough": "tex/Fabric081C_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Fabric083",
+  "q": "fabric",
+  "tags": [
+   "083",
+   "83",
+   "checkered",
+   "clean",
+   "cloth",
+   "fabric",
+   "gray",
+   "patterned",
+   "smooth",
+   "textile",
+   "woven"
+  ],
+  "files": {
+   "color": "tex/Fabric083_color.jpg",
+   "normal": "tex/Fabric083_normal.jpg",
+   "rough": "tex/Fabric083_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Fabric061",
+  "q": "fabric",
+  "tags": [
+   "61",
+   "fabric",
+   "rough"
+  ],
+  "files": {
+   "color": "tex/Fabric061_color.jpg",
+   "normal": "tex/Fabric061_normal.jpg",
+   "rough": "tex/Fabric061_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Fabric066",
+  "q": "fabric",
+  "tags": [
+   "66",
+   "fabric",
+   "rough"
+  ],
+  "files": {
+   "color": "tex/Fabric066_color.jpg",
+   "normal": "tex/Fabric066_normal.jpg",
+   "rough": "tex/Fabric066_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Leather037",
+  "q": "leather",
+  "tags": [
+   "37",
+   "brown",
+   "clean",
+   "dark",
+   "leather"
+  ],
+  "files": {
+   "color": "tex/Leather037_color.jpg",
+   "normal": "tex/Leather037_normal.jpg",
+   "rough": "tex/Leather037_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Leather038",
+  "q": "leather",
+  "tags": [
+   "38",
+   "brown",
+   "fine",
+   "leather",
+   "orange",
+   "smooth"
+  ],
+  "files": {
+   "color": "tex/Leather038_color.jpg",
+   "normal": "tex/Leather038_normal.jpg",
+   "rough": "tex/Leather038_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Rubber004",
+  "q": "rubber",
+  "tags": [
+   "4",
+   "black",
+   "floor",
+   "gym",
+   "rubber"
+  ],
+  "files": {
+   "color": "tex/Rubber004_color.jpg",
+   "normal": "tex/Rubber004_normal.jpg",
+   "rough": "tex/Rubber004_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Rubber001",
+  "q": "rubber",
+  "tags": [
+   "1",
+   "black",
+   "floor",
+   "gym",
+   "rubber"
+  ],
+  "files": {
+   "color": "tex/Rubber001_color.jpg",
+   "normal": "tex/Rubber001_normal.jpg",
+   "rough": "tex/Rubber001_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Carpet012",
+  "q": "carpet",
+  "tags": [
+   "12",
+   "blue",
+   "carpet",
+   "dark",
+   "plain"
+  ],
+  "files": {
+   "color": "tex/Carpet012_color.jpg",
+   "normal": "tex/Carpet012_normal.jpg",
+   "rough": "tex/Carpet012_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Asphalt033",
+  "q": "road",
+  "tags": [
+   "033",
+   "33",
+   "asphalt",
+   "asphalt033",
+   "charcoal",
+   "dark",
+   "granular",
+   "gray",
+   "industrial",
+   "matte",
+   "pavement",
+   "road",
+   "rough",
+   "urban"
+  ],
+  "files": {
+   "color": "tex/Asphalt033_color.jpg",
+   "normal": "tex/Asphalt033_normal.jpg",
+   "rough": "tex/Asphalt033_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Road012A",
+  "q": "road",
+  "tags": [
+   "012",
+   "12",
+   "asphalt",
+   "dark",
+   "durable",
+   "gray",
+   "industrial",
+   "modern",
+   "old",
+   "outdoor",
+   "pavement",
+   "road",
+   "rough",
+   "street",
+   "urban",
+   "worn"
+  ],
+  "files": {
+   "color": "tex/Road012A_color.jpg",
+   "normal": "tex/Road012A_normal.jpg",
+   "rough": "tex/Road012A_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Road007",
+  "q": "road",
+  "tags": [
+   "007",
+   "7",
+   "asphalt",
+   "center",
+   "dark",
+   "dashed",
+   "gray",
+   "lane",
+   "line",
+   "markings",
+   "modern",
+   "outdoor",
+   "patches",
+   "pavement",
+   "road",
+   "road007",
+   "smooth",
+   "street",
+   "striped",
+   "two",
+   "urban"
+  ],
+  "files": {
+   "color": "tex/Road007_color.jpg",
+   "normal": "tex/Road007_normal.jpg",
+   "rough": "tex/Road007_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Road008A",
+  "q": "road",
+  "tags": [
+   "008",
+   "8",
+   "asphalt",
+   "gray",
+   "layered",
+   "modern",
+   "old",
+   "outdoor",
+   "pavement",
+   "road",
+   "rough",
+   "smooth",
+   "street",
+   "striped",
+   "urban",
+   "worn",
+   "yellow"
+  ],
+  "files": {
+   "color": "tex/Road008A_color.jpg",
+   "normal": "tex/Road008A_normal.jpg",
+   "rough": "tex/Road008A_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "Planks040",
+  "q": "planks",
+  "tags": [
+   "040",
+   "40",
+   "boards",
+   "bolts",
+   "floor",
+   "planks",
+   "planks040",
+   "screws"
+  ],
+  "files": {
+   "color": "tex/Planks040_color.jpg",
+   "normal": "tex/Planks040_normal.jpg",
+   "rough": "tex/Planks040_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ },
+ {
+  "id": "WoodFloor064",
+  "q": "planks",
+  "tags": [
+   "64",
+   "dark",
+   "floor",
+   "parquet",
+   "planks",
+   "wood"
+  ],
+  "files": {
+   "color": "tex/WoodFloor064_color.jpg",
+   "normal": "tex/WoodFloor064_normal.jpg",
+   "rough": "tex/WoodFloor064_rough.jpg"
+  },
+  "src": "ambientCG (CC0)"
+ }
+]
