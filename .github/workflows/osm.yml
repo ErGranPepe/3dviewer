@@ -1,4 +1,4 @@
-name: refs-fetch
+name: tex-fetch
 on:
   push:
     branches: [osm-fetch]
@@ -11,9 +11,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: pip install pillow
-      - run: python3 tools/fetch_refs.py
-      - name: Publicar en la rama refs-out
+      - run: python3 tools/fetch_tex.py
+      - name: Publicar en la rama tex-out
         run: |
-          cd refs && git init -q && git checkout -q -b refs-out && git add -A
-          git -c user.name=ref-bot -c user.email=ref-bot@users.noreply.github.com commit -q -m "Fotos de referencia (Wikimedia Commons, solo consulta)"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" refs-out
+          cd tex && git init -q && git checkout -q -b tex-out && git add -A
+          git -c user.name=tex-bot -c user.email=tex-bot@users.noreply.github.com commit -q -m "Texturas CC0 de ambientCG"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" tex-out
