@@ -8,7 +8,7 @@ def get(url,tries=3):
         except Exception as e:print('retry',url[:100],e,flush=True);time.sleep(3)
     return None
 os.makedirs('tex',exist_ok=True);man=[]
-QUERIES=[('facade',40),('bricks',8),('pavingstones',8),('plaster',6),('tiles',6),('marble',3),('metal',4),('wood',3),('asphalt',3),('concrete',4)]
+QUERIES=[('grass',10),('ground',12),('rock',8),('fabric',8),('pavingstones',10),('gravel',4),('cliff',3),('moss',2),('leather',2),('rubber',2),('carpet',2),('road',4),('planks',2)]
 seen=set()
 for q,lim in QUERIES:
     d=get('https://ambientcg.com/api/v2/full_json?type=Material&q=%s&limit=%d&include=downloadData,tagData'%(q,lim))
