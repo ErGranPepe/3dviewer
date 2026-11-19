@@ -8297,6 +8297,32 @@ vLatP=aLat;`), sh.fragmentShader = `uniform sampler2D tTiles;uniform float uWall
     gm.receiveShadow = !0, group.add(gm)
    }
   }
+  /* vial de servicio detrás del muro de la recta (lado de las tribunas): ambulancias, grúas y comisarios */
+  if (!tr.street) {
+   const sd = -psd,
+    rm = new THREE.MeshStandardMaterial({
+     map: TEX.asphalt || null,
+     color: "#8f8f8c",
+     roughness: .95,
+     polygonOffset: !0,
+     polygonOffsetFactor: -1
+    }),
+    ok = i => reachAt((i % N + N) % N, sd) >= WALL + 8.5;
+   let i0 = a + 4;
+   for (let i = a + 4; i <= b - 4; i++)
+    if (!ok(i) || i === b - 4) {
+     i - i0 > 12 && group.add(Object.assign(new THREE.Mesh(ribbon({
+      latA: sd * (WALL + 1.6),
+      latB: sd * (WALL + 6.6),
+      y: .05,
+      i0,
+      i1: i,
+      uvLen: 10
+     }), rm), {
+      receiveShadow: !0
+     })), i0 = i + 1
+    }
+  }
   /* panel publicitario sobre el pórtico y caja negra de los semáforos */
   {
    const p0 = pt(0, 0, 0),
@@ -10692,8 +10718,8 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
     }
     return !1
    },
-   wallRanges = sd => runs(i => !(sd < 0 && (i - pitA + N) % N < pitB - pitA) && reachAt(i, sd) >= WALL + 1.2).filter(([a, b]) => b - a >= 4),
-   fenceRanges = sd => runs(i => !(sd < 0 && (i - pitA + N) % N < pitB - pitA) && reachAt(i, sd) >= WALL + 1.2 && !inTun(i)).filter(([a, b]) => b - a >= 4),
+   wallRanges = sd => runs(i => !(sd === PSD() && (i - pitA + N) % N < pitB - pitA) && reachAt(i, sd) >= WALL + 1.2).filter(([a, b]) => b - a >= 4),
+   fenceRanges = sd => runs(i => !(sd === PSD() && (i - pitA + N) % N < pitB - pitA) && reachAt(i, sd) >= WALL + 1.2 && !inTun(i)).filter(([a, b]) => b - a >= 4),
    wx = (i, sd) => {
     if (!tr.wallX) return 0;
     const a = tr.wallX[sd > 0 ? 0 : 1];
@@ -10714,6 +10740,27 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
      }),
      m = new THREE.Mesh(g, wallMat);
     m.receiveShadow = !0, trackGroup.add(m);
+    if (!tr.street || !TEX.armco) {
+     /* el muro tiene grosor: albardilla arriba y cara trasera */
+     const cap = new THREE.Mesh(ribbon({
+       latA: WL(sd),
+       latB: WL(sd, .55),
+       y: 1.05,
+       i0: a,
+       i1: b,
+       uvLen: 8
+      }), wallMat),
+      back = new THREE.Mesh(ribbon({
+       latA: WL(sd, .55),
+       latB: WL(sd, .55),
+       y: -.4,
+       yB: 1.05,
+       i0: a,
+       i1: b,
+       uvLen: 8
+      }), wallMat);
+     cap.receiveShadow = back.receiveShadow = !0, cap.castShadow = !0, trackGroup.add(cap, back)
+    }
     const g2 = ribbon({
      latA: WL(sd, -.05),
      latB: WL(sd, -.05),
@@ -11557,8 +11604,20 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
   const gh0 = trackGroup.children.length;
   LM = -(tr.pit.side || -1), R.__padN = buildPaddock(trackGroup, -Math.abs(garL)), LM = 1;
   const realS = WD ? WD.b.filter(b => b[2] >= 3).length : 0;
+  /* la tribuna principal frente a los boxes se pone siempre que OSM no tenga ya una en ese lado de la recta (Austin) */
+  const mainReal = sd => WD && WD.b.some(b => {
+   if (b[2] < 3) return !1;
+   const n0 = b.length - 3 >> 1;
+   let cx = 0,
+    cy = 0;
+   for (let q = 0; q < n0; q++) cx += b[3 + q * 2] * .1, cy += b[4 + q * 2] * .1;
+   cx /= n0, cy /= n0;
+   const dx = cx - tr.x[0],
+    dy = cy - tr.y[0];
+   return Math.hypot(dx, dy) < 260 && (dx * -Math.sin(tr.hd[0]) + dy * Math.cos(tr.hd[0])) * sd > 0
+  });
   for (const [s0, side, len] of stands) {
-   if (realS >= 3) continue;
+   if (realS >= 3 && !(s0 === 0 && !mainReal(side))) continue;
    {
     const ic = S.idxAt(tr, (s0 % tr.L + tr.L) % tr.L),
      hl = Math.round(len / 2 / tr.ds);
