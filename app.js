@@ -1252,7 +1252,30 @@
    straight = Math.abs(tr.k[car.idx]) < 1 / 300,
    a = car.ahead,
    calm = w.mode === "race" && w.started && w.raceT0 != null && !car.player && w.t - w.raceT0 < 46 && car.prog < Math.min(1700, tr.L * .36) && car.pack > 0;
-  if (car.calm = calm, calm && (car.atkSide = 0), a && car.aheadD < 80 && a.u > 9) {
+  const AS = w.atkStats || (w.atkStats = {
+    edge: 0,
+    block: 0,
+    time: 0,
+    brake: 0,
+    sw: 0,
+    along: 0,
+    done: 0,
+    lost: 0
+   }),
+   ins = Math.sign(kAhead) || 1,
+   relF = o => (o.x - car.x) * Math.cos(car.h) + (o.y - car.y) * Math.sin(car.h);
+  car.mgnAdj = 0, car.along = 0;
+  if (car.calm = calm, calm && (car.atkSide = 0, car.atkTgt = null), car.atkSide && car.atkTgt && car.atkTgt !== a) {
+   /* el rival ya no figura delante: o vamos rueda con rueda o ya lo hemos pasado; se mantiene el lado y se pelea la frenada */
+   const o = car.atkTgt,
+    f2 = relF(o),
+    lim = HW - 1.1;
+   if (o.retired || o.inPit || o.gone || f2 < -9 || f2 > 14) f2 < -9 ? AS.done++ : AS.lost++, car.atkSide = 0, car.atkTgt = null;
+   else {
+    const tl = o.lat + 4.4 * car.atkSide;
+    Math.abs(tl) > lim + .6 || HW < 5.6 && !straight && f2 > -3 ? (AS.lost++, car.atkSide = 0, car.atkTgt = null, car.atkCool = tNow + 2) : (latT = clamp(tl, -lim, lim), car.along = 1, AS.along++, car.atkSide === ins && f2 < 5 && (car.mgnAdj = .03), o.underAtk = car, o.underAtkT = tNow)
+   }
+  } else if (a && car.aheadD < 80 && a.u > 9) {
    const ch = Math.cos(car.h),
     sh = Math.sin(car.h),
     av = a.vx * ch + a.vy * sh,
@@ -1260,23 +1283,34 @@
     fwd = car.aheadD,
     lim = HW - 1.1;
    if (car.atkSide) {
-    const tl = a.lat + 4.6 * car.atkSide;
-    Math.abs(tl) > lim + .4 || a.atkBlock && tNow - a.atkBlock < .5 ? (car.atkSide = 0, car.atkCool = tNow + 2.5) : tNow - car.atkT > 8 && fwd > 6 ? (car.atkSide = 0, car
-     .atkCool = tNow + 3.5) : fwd > 10 && vrefMin(tr, car.idx, 0, 90) < u - 12 ? (car.atkSide = 0, car.atkCool = tNow + 1.2) : latT = clamp(tl, -lim, lim)
+    const tl = a.lat + 4.6 * car.atkSide,
+     edge = Math.abs(tl) > lim + .4,
+     blocked = a.atkBlock && tNow - a.atkBlock < .5;
+    if (edge || blocked) {
+     /* le cierra la puerta: cambia al otro lado (una vez) si hay sitio */
+     const t2 = a.lat - 4.6 * car.atkSide;
+     Math.abs(t2) <= lim && !car.swUsed ? (car.atkSide = -car.atkSide, car.swUsed = 1, latT = t2, AS.sw++) : (AS[edge ? "edge" : "block"]++, car.atkSide = 0, car.atkTgt = null, car.atkCool = tNow + 2.5)
+    } else tNow - car.atkT > 9 && fwd > 6 ? (AS.time++, car.atkSide = 0, car.atkTgt = null, car.atkCool = tNow + 3.5) : fwd > 10 && vrefMin(tr, car.idx, 0, 90) < u - 12 ? (AS.brake++, car.atkSide = 0, car.atkTgt = null, car.atkCool = tNow + 1.2) : (latT = clamp(tl, -lim, lim), fwd < 7 && (car.atkSide === ins && (car.mgnAdj = .03), a.underAtk = car, a.underAtkT = tNow))
    } else if (!calm && atk > .2 && tNow > (car.atkCool || 0) && fwd < 55 && (HW < 5.6 ? straight && vrel > 2.6 && fwd < 11 && vrefMin(tr, car.idx, 0, 70) >= u - 6 : vrel > 1 &&
      fwd < 15 + vrel * 3.4 || car.drsOk && fwd < 36 || fwd < 12 && straight && vrel > .1)) {
     const L = a.lat + 4.6,
      R = a.lat - 4.6,
      okL = L < lim,
-     okR = R > -lim,
-     ins = Math.sign(kAhead) || 1;
+     okR = R > -lim;
     let side = 0;
     okL && okR ? side = atk > .6 ? ins : Math.abs(L - car.lat) < Math.abs(R - car.lat) ? 1 : -1 : side = okL ? 1 : okR ? -1 : 0, side && (straight || fwd < 10) && (fwd < 10 ||
-     vrefMin(tr, car.idx, 0, 110) >= u - 12) && (car.atkSide = side, car.atkT = tNow, latT = side > 0 ? L : R)
+     vrefMin(tr, car.idx, 0, 110) >= u - 12) && (car.atkSide = side, car.atkT = tNow, car.atkTgt = a, car.swUsed = 0, latT = side > 0 ? L : R)
    }
-   car.atkSide || (vCap = av + (fwd - (calm ? 12.5 : 6.8)) * .6, !calm && straight && fwd < 70 && Math.abs(a.lat) < lim && (latT = a.lat)), Math.abs(a.lat - car.lat) < 2.6 &&
+   /* sin atacar: se pega al rebufo en las rectas (3,8 m) y guarda más distancia en curva por el aire sucio */
+   car.atkSide || (vCap = av + (fwd - (calm ? 12.5 : straight ? 3.8 : 6.8)) * .6, !calm && straight && fwd < 70 && Math.abs(a.lat) < lim && (latT = a.lat)), Math.abs(a.lat - car.lat) < 2.6 &&
     fwd < 7 + Math.max(0, vrel) * .9 && (vCap = Math.min(vCap, Math.max(0, av - 1.5)))
-  } else car.atkSide = 0;
+  } else car.atkSide = 0, car.atkTgt = null;
+  /* defensor con un coche a su altura por el interior de la próxima curva: abre la trazada y cede la frenada */
+  if (car.underAtk && tNow - car.underAtkT < .25) {
+   const o = car.underAtk,
+    f3 = relF(o);
+   o.atkSide && Math.abs(f3) < 5 && (o.lat - car.lat) * ins > 1.5 && (car.mgnAdj = -.05, f3 > -2.5 && (vCap = Math.min(vCap, Math.max(20, o.u - .6))), latT = clamp(latT, -(HW - 1.8), HW - 1.8))
+  }
   const b = car.behind;
   straight || (car.defLat = null, car.defUsed = !1), b && car.behindD < 30 && b.u > u - .5 && straight && !car.defUsed && atk > .25 && Math.abs(b.lat - car.lat) < 2.6 && (car
     .defUsed = !0, car.defLat = clamp((Math.sign(kAhead) || 1) * (HW - 2.2), -(HW - 1.6), HW - 1.6), car.atkBlock = tNow), (!b || car.behindD > 45) && (car.defLat = null), car
@@ -1700,7 +1734,7 @@
  }
 
  function reflex(w, c) {
-  c.reflex = 0;
+  c.reflex = 0, c.lateBrk = 0;
   const ch = Math.cos(c.h),
    sh = Math.sin(c.h);
   let worst = 0;
@@ -1745,6 +1779,11 @@
    const rw = w.rngW || Math.random;
    (c.errT == null || w.t > c.errT + 6) && c.u < 62 && c.thr > .7 && Math.abs(w.track.k[c.idx]) > 1 / 160 && rw() < .0011 * (1.6 - (c.drv ? (c.drv.craft - 70) / 30 : .5)) && (c
     .errT = w.t), c.errT != null && w.t - c.errT < 1.3 ? (c.thr = Math.min(c.thr, .42), c.err = 1) : c.err = 0
+  }
+  if (!c.player && c.mgnAdj && c.u > 15 && !calm) {
+   /* frenada al límite del que ataca por dentro (frena más tarde) y cesión del que defiende (frena antes) */
+   const vtA = targetSpeed(w, c, marginOf(c) + c.mgnAdj);
+   c.mgnAdj > 0 ? c.u < vtA - .8 && c.brk > 0 && (c.brk = 0, c.thr = Math.max(c.thr, .3), c.lateBrk = 1) : c.u > vtA && (c.thr = 0, c.brk = Math.max(c.brk, clamp((c.u - vtA) / 6, .2, .8)))
   }
   if (!c.player) {
    const vt = c.u > (calm ? 11 : 12) ? targetSpeed(w, c, .86 + .12 * c.push + (calm ? -.07 : .07)) : 999;
@@ -2040,7 +2079,8 @@
  }
 
  function pushBase(w, c) {
-  let p = .63 + (c.drv.pace - 85) / 30;
+  /* parrilla apretada: la diferencia de ritmo entre pilotos es la de la F1 real (~1,5 %) */
+  let p = .72 + (c.drv.pace - 85) / 55;
   return w.wetLine > .3 && (p += (c.drv.wet - 85) / 40), clamp(p, .15, .9)
  }
 
