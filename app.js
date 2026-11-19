@@ -3999,7 +3999,14 @@ void main(){
     cov: -.4
    },
    SaoPaulo: {
-    cov: .1
+    cov: .55,
+    near: 14,
+    set: [
+     ["tree_decid3", 4],
+     ["tree_decid2", 3],
+     ["tree_palm", 3],
+     ["tree_decid", 2]
+    ]
    },
    Spa: {
     cov: 1.35,
@@ -5409,6 +5416,13 @@ void main(){
    WIN[11 + j] = [v.c, v.w, v.h]
   });
   const SHC = ["#efece6", "#d9d2c4", "#c9c3b8", "#8a8f94", "#5e6a5e", "#7b5a43", "#e6e0d2", "#b7b1a5"];
+  BLDM = grid ? {
+   x0: grid.x0,
+   y0: grid.y0,
+   st: 3,
+   nx: Math.ceil((grid.nx - 1) * grid.step / 3) + 1,
+   ny: Math.ceil((grid.ny - 1) * grid.step / 3) + 1
+  } : null, BLDM && (BLDM.a = new Uint8Array(BLDM.nx * BLDM.ny));
   for (const [near, b] of list.slice(0, cap)) {
    if (b[2] >= 3) continue;
    let h = b[0];
@@ -5424,7 +5438,7 @@ void main(){
      y = b[4 + q * 2] * .1;
     P.push([x, y]), cx += x, cy += y, gmin = Math.min(gmin, terrainH(x, y))
    }
-   cx /= n, cy /= n;
+   cx /= n, cy /= n, BLDM && bldMark(P);
    let area = 0;
    for (let q = 0; q < n; q++) {
     const a = P[q],
@@ -6244,7 +6258,29 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
     ms.receiveShadow = !0, group.add(ms)
    }
   };
-  WD.sat && WD.satTex || poly(WD.w, waterM, -.2), TEX.lot || (TEX.lot = canvasTex(256, 256, (g, w, h) => {
+  R.__luAt = (x, y) => [wdLu(x, y), terrainD(x, y), +terrainH(x, y).toFixed(1), forestMask(x, y, terrainD(x, y)).toFixed(2)], R.__dbgW = {
+   w: WD.w && WD.w.length,
+   lakes: WD.lakes && WD.lakes.map(L => [Math.round(L.P[0][0]), Math.round(L.P[0][1]), L.P.length, +L.lev.toFixed(1)])
+  };
+  if (!(WD.sat && WD.satTex))
+   if (WD.lakes) {
+    /* lámina de agua de cada lago a la cota de su orilla más baja */
+    for (const L of WD.lakes) {
+     const g = new THREE.ShapeGeometry(new THREE.Shape(L.P.map(([x, y]) => new THREE.Vector2(x, y))));
+     g.rotateX(Math.PI / 2), g.translate(0, L.lev, 0);
+     const uv = g.attributes.uv;
+     for (let q = 0; q < uv.count; q++) uv.setXY(q, uv.getX(q) / 16, uv.getY(q) / 16);
+     const ix = g.index;
+     for (let q = 0; q < ix.count; q += 3) {
+      const t0 = ix.getX(q + 1);
+      ix.setX(q + 1, ix.getX(q + 2)), ix.setX(q + 2, t0)
+     }
+     g.computeVertexNormals();
+     const ms = new THREE.Mesh(g, waterM);
+     ms.receiveShadow = !0, group.add(ms)
+    }
+   } else poly(WD.w, waterM, -.2);
+  TEX.lot || (TEX.lot = canvasTex(256, 256, (g, w, h) => {
    g.fillStyle = "#45484c", g.fillRect(0, 0, w, h), g.strokeStyle = "rgba(235,235,235,.7)", g.lineWidth = 2;
    for (let r0 = 0; r0 < h; r0 += 64)
     for (let x = 0; x < w; x += 16) g.beginPath(), g.moveTo(x, r0 + 4), g.lineTo(x, r0 + 26), g.stroke(), g.beginPath(), g.moveTo(x, r0 + 38), g.lineTo(x, r0 + 60), g.stroke()
@@ -6261,7 +6297,11 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
   if (WD) {
    if (d < S.WALL + 12) return 0;
    const c = wdLu(x, y);
-   return c === 2 ? sstep((d - S.WALL - 12) / 14) : c === 8 ? .35 : 0
+   if (c === 2) return sstep((d - S.WALL - 12) / 14);
+   /* fuera del bosque también hay árboles: bosquetes en parques y praderas, arbolado de jardines y setos en zonas de casas, matorral */
+   const n = Math.sin(x * .021 + tr.seed) * Math.cos(y * .017 - tr.seed * .3) + .6 * Math.sin(x * .053 - y * .047 + 1.7) + .35 * Math.sin(x * .11 + y * .093),
+    k = sstep((d - S.WALL - 16) / 30);
+   return c === 9 && tr.street ? sstep((n + .1) / .55) * .5 * k : c === 8 ? (.35 + .4 * sstep((n + .2) / .6)) * k : c === 1 ? sstep((n - .35) / .45) * .75 * k : c === 0 ? tr.street ? 0 : sstep((n - .55) / .4) * .7 * sstep((d - S.WALL - 30) / 60) : c === 4 ? sstep((n - .1) / .5) * .45 * k : c === 3 ? sstep((n - .95) / .3) * .5 * k : 0
   }
   const V = veg();
   if (V.cov < -5 || d < S.WALL + V.near) return 0;
@@ -6283,6 +6323,84 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
   for (let i = 0; i < tr.N; i += 2) P.push(i);
   const hs = new Float32Array(nx * ny),
    dist = new Float32Array(nx * ny);
+  if (WD && WD.b && !WD.dem._bld) {
+   /* el modelo de elevación es de superficie: dentro de cada edificio de OSM se baja a la cota del suelo que lo rodea (si no, los edificios crean colinas falsas) */
+   const D = WD.dem,
+    n2 = D.nx,
+    st2 = D.step,
+    H = D.h,
+    at = (c, r) => H[clamp(r, 0, D.ny - 1) * n2 + clamp(c, 0, n2 - 1)];
+   for (const b of WD.b) {
+    const nv = b.length - 3 >> 1;
+    if (nv < 3 || b[2] >= 3) continue;
+    const P = [];
+    let x0b = 1e9,
+     x1b = -1e9,
+     y0b = 1e9,
+     y1b = -1e9,
+     cxb = 0,
+     cyb = 0;
+    for (let q = 0; q < nv; q++) {
+     const x = b[3 + q * 2] * .1,
+      y = b[4 + q * 2] * .1;
+     P.push([x, y]), x0b = Math.min(x0b, x), x1b = Math.max(x1b, x), y0b = Math.min(y0b, y), y1b = Math.max(y1b, y), cxb += x, cyb += y
+    }
+    if ((x1b - x0b) * (y1b - y0b) < 250) continue;
+    cxb /= nv, cyb /= nv;
+    let gmn = 1e9;
+    for (const [x, y] of P) {
+     const dx = x - cxb,
+      dy = y - cyb,
+      dl = Math.hypot(dx, dy) || 1,
+      ex = x + dx / dl * 6,
+      ey = y + dy / dl * 6;
+     gmn = Math.min(gmn, at(Math.round((ex - D.x0) / st2), Math.round((ey - D.y0) / st2)))
+    }
+    if (gmn > 1e8) continue;
+    const c0 = Math.max(0, Math.floor((x0b - D.x0) / st2)),
+     c1 = Math.min(n2 - 1, Math.ceil((x1b - D.x0) / st2)),
+     r0 = Math.max(0, Math.floor((y0b - D.y0) / st2)),
+     r1 = Math.min(D.ny - 1, Math.ceil((y1b - D.y0) / st2));
+    for (let r = r0; r <= r1; r++)
+     for (let c = c0; c <= c1; c++) {
+      const x = D.x0 + c * st2,
+       y = D.y0 + r * st2;
+      let o = !1;
+      for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+       const [xi, yi] = P[i], [xj, yj] = P[j];
+       yi > y != yj > y && x < (xj - xi) * (y - yi) / (yj - yi) + xi && (o = !o)
+      }
+      o && H[r * n2 + c] > gmn + 5 && (H[r * n2 + c] = gmn + 5)
+     }
+   }
+   D._bld = !0
+  }
+  if (WD && tr.street && !WD.dem._open) {
+   /* en ciudad el modelo de elevación incluye los edificios: apertura morfológica (mínimo y luego máximo en 56 m) para quedarse con el suelo desnudo */
+   const D = WD.dem,
+    nx2 = D.nx,
+    ny2 = D.ny,
+    R2 = 3,
+    pass = (src, fn) => {
+     const a = new Float32Array(src.length),
+      b = new Float32Array(src.length);
+     for (let r = 0; r < ny2; r++)
+      for (let c = 0; c < nx2; c++) {
+       let m = src[r * nx2 + c];
+       for (let q = Math.max(0, c - R2); q <= Math.min(nx2 - 1, c + R2); q++) m = fn(m, src[r * nx2 + q]);
+       a[r * nx2 + c] = m
+      }
+     for (let r = 0; r < ny2; r++)
+      for (let c = 0; c < nx2; c++) {
+       let m = a[r * nx2 + c];
+       for (let q = Math.max(0, r - R2); q <= Math.min(ny2 - 1, r + R2); q++) m = fn(m, a[q * nx2 + c]);
+       b[r * nx2 + c] = m
+      }
+     return b
+    },
+    op = pass(pass(D.h, Math.min), Math.max);
+   D.h = Array.from(op), D._open = !0
+  }
   if (WD) {
    const df = [];
    for (let i = 0; i < tr.N; i += 6) {
@@ -6329,6 +6447,74 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
     const far = sstep((d - (S.WALL + 10)) / 380);
     hs[r * nx + c] = zt - .45 + far * (n * amp + amp * .4) - (d < S.WALL + 4, 0), dist[r * nx + c] = d
    }
+  /* lagos y estanques de OSM: se excava el vaso para que el agua se vea con su orilla (antes quedaba enterrada bajo el relieve) */
+  if (WD && WD.w && !(WD.sat && WD.satTex)) {
+   WD.lakes = [];
+   for (const a of WD.w) {
+    const n0 = a.length >> 1;
+    if (n0 < 3) continue;
+    const P = [];
+    let bx0 = 1e9,
+     bx1 = -1e9,
+     by0 = 1e9,
+     by1 = -1e9;
+    for (let q = 0; q < n0; q++) {
+     const x = a[q * 2] * .1,
+      y = a[q * 2 + 1] * .1;
+     P.push([x, y]), bx0 = Math.min(bx0, x), bx1 = Math.max(bx1, x), by0 = Math.min(by0, y), by1 = Math.max(by1, y)
+    }
+    const c0 = Math.max(0, Math.floor((bx0 - x0) / step)),
+     c1 = Math.min(nx - 1, Math.ceil((bx1 - x0) / step)),
+     r0 = Math.max(0, Math.floor((by0 - y0) / step)),
+     r1 = Math.min(ny - 1, Math.ceil((by1 - y0) / step));
+    if (c1 <= c0 || r1 <= r0 || (c1 - c0) * (r1 - r0) > 4e5) continue;
+    const hAt = (x, y) => {
+     const c = clamp(Math.round((x - x0) / step), 0, nx - 1),
+      r = clamp(Math.round((y - y0) / step), 0, ny - 1);
+     return hs[r * nx + c]
+    };
+    let lev = 1e9,
+     nearT = !1;
+    for (const [x, y] of P) {
+     const c = Math.round((x - x0) / step),
+      r = Math.round((y - y0) / step);
+     if (c < 0 || r < 0 || c >= nx || r >= ny) continue;
+     lev = Math.min(lev, hAt(x, y)), dist[r * nx + c] < S.WALL + 6 && (nearT = !0)
+    }
+    if (lev > 1e8) continue;
+    const inside = (x, y) => {
+      let o = !1;
+      for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+       const [xi, yi] = P[i], [xj, yj] = P[j];
+       yi > y != yj > y && x < (xj - xi) * (y - yi) / (yj - yi) + xi && (o = !o)
+      }
+      return o
+     },
+     edgeD = (x, y) => {
+      let m = 1e9;
+      for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+       const [ax, ay] = P[j], [bx, by] = P[i], vx = bx - ax, vy = by - ay, l2 = vx * vx + vy * vy || 1, t = clamp(((x - ax) * vx + (y - ay) * vy) / l2, 0, 1);
+       m = Math.min(m, Math.hypot(x - ax - vx * t, y - ay - vy * t))
+      }
+      return m
+     };
+    let cnt = 0;
+    for (let r = r0; r <= r1; r++)
+     for (let c = c0; c <= c1; c++) {
+      const k = r * nx + c,
+       x = x0 + c * step,
+       y = y0 + r * step;
+      if (dist[k] < S.WALL + 6 || !inside(x, y)) continue;
+      const e = edgeD(x, y);
+      hs[k] = Math.min(hs[k], lev - .35 - 2.2 * sstep(e / 12)), cnt++
+     }
+    cnt && WD.lakes.push({
+     P,
+     lev: lev - .12,
+     nearT
+    })
+   }
+  }
   grid = {
    x0,
    y0,
@@ -6343,6 +6529,7 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
    col = new Float32Array(nx * ny * 3),
    lat = new Float32Array(nx * ny).fill(999),
    urb = new Float32Array(nx * ny),
+   pav = new Float32Array(nx * ny),
    sat = new Float32Array(nx * ny),
    soil = new Float32Array(nx * ny * 2),
    idx = [],
@@ -6367,16 +6554,21 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
     if (WD && !hasSat && dist[k] > S.WALL + (tr.street ? 1 : 10)) {
      let lc = wdLu(x, y);
      tr.street && (lc === 0 || lc === 1 || lc === 4) && !(lc === 0 && (wdDem(x, y) || 9) + (WD.dem.h0 || 0) <= .3) && (lc = 9), urb[k] = (lc === 10 ? 1 : lc === 9 ? .9 : lc ===
-      5 ? .7 : lc === 4 ? tr.key === "SaoPaulo" || tr.key === "MexicoCity" ? .85 : .45 : 0) * sstep((dist[k] - S.WALL - (tr.street ? 1 : 10)) / (tr.street ? 6 : 25))
+      5 ? .7 : lc === 4 ? tr.key === "SaoPaulo" || tr.key === "MexicoCity" ? .85 : .45 : 0) * sstep((dist[k] - S.WALL - (tr.street ? 1 : 10)) / (tr.street ? 6 : 25)), pav[k] = lc === 10 ? 0 : 1
     }
     r < ny - 1 && c < nx - 1 && idx.push(k, k + nx, k + 1, k + 1, k + nx, k + nx + 1)
    }
   const g = new THREE.BufferGeometry;
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3)), g.setAttribute("uv", new THREE.BufferAttribute(uv, 2)), g.setAttribute("color", new THREE.BufferAttribute(col,
-   3)), g.setAttribute("aLat", new THREE.BufferAttribute(lat, 1)), g.setAttribute("aUrb", new THREE.BufferAttribute(urb, 1)), g.setAttribute("aSat", new THREE.BufferAttribute(sat,
+   3)), g.setAttribute("aLat", new THREE.BufferAttribute(lat, 1)), g.setAttribute("aUrb", new THREE.BufferAttribute(urb, 1)), g.setAttribute("aPav", new THREE.BufferAttribute(pav, 1)), g.setAttribute("aSat", new THREE.BufferAttribute(sat,
     1)), g.setAttribute("aSoil", new THREE.BufferAttribute(soil, 2)), g.setIndex(idx), g.computeVertexNormals(), groundMat = makeGroundMat(BI);
   const mesh = new THREE.Mesh(g, groundMat);
-  mesh.receiveShadow = !0, group.add(mesh)
+  mesh.receiveShadow = !0, group.add(mesh), R.__gnd = (x, y) => {
+   const c = Math.round((x - x0) / step),
+    r = Math.round((y - y0) / step),
+    k = r * nx + c;
+   return [+urb[k].toFixed(2), +hs[k].toFixed(1), +dist[k].toFixed(1), +col[k * 3].toFixed(2), +col[k * 3 + 1].toFixed(2), +soil[k * 2].toFixed(2)]
+  }
  }
  let groundMat = null,
   GT = null,
@@ -6408,9 +6600,9 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
   let r = A[0] + (B[0] - A[0]) * f,
    g = A[1] + (B[1] - A[1]) * f,
    b = A[2] + (B[2] - A[2]) * f;
-  if (GT.n) {
-   /* la hierba junto a la pista se riega y se siega: verde aunque el entorno esté seco */
-   const kN = 1 - sstep((d - (S.WALL + 6)) / 60);
+  if (GT.n && !tr.street && !(WD && [4, 5, 9, 10].includes(wdLu(x, y)))) {
+   /* la hierba junto a la pista se riega y se siega: verde aunque el entorno esté seco (no en calles ni zonas urbanas) */
+   const kN = (1 - sstep((d - (S.WALL + 6)) / 60)) * (.45 + .35 * (.5 + .5 * Math.sin(x * .037 + y * .029) * Math.cos(x * .011 - y * .023)));
    r += (GT.n[0] - r) * kN, g += (GT.n[1] - g) * kN, b += (GT.n[2] - b) * kN
   }
   if (d > 200 && Math.sin(x * .01) * Math.cos(y * .012) > .55) {
@@ -6480,10 +6672,14 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
      value: TEX.dirt2 || TEX.macro
     }, sh.uniforms.tRock = {
      value: TEX.rock || TEX.macro
+    }, sh.uniforms.tStone = {
+     value: TEX.cc && (TEX.cc("PavingStones128_color") || TEX.cc("Tiles141_color")) || TEX.macro
     }, sh.uniforms.uPhoto = {
      value: TEX.grassPhoto ? 1 : 0
     }, sh.vertexShader = `attribute float aLat;
 attribute float aUrb;
+attribute float aPav;
+varying float vPav;
 attribute float aSat;
 attribute vec2 aSoil;
 varying float vSlope;
@@ -6495,11 +6691,12 @@ varying vec2 vSatUv;
 varying vec2 vSoil;
 ` + sh.vertexShader.replace("#include <beginnormal_vertex>", `#include <beginnormal_vertex>
   vSlope=1.0-abs(normalize(mat3(modelMatrix)*objectNormal).y);`).replace("#include <begin_vertex>", `#include <begin_vertex>
-  vLat=aLat;vUrb=aUrb;vSat=aSat;vSoil=aSoil;vec4 swp=modelMatrix*vec4(transformed,1.0);vSatUv=vec2(dot(uSatA,vec3(swp.x,swp.z,1.0)),dot(uSatB,vec3(swp.x,swp.z,1.0)));`), sh
+  vLat=aLat;vUrb=aUrb;vPav=aPav;vSat=aSat;vSoil=aSoil;vec4 swp=modelMatrix*vec4(transformed,1.0);vSatUv=vec2(dot(uSatA,vec3(swp.x,swp.z,1.0)),dot(uSatB,vec3(swp.x,swp.z,1.0)));`), sh
     .fragmentShader = `uniform sampler2D tMacro;
 uniform sampler2D tUrb;
 uniform sampler2D tSat;
-uniform sampler2D tDirt,tDirt2,tRock;
+uniform sampler2D tDirt,tDirt2,tRock,tStone;
+varying float vPav;
 uniform float uPhoto;
 varying float vSlope;
 uniform float uHW,uWall,uStripe,uT;
@@ -6530,12 +6727,18 @@ varying vec2 vSoil;
         float trod=(smoothstep(uWall+0.7,uWall+1.5,vLat)-smoothstep(uWall+2.8,uWall+4.4,vLat))*uStripe*(0.3+0.7*smoothstep(0.3,0.7,mB))*(0.6+0.4*mD);
         diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(0.24,0.2,0.14)*(0.75+0.5*mC),dirtC*0.8,uPhoto),trod*0.7);
         /* roca (acantilados, peñas) y tierra (obras, solares) según el uso del suelo de OSM */
-        diffuseColor.rgb=mix(diffuseColor.rgb,texture2D(tRock,vMapUv*0.45).rgb*0.95,max(vSoil.x,smoothstep(0.42,0.68,vSlope)*uPhoto));diffuseColor.rgb=mix(diffuseColor.rgb,dirtC,vSoil.y*0.9);
+        float shrub=(smoothstep(0.3,0.5,vSlope)-smoothstep(0.66,0.82,vSlope))*uStripe;diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(0.52,0.64,0.42)*(0.75+0.5*mD),shrub*0.7);
+        diffuseColor.rgb=mix(diffuseColor.rgb,texture2D(tRock,vMapUv*0.45).rgb*0.95,max(vSoil.x,smoothstep(0.62,0.86,vSlope)*uPhoto));diffuseColor.rgb=mix(diffuseColor.rgb,dirtC,vSoil.y*0.9);
         float gust=texture2D(tMacro,vMapUv*0.35+vec2(uT*0.021,uT*0.013)).r;
         diffuseColor.rgb*=1.0+(gust-0.5)*0.14*uStripe*(1.0-vUrb);
         vec3 pave=vec3(0.085,0.083,0.079)*(0.82+0.3*mA+0.25*(texture2D(tUrb,vMapUv*0.8).r-0.3));pave=mix(pave,pave*vec3(0.8,0.95,0.7),smoothstep(0.55,0.75,mB)*0.6);
+        /* en zona urbana: calzada de asfalto (vías) o enlosado de piedra (aceras, plazas, patios) */
+        vec3 stoneC=texture2D(tStone,vMapUv*3.5).rgb*vec3(0.3,0.29,0.27)*(0.8+0.35*mA)*(0.85+0.3*mD);pave=mix(pave,stoneC,smoothstep(0.3,0.7,vPav));
         diffuseColor.rgb=mix(diffuseColor.rgb,pave,vUrb);
         if(vSat>0.001){vec3 sc=texture2D(tSat,vSatUv).rgb;sc=pow(sc,vec3(1.12))*0.66;diffuseColor.rgb=mix(diffuseColor.rgb,sc,vSat);}
+      #endif`).replace("#include <color_fragment>", `#include <color_fragment>
+      #ifdef USE_COLOR
+        diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb/max(vColor.rgb,vec3(0.25)),vUrb*0.9);
       #endif`)
   }, m
  }
@@ -7373,6 +7576,51 @@ vLatP=aLat;`), sh.fragmentShader = `uniform sampler2D tTiles;uniform float uWall
   }
  }
 
+ /* huella de los edificios en una rejilla de 3 m: la vegetación no crece dentro de las casas */
+ let BLDM = null;
+
+ function bldMark(P) {
+  const B = BLDM;
+  let x0 = 1e9,
+   x1 = -1e9,
+   y0 = 1e9,
+   y1 = -1e9;
+  for (const [x, y] of P) x0 = Math.min(x0, x), x1 = Math.max(x1, x), y0 = Math.min(y0, y), y1 = Math.max(y1, y);
+  const c0 = Math.max(0, Math.floor((x0 - 2 - B.x0) / B.st)),
+   c1 = Math.min(B.nx - 1, Math.ceil((x1 + 2 - B.x0) / B.st)),
+   r0 = Math.max(0, Math.floor((y0 - 2 - B.y0) / B.st)),
+   r1 = Math.min(B.ny - 1, Math.ceil((y1 + 2 - B.y0) / B.st));
+  if ((c1 - c0) * (r1 - r0) > 2e4) return;
+  for (let r = r0; r <= r1; r++)
+   for (let c = c0; c <= c1; c++) {
+    const x = B.x0 + c * B.st,
+     y = B.y0 + r * B.st;
+    let o = !1;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+     const [xi, yi] = P[i], [xj, yj] = P[j];
+     yi > y != yj > y && x < (xj - xi) * (y - yi) / (yj - yi) + xi && (o = !o)
+    }
+    o && (B.a[r * B.nx + c] = 1)
+   }
+ }
+
+ function bldAt(x, y) {
+  const B = BLDM;
+  if (!B) return !1;
+  for (const [dx, dy] of [
+    [0, 0],
+    [2.5, 0],
+    [-2.5, 0],
+    [0, 2.5],
+    [0, -2.5]
+   ]) {
+   const c = Math.round((x + dx - B.x0) / B.st),
+    r = Math.round((y + dy - B.y0) / B.st);
+   if (c >= 0 && r >= 0 && c < B.nx && r < B.ny && B.a[r * B.nx + c]) return !0
+  }
+  return !1
+ }
+
  function buildVegetation(group) {
   if (!(root.TEXIMG && root.TEXIMG.tree_decid)) return;
   const V = veg(),
@@ -7394,7 +7642,7 @@ vLatP=aLat;`), sh.fragmentShader = `uniform sampler2D tTiles;uniform float uWall
     const x = x0 + (c + rr()) * st,
      y = y0 + (r + rr()) * st,
      d = terrainD(x, y);
-    if (d < WALL + 12 || d > 920) continue;
+    if (d < WALL + 12 || d > 920 || bldAt(x, y)) continue;
     const fm = forestMask(x, y, d),
      u = rr();
     fm > .3 ? d < 170 ? near.push([x, y, d]) : d < 430 ? u < .5 && mid.push([x, y, d]) : u < .24 && far.push([x, y, d]) : d > WALL + V.near && u < .012 * V.lone && !(WD && [5, 6,
@@ -8351,12 +8599,13 @@ vLatP=aLat;`), sh.fragmentShader = `uniform sampler2D tTiles;uniform float uWall
    }),
    i0 = Math.round(P.inS / tr.ds),
    i1 = i0 + Math.round(P.len / tr.ds);
-  group.add(new THREE.Mesh(ribbonM({
+  /* explanada del paddock detrás de los garajes, solo en el tramo recto de los garajes; en los circuitos urbanos el paddock va en calles y muelles que ya existen */
+  tr.street || group.add(new THREE.Mesh(ribbonM({
    latA: garL - 16.5,
    latB: garL - 72,
    y: .03,
-   i0: i0 + Math.round(70 / tr.ds),
-   i1: i1 - Math.round(70 / tr.ds),
+   i0: i0 + Math.round(Math.max(70, P.gA || 0) / tr.ds),
+   i1: i0 + Math.round(Math.min(P.len - 70, P.gB || P.len) / tr.ds),
    uvLen: 14
   }), conc));
   let placed = 0;
@@ -11503,7 +11752,240 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
     z: p[2]
    })
   }
-  lowPosts.sort((a, b) => a.s - b.s), buildDetails(trackGroup, ka)
+  lowPosts.sort((a, b) => a.s - b.s), buildDetails(trackGroup, ka);
+  for (const f of [buildCamTowers, buildFlagRow, buildParkedCranes]) try {
+   f(trackGroup)
+  } catch (e) {
+   console.warn("detalle", f.name, e)
+  }
+ }
+
+ /* torres de andamio de las cámaras de TV: tubos con arriostramiento, plataforma con barandilla, cámara en trípode, operador y sombrilla */
+ function buildCamTowers(group) {
+  if (tr.street || !tvPosts.length || quality === "low") return;
+  const tube = [],
+   deck = [],
+   dark = [],
+   cloth = [],
+   umb = [],
+   put = (arr, g, x, y, z, ry) => {
+    g.rotateY(ry), g.translate(x, y, z), arr.push(g.index ? g.toNonIndexed() : g)
+   };
+  for (const p of tvPosts) {
+   const q = ptS(p.s, 0, 0),
+    dx = p.x - q[0],
+    dz = p.z - q[2],
+    dl = Math.hypot(dx, dz) || 1,
+    ox = dx / dl,
+    oz = dz / dl,
+    cx = p.x + ox * 1.15,
+    cz = p.z + oz * 1.15,
+    gy = terrainH(cx, cz),
+    H = p.y - 1.55 - gy,
+    ry = Math.atan2(ox, oz);
+   if (H < 1.6 || H > 22) continue;
+   for (const [a, b] of [
+     [-1, -1],
+     [1, -1],
+     [1, 1],
+     [-1, 1]
+    ]) {
+    const g = new THREE.CylinderGeometry(.045, .045, H + 1.1, 5);
+    g.translate(a * 1.05, (H + 1.1) / 2, b * 1.05), put(tube, g, cx, gy, cz, ry)
+   }
+   for (let y = 1.9; y < H + .1; y += 1.9)
+    for (const [a, b, r] of [
+      [0, -1, 0],
+      [0, 1, 0],
+      [-1, 0, Math.PI / 2],
+      [1, 0, Math.PI / 2]
+     ]) {
+     const g = new THREE.CylinderGeometry(.035, .035, 2.1, 4);
+     g.rotateZ(Math.PI / 2), g.rotateY(r), g.translate(a * 1.05, Math.min(y, H), b * 1.05), put(tube, g, cx, gy, cz, ry)
+    }
+   for (let y = 0; y + 1.9 <= H + .05; y += 1.9)
+    for (const b of [-1, 1]) {
+     const g = new THREE.CylinderGeometry(.03, .03, Math.hypot(2.1, 1.9), 4);
+     g.rotateZ(Math.atan2(2.1, 1.9) * (b * (y / 1.9 % 2 ? 1 : -1))), g.translate(0, y + .95, b * 1.05), put(tube, g, cx, gy, cz, ry)
+    }
+   {
+    const g = new THREE.BoxGeometry(2.45, .09, 2.45);
+    g.translate(0, H, 0), put(deck, g, cx, gy, cz, ry)
+   }
+   for (const [a, b, r] of [
+     [0, 1.1, 0],
+     [-1.1, 0, Math.PI / 2],
+     [1.1, 0, Math.PI / 2]
+    ]) {
+    const g = new THREE.CylinderGeometry(.03, .03, 2.2, 4);
+    g.rotateZ(Math.PI / 2), g.rotateY(r), g.translate(a, H + 1.02, b), put(tube, g, cx, gy, cz, ry)
+   }
+   /* cámara de TV con objetivo largo, trípode, operador y sombrilla */
+   {
+    const g = new THREE.BoxGeometry(.32, .36, .62);
+    g.translate(0, H + 1.42, -.55), put(dark, g, cx, gy, cz, ry);
+    const l = new THREE.CylinderGeometry(.1, .12, .75, 8);
+    l.rotateX(Math.PI / 2), l.translate(0, H + 1.45, -1.18), put(dark, l, cx, gy, cz, ry);
+    for (const a of [0, 2.1, 4.2]) {
+     const t = new THREE.CylinderGeometry(.02, .02, 1.35, 4);
+     t.rotateX(.28), t.rotateY(a), t.translate(Math.sin(a) * .2, H + .62, -.55 + Math.cos(a) * .2), put(dark, t, cx, gy, cz, ry)
+    }
+    const tor = new THREE.BoxGeometry(.46, .62, .3);
+    tor.translate(0, H + 1.32, .05), put(cloth, tor, cx, gy, cz, ry);
+    const lg = new THREE.BoxGeometry(.4, .78, .26);
+    lg.translate(0, H + .44, .08), put(dark, lg, cx, gy, cz, ry);
+    const hd = new THREE.SphereGeometry(.13, 8, 6);
+    hd.translate(0, H + 1.78, 0), put(dark, hd, cx, gy, cz, ry);
+    const pole = new THREE.CylinderGeometry(.025, .025, 1.9, 4);
+    pole.translate(.85, H + .95, .75), put(tube, pole, cx, gy, cz, ry);
+    const u = new THREE.ConeGeometry(1.25, .42, 10, 1, !0);
+    u.translate(.85, H + 2.05, .75), put(umb, u, cx, gy, cz, ry)
+   }
+  }
+  const BU = THREE.BufferGeometryUtils,
+   mk = (arr, m) => {
+    if (!arr.length) return;
+    const ms = new THREE.Mesh(BU.mergeGeometries(arr), m);
+    ms.castShadow = !0, ms.receiveShadow = !0, group.add(ms)
+   };
+  mk(tube, Mat("#b7bcc1", {
+   roughness: .45,
+   metalness: .7
+  })), mk(deck, Mat("#5b5348", {
+   roughness: .9
+  })), mk(dark, Mat("#1d2024", {
+   roughness: .55,
+   metalness: .3
+  })), mk(cloth, Mat(["#f07a1a", "#1f5fbf", "#e8e8e8"][tr.seed % 3], {
+   roughness: .85
+  })), mk(umb, Mat("#f2f2f0", {
+   roughness: .7,
+   side: THREE.DoubleSide
+  }))
+ }
+
+ /* fila de mástiles con banderas de países junto al lago de Interlagos */
+ function buildFlagRow(group) {
+  if (tr.key !== "SaoPaulo" || !WD || !WD.lakes || !WD.lakes.length) return;
+  const N = tr.N;
+  let best = null;
+  for (const L of WD.lakes) {
+   let cx = 0,
+    cy = 0;
+   for (const [x, y] of L.P) cx += x, cy += y;
+   cx /= L.P.length, cy /= L.P.length;
+   let bi = 0,
+    bd = 1e18;
+   for (let i = 0; i < N; i++) {
+    const d = (tr.x[i] - cx) ** 2 + (tr.y[i] - cy) ** 2;
+    d < bd && (bd = d, bi = i)
+   }
+   bd < 400 * 400 && (!best || bd < best.d) && (best = {
+    i: bi,
+    d: bd,
+    cx,
+    cy
+   })
+  }
+  if (!best) return;
+  const i0 = best.i,
+   hd = tr.hd[i0],
+   side = (best.cx - tr.x[i0]) * -Math.sin(hd) + (best.cy - tr.y[i0]) * Math.cos(hd) > 0 ? 1 : -1,
+   FL = [
+    ["#009c3b", "br"],
+    ["#74acdf", "h3", "#fff", "#74acdf"],
+    ["#009246", "v3", "#fff", "#ce2b37"],
+    ["#aa151b", "h3", "#f1bf00", "#aa151b"],
+    ["#002395", "v3", "#fff", "#ed2939"],
+    ["#000", "h3", "#dd0000", "#ffce00"],
+    ["#fff", "jp"],
+    ["#ae1c28", "h3", "#fff", "#21468b"],
+    ["#006847", "v3", "#fff", "#ce1126"],
+    ["#000", "v3", "#fdda24", "#ef3340"],
+    ["#ed2939", "h3", "#fff", "#ed2939"],
+    ["#d52b1e", "ca"],
+    ["#012169", "uk"],
+    ["#b22234", "us"],
+    ["#fff", "h2", "#dc143c"],
+    ["#0038a8", "h3", "#fff", "#0038a8"]
+   ],
+   T = canvasTex(1024, 256, (g, w, h) => {
+    const fw = w / 8,
+     fh = h / 2;
+    FL.forEach((f, k) => {
+     const x = k % 8 * fw,
+      y = (k >> 3) * fh;
+     g.save(), g.translate(x + fw, y), g.scale(-1, 1), g.fillStyle = f[0], g.fillRect(0, 0, fw, fh);
+     const t = f[1];
+     t === "v3" ? (g.fillStyle = f[2], g.fillRect(fw / 3, 0, fw / 3, fh), g.fillStyle = f[3], g.fillRect(2 * fw / 3, 0, fw / 3, fh)) : t === "h3" ? (g.fillStyle = f[2], g.fillRect(0, fh / 3, fw, fh / 3), g.fillStyle = f[3], g.fillRect(0, 2 * fh / 3, fw, fh / 3)) : t === "h2" ? (g.fillStyle = f[2], g.fillRect(0, fh / 2, fw, fh / 2)) : t === "jp" ? (g.fillStyle = "#bc002d", g.beginPath(), g.arc(fw / 2, fh / 2, fh * .3, 0, 7), g.fill()) : t === "br" ? (g.fillStyle = "#ffdf00", g.beginPath(), g.moveTo(fw * .08, fh / 2), g.lineTo(fw / 2, fh * .1), g.lineTo(fw * .92, fh / 2), g.lineTo(fw / 2, fh * .9), g.fill(), g.fillStyle = "#002776", g.beginPath(), g.arc(fw / 2, fh / 2, fh * .22, 0, 7), g.fill()) : t === "ca" ? (g.fillStyle = "#fff", g.fillRect(fw / 4, 0, fw / 2, fh), g.fillStyle = "#d52b1e", g.beginPath(), g.moveTo(fw / 2, fh * .2), g.lineTo(fw * .62, fh * .55), g.lineTo(fw / 2, fh * .75), g.lineTo(fw * .38, fh * .55), g.fill()) : t === "uk" ? (g.strokeStyle = "#fff", g.lineWidth = fh * .2, g.beginPath(), g.moveTo(0, 0), g.lineTo(fw, fh), g.moveTo(fw, 0), g.lineTo(0, fh), g.stroke(), g.strokeStyle = "#c8102e", g.lineWidth = fh * .07, g.stroke(), g.fillStyle = "#fff", g.fillRect(fw * .42, 0, fw * .16, fh), g.fillRect(0, fh * .38, fw, fh * .24), g.fillStyle = "#c8102e", g.fillRect(fw * .45, 0, fw * .1, fh), g.fillRect(0, fh * .42, fw, fh * .16)) : t === "us" && (g.fillStyle = "#fff", [1, 3, 5, 7, 9, 11].forEach(r => g.fillRect(0, r * fh / 13, fw, fh / 13)), g.fillStyle = "#3c3b6e", g.fillRect(0, 0, fw * .4, fh * 7 / 13)), g.restore()
+    })
+   }, [1, 1]),
+   fm = new THREE.MeshStandardMaterial({
+    map: T,
+    side: THREE.DoubleSide,
+    roughness: .8
+   });
+  fm.onBeforeCompile = sh => {
+   sh.uniforms.uT = windU, sh.vertexShader = "uniform float uT;\n" + sh.vertexShader.replace("#include <begin_vertex>", "vec3 transformed=vec3(position);float fx=clamp(position.x/1.9,0.0,1.0);transformed.z+=fx*(sin(uT*4.2+position.x*3.1+modelMatrix[3].x*.7)*.16+sin(uT*7.3+position.x*5.0)*.05);transformed.y-=fx*fx*.12;")
+  };
+  const fg = new THREE.PlaneGeometry(1.9, 1.25, 10, 1);
+  fg.translate(.95, 0, 0);
+  const uv = fg.attributes.uv,
+   n = 16,
+   pg = new THREE.CylinderGeometry(.045, .06, 9, 5);
+  pg.translate(0, 4.5, 0);
+  const pm = Mat("#e6e8ea", {
+    roughness: .35,
+    metalness: .8
+   }),
+   ims = [],
+   G = new THREE.Group;
+  for (let k = 0; k < n; k++) {
+   const s = i0 * tr.ds + (k - n / 2) * 7,
+    p = ptS(s, side * (S.WALL + 9), 0),
+    gy = terrainH(p[0], p[2]),
+    pole = new THREE.Mesh(pg, pm);
+   pole.position.set(p[0], gy, p[2]), pole.castShadow = !0, G.add(pole);
+   const g2 = fg.clone(),
+    u2 = g2.attributes.uv,
+    f = k % FL.length;
+   for (let q = 0; q < u2.count; q++) u2.setXY(q, (7 - f % 8 + uv.getX(q)) / 8, (uv.getY(q) + (1 - (f >> 3))) / 2);
+   const fl = new THREE.Mesh(g2, fm);
+   fl.position.set(p[0], gy + 8.2, p[2]), fl.rotation.y = -tr.hd[S.idxAt(tr, s)] + (side > 0 ? 0 : Math.PI) + .6, fl.castShadow = !0, G.add(fl)
+  }
+  group.add(G)
+ }
+
+ /* grúas aparcadas detrás del muro en las frenadas más fuertes, listas para retirar coches */
+ function buildParkedCranes(group) {
+  if (tr.street || quality === "low") return;
+  const N = tr.N,
+   st = Math.round(150 / tr.ds),
+   cand = [],
+   pa = Math.round(tr.pit.inS / tr.ds),
+   pb = pa + Math.round(tr.pit.len / tr.ds),
+   inPit = i => ((i - pa) % N + N) % N < pb - pa;
+  for (let i = 0; i < N; i += 2) {
+   const j = (i + st) % N,
+    dv = tr.vref[i] - tr.vref[j];
+   dv > 22 && Math.abs(tr.k[j]) > 1 / 140 && cand.push([dv, j])
+  }
+  cand.sort((a, b) => b[0] - a[0]);
+  const picked = [];
+  for (const [, j] of cand) {
+   if (picked.some(q => Math.min(Math.abs(q - j), N - Math.abs(q - j)) < 500 / tr.ds)) continue;
+   if (picked.push(j), picked.length >= 4) break
+  }
+  for (const j of picked) {
+   const side = -(Math.sign(tr.k[j]) || 1),
+    jj = (j + Math.round(35 / tr.ds)) % N;
+   if (reachAt(jj, side) < S.WALL + 13 || side === PSD() && inPit(jj)) continue;
+   const p = pt(jj, side * (S.WALL + 6.5), 0),
+    cm = craneModel();
+   cm.position.set(p[0], Math.max(p[1] - .4, terrainH(p[0], p[2])), p[2]), cm.rotation.y = -tr.hd[jj] + (side > 0 ? Math.PI : 0), cm.traverse(o => {
+    o.isMesh && (o.castShadow = !0)
+   }), group.add(cm)
+  }
  }
  const matCache = {};
 
