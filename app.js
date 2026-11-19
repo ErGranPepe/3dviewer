@@ -4883,6 +4883,43 @@ void main(){
     setT(r, r[4] + .9, 1, 1), Pv.y = r[1] + r[5] + .45
    }, !0)
   }
+  if (tr.street && REL.bal.length && quality !== "low") {
+   /* vecinos asomados a los balcones que dan a la pista (Mónaco) */
+   const ppl = [],
+    rr = S.rng(tr.seed * 17 + 3);
+   for (const r of REL.bal) {
+    if (terrainD(r[0], r[2]) > S.WALL + 90 || rr() > .38) continue;
+    const n = 1 + (rr() * 3 | 0),
+     c = Math.cos(r[3]),
+     sn = Math.sin(r[3]);
+    for (let k = 0; k < n; k++) {
+     const t = (k + .5) / n - .5,
+      lx = t * Math.max(.6, r[4] - .5),
+      lz = .55 + rr() * .15;
+     ppl.push([r[0] + lx * c + lz * sn, r[1] + .14, r[2] - lx * sn + lz * c, r[3] + (rr() - .5) * .6, .92 + rr() * .16])
+    }
+   }
+   if (ppl.length) {
+    const bodyG = new THREE.CapsuleGeometry(.17, .78, 3, 8);
+    bodyG.translate(0, .56, 0);
+    const headG = new THREE.SphereGeometry(.11, 8, 6);
+    headG.translate(0, 1.27, 0);
+    const SH = ["#f2f2f0", "#1c2430", "#b3261e", "#2f5aa8", "#e3c53a", "#2b7a55", "#d9d9d9", "#e08a1f", "#7c5cff", "#ff5fb3", "#c9b79c", "#3d4650"],
+     SK = ["#e3bc9b", "#d0a17f", "#a8754f", "#7c5236", "#f0d0b4", "#c58f6c"],
+     ib = inst(bodyG, new THREE.MeshStandardMaterial({
+      color: "#ffffff",
+      roughness: .85
+     }), ppl, r => setT(r, 1, r[4], 1), !1),
+     ih = inst(headG, new THREE.MeshStandardMaterial({
+      color: "#ffffff",
+      roughness: .7
+     }), ppl, r => setT(r, 1, r[4], 1), !1);
+    const C2 = new THREE.Color;
+    ppl.forEach((r, k) => {
+     ib && ib.setColorAt(k, C2.set(SH[k * 7 % SH.length])), ih && ih.setColorAt(k, C2.set(SK[k * 5 % SK.length]))
+    })
+   }
+  }
   TEX.awn || (TEX.awn = canvasTex(64, 16, (g, w, h) => {
    for (let x = 0; x < w; x += 16) g.fillStyle = "#ffffff", g.fillRect(x, 0, 8, h), g.fillStyle = "#d6d6d6", g.fillRect(x + 8, 0, 8, h)
   }, [1, 1]));
@@ -10770,7 +10807,8 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
      i1: b,
      uvLen: 40
     });
-    if (sd > 0) {
+    {
+     /* el rótulo se lee bien desde la pista a los dos lados */
      const uv2 = g2.attributes.uv;
      for (let q = 0; q < uv2.count; q++) uv2.setX(q, -uv2.getX(q))
     }
@@ -11812,7 +11850,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    })
   }
   lowPosts.sort((a, b) => a.s - b.s), buildDetails(trackGroup, ka);
-  for (const f of [buildCamTowers, buildFlagRow, buildParkedCranes]) try {
+  for (const f of [buildCamTowers, buildFlagRow, buildParkedCranes, buildStreetDetails]) try {
    f(trackGroup)
   } catch (e) {
    console.warn("detalle", f.name, e)
@@ -11921,6 +11959,60 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    roughness: .7,
    side: THREE.DoubleSide
   }))
+ }
+
+ /* circuitos urbanos: tapas de alcantarilla y rejillas de desagüe en la calzada, junto al bordillo */
+ function buildStreetDetails(group) {
+  if (!tr.street || quality === "low") return;
+  TEX.manhole || (TEX.manhole = canvasTex(256, 128, (g, w, h) => {
+   g.clearRect(0, 0, w, h);
+   const cx = 64,
+    cy = 64;
+   g.fillStyle = "#5c5d5e", g.beginPath(), g.arc(cx, cy, 60, 0, 7), g.fill(), g.strokeStyle = "#8d8e8f", g.lineWidth = 6, g.beginPath(), g.arc(cx, cy, 56, 0, 7), g.stroke(), g.strokeStyle = "#3e3f40";
+   for (let k = -48; k <= 48; k += 9) g.lineWidth = 3, g.beginPath(), g.moveTo(cx - Math.sqrt(2400 - k * k * .9), cy + k), g.lineTo(cx + Math.sqrt(2400 - k * k * .9), cy + k), g.stroke();
+   g.fillStyle = "#6a6b6c", g.fillRect(cx - 18, cy - 7, 36, 14), g.fillStyle = "#58595a", g.fillRect(140, 8, 108, 112), g.fillStyle = "#0c0c0c";
+   for (let y = 16; y < 112; y += 11) g.fillRect(148, y, 92, 6);
+   g.strokeStyle = "#8a8b8c", g.lineWidth = 5, g.strokeRect(140, 8, 108, 112)
+  }, [1, 1]), TEX.manhole.wrapS = TEX.manhole.wrapT = THREE.ClampToEdgeWrapping);
+  const mk = (u0, u1) => {
+    const g = new THREE.PlaneGeometry(1, 1),
+     uv = g.attributes.uv;
+    for (let q = 0; q < uv.count; q++) uv.setX(q, 1 - (u0 + (u1 - u0) * uv.getX(q)));
+    return g.rotateX(-Math.PI / 2), g
+   },
+   mat = new THREE.MeshStandardMaterial({
+    map: TEX.manhole,
+    color: "#7d7c7a",
+    transparent: !0,
+    alphaTest: .4,
+    roughness: .62,
+    metalness: .25,
+    envMapIntensity: .5,
+    polygonOffset: !0,
+    polygonOffsetFactor: -3
+   }),
+   rr = S.rng(tr.seed * 23 + 9),
+   holes = [],
+   grates = [];
+  for (let s0 = 6; s0 < tr.L; s0 += 9 + rr() * 12) {
+   const i = S.idxAt(tr, s0);
+   if ((tr.tunnel || []).some(([a, b]) => s0 > a && s0 < b)) continue;
+   rr() < .6 && grates.push([i, (rr() < .5 ? 1 : -1) * (S.HW - .42)]), rr() < .22 && holes.push([i, (rr() - .5) * (S.HW - 1.2) * 2])
+  }
+  for (const [list, geo, sx, sz] of [
+    [holes, mk(0, .5), .78, .78],
+    [grates, mk(.547, .969), .55, .62]
+   ]) {
+   if (!list.length) continue;
+   const im = new THREE.InstancedMesh(geo, mat, list.length),
+    M4 = new THREE.Matrix4,
+    Qq = new THREE.Quaternion,
+    Ee = new THREE.Euler;
+   list.forEach(([i, l], k) => {
+    const p = pt(i, l, .075);
+    Ee.set(0, -tr.hd[i], 0), Qq.setFromEuler(Ee), M4.compose(new THREE.Vector3(p[0], p[1], p[2]), Qq, new THREE.Vector3(sx, 1, sz)), im.setMatrixAt(k, M4)
+   }), im.receiveShadow = !0, group.add(im)
+  }
  }
 
  /* fila de mástiles con banderas de países junto al lago de Interlagos */
