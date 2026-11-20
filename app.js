@@ -8983,6 +8983,16 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
   return n
  }
  const GEOREF = {
+  Monaco: {
+   la: 43.7352738,
+   lo: 7.42361,
+   R: [
+    [.999999, .000947],
+    [-.000947, .999999]
+   ],
+   s: .9996,
+   t: [132.74, 207.28]
+  },
   Sakhir: {
    la: 26.032221,
    lo: 50.5141192,
@@ -9298,13 +9308,14 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
     return geom.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)), geom.setIndex(I), geom.applyMatrix4(inv), new THREE.Mesh(geom)
    },
    up = new THREE.Vector3(0, -1, 0).transformDirection(inv).normalize();
+  const thr = tr.street ? 7 : 1 / 0;
   if (G.flat.addShape(mk(-HWc, HWc, 0, N, -.25), up, {
-    threshold: 1 / 0
+    threshold: thr
    }), tr.pit) {
    const i0 = Math.round(tr.pit.inS / tr.ds) - 10,
     i1 = i0 + Math.round(tr.pit.len / tr.ds) + 20;
    G.flat.addShape(PSD() < 0 ? mk(tr.pit.lane - 30, -HWc + 1, i0, i1, -.25) : mk(HWc - 1, tr.pit.lane + 30, i0, i1, -.25), up, {
-    threshold: 1 / 0
+    threshold: thr
    })
   }
   return G.cal = !0, G.tiles.group.visible = !0, setProcVisible(!1), R.geoStatus = "", !0
@@ -19536,6 +19547,10 @@ registerProcessor('engine-proc',EngineProc);`;
  }, $("rView").onchange = () => setView($("rView").value), $("rTod").onchange = () => {
   has3d && R3D.setTimeOfDay(app.w ? todFor(app.w.track) : $("rTod").value)
  };
+ try {
+  const u = new URL(location.href), q = u.searchParams.get("gkey");
+  q && (localStorage.setItem("pn3-gkey", q.trim()), localStorage.setItem("pn3-geo", "1"), u.searchParams.delete("gkey"), history.replaceState(null, "", u.pathname + u.search + u.hash))
+ } catch {}
  {
   const gk = (() => {
     try {
@@ -19643,4 +19658,4 @@ registerProcessor('engine-proc',EngineProc);`;
   const st = document.getElementById("stage");
   st && st.classList.toggle("clean")
  }
-});
+});// geo

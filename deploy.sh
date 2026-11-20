@@ -13,7 +13,7 @@ if [ "$OLD" != "a/app.$H.js" ]; then
   sed -i "s#$OLD#a/app.$H.js#g" $P/index.html
   git -C $P rm -q --cached $OLD 2>/dev/null || true; rm -f $P/$OLD
   D=$(grep -o 'a/data\.[0-9a-f]*\.js' $P/index.html | head -1 | sed 's#a/data\.##;s#\.js##')
-  echo "{\"b\": \"$H${D:0:4}\"}" > $P/version.json
+  echo "{\"b\": \"$H${D:0:4}\"}" > $P/version.json; sed -i "s/var B=\"[0-9a-f]*\"/var B=\"$H${D:0:4}\"/" $P/index.html
 fi
 echo "built a/app.$H.js"
 if [ -n "$1" ]; then
