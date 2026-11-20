@@ -3134,7 +3134,8 @@
   crew = [],
   matAsphalt = null,
   matLine = null,
-  matRubber = null;
+  matRubber = null,
+  matRubber2 = null;
  const skySun = new(root.THREE ? root.THREE.Vector3 : function() {});
  let bpass = null,
   ao = null,
@@ -3834,10 +3835,11 @@ void main(){
     cov: -.7,
     near: 30,
     lone: .5,
+    /* dunas del Mar del Norte: espino amarillo y matorral bajo, y pinos negros plantados (cónicos y oscuros), no pinos piñoneros */
     set: [
-     ["tree_bush", 4],
-     ["tree_pine", 2],
-     ["tree_decid3", 1]
+     ["tree_bush", 6],
+     ["tree_conifer2", 1.6],
+     ["tree_decid3", .6]
     ]
    },
    forest: {
@@ -5329,7 +5331,8 @@ void main(){
     addBox(a0, b0, a1, b1)
    }
    const fill2 = [],
-    fcap = WD.sat && WD.satTex ? 0 : quality === "med" ? 1500 : quality === "high" ? 4e3 : 8e3;
+    /* ya no se inventan casas a lo largo de las calles: las huellas reales (OSM + Overture con detección de Microsoft/Google) cubren casi todo */
+    fcap = WD.sat && WD.satTex || WD.bx || String(WD.attr || "").includes("Overture") ? 0 : quality === "med" ? 1500 : quality === "high" ? 4e3 : 8e3;
    for (const r0 of WD.r) {
     if (fill2.length >= fcap) break;
     if (r0[1] >= 2 || r0[0] < 4.5 || r0[0] > 11) continue;
@@ -6892,11 +6895,16 @@ varying vec2 vSoil;
   return reach[sd > 0 ? 0 : 1][(i % N + N) % N]
  }
 
+ /* distancia lateral del muro de contención en la ciudad: a medio camino del tramo vecino, nunca pegado a la acera */
+ function streetWallL(R2) {
+  return Math.max(S.WALL + 3.5, Math.min(R2 / 2, S.WALL + 30))
+ }
+
  function vergeY(z, L, R2, x, yw) {
   const full = S.WALL + 16;
   /* en la ciudad la acera es plana y el desnivel se resuelve con un muro de contención al fondo, no con un talud */
-  let w = tr.street ? sstep((L - (S.WALL + 3.5)) / 2.5) : sstep((L - (S.WALL + 1.2)) / 14.8);
-  R2 < full && (w = Math.max(w, sstep((L - (R2 - 8)) / 8)));
+  let w = tr.street ? sstep((L - streetWallL(R2)) / 1.5) : sstep((L - (S.WALL + 1.2)) / 14.8);
+  !tr.street && R2 < full && (w = Math.max(w, sstep((L - (R2 - 8)) / 8)));
   /* en la ciudad, detrás del muro hay bordillo y acera 15 cm por encima de la calzada */
   const y0 = z - .02 + (tr.street && L >= S.WALL + .43 ? .15 : 0);
   return w <= 0 ? y0 : y0 + (terrainH(x, yw) - .12 - y0) * w
@@ -9366,7 +9374,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
    }), tr.pit) {
    const i0 = Math.round(tr.pit.inS / tr.ds) - 10,
     i1 = i0 + Math.round(tr.pit.len / tr.ds) + 20;
-   G.flat.addShape(PSD() < 0 ? mk(tr.pit.lane - 30, -HWc + 1, i0, i1, -.25) : mk(HWc - 1, tr.pit.lane + 30, i0, i1, -.25), up, {
+   G.flat.addShape(PSD() < 0 ? mk(tr.pit.lane - 4.5, -HWc + 1, i0, i1, -.25) : mk(HWc - 1, tr.pit.lane + 4.5, i0, i1, -.25), up, {
     threshold: thr
    })
   }
@@ -11055,7 +11063,38 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    sub: 2,
    uvLen: 26
   }), matRubber);
-  trackGroup.add(rub), TEX.patch || (TEX.patch = canvasTex(1024, 256, (g, w, h) => {
+  trackGroup.add(rub);
+  /* la goma se acumula sobre todo en las frenadas y en el vértice de las curvas; en las rectas la trazada apenas se marca */
+  {
+   matRubber2 = new THREE.MeshBasicMaterial({
+    map: TEX.rubber,
+    transparent: !0,
+    opacity: .4,
+    depthWrite: !1
+   });
+   const Nn = tr.N,
+    heavy = new Uint8Array(Nn);
+   for (let i = 0; i < Nn; i++) {
+    const v0 = tr.vref[i],
+     v1 = tr.vref[(i + Math.round(60 / tr.ds)) % Nn];
+    (v1 < v0 * .8 || Math.abs(tr.k[i]) > 1 / 140) && (heavy[i] = 1)
+   }
+   for (let i = 0; i < Nn; i++)
+    if (heavy[i] && !heavy[(i - 1 + Nn) % Nn]) {
+     let j = i;
+     for (; heavy[j % Nn] && j - i < Nn;) j++;
+     j - i > 2 && trackGroup.add(new THREE.Mesh(ribbon({
+      latA: q => tr.rl[(q % Nn + Nn) % Nn] - 2.4,
+      latB: q => tr.rl[(q % Nn + Nn) % Nn] + 2.4,
+      y: .072,
+      i0: i - 2,
+      i1: j + 2,
+      sub: 2,
+      uvLen: 26
+     }), matRubber2))
+    }
+  }
+  TEX.patch || (TEX.patch = canvasTex(1024, 256, (g, w, h) => {
    g.clearRect(0, 0, w, h);
    const rr = S.rng(4242);
    for (let k = 0; k < 7; k++) {
@@ -12401,10 +12440,95 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    })
   }
   lowPosts.sort((a, b) => a.s - b.s), buildDetails(trackGroup, ka);
-  for (const f of [buildCamTowers, buildFlagRow, buildParkedCranes, buildStreetDetails, buildSidewalkFurniture, buildSausages, buildMonacoLandmarks]) try {
+  for (const f of [buildCamTowers, buildFlagRow, buildParkedCranes, buildStreetDetails, buildSidewalkFurniture, buildSausages, buildMonacoLandmarks, buildRetainingWalls]) try {
    f(trackGroup)
   } catch (e) {
    console.warn("detalle", f.name, e)
+  }
+ }
+
+ /* muros de contención de sillería donde la calle tiene al lado un desnivel fuerte (en Mónaco, por ejemplo, entre el Tabac y Beau Rivage hay 22 m en 30 m) */
+ function buildRetainingWalls(group) {
+  if (R.__walls = 0, !tr.street) return;
+  const N = tr.N;
+  TEX.masonry || (TEX.masonry = canvasTex(256, 256, (g, w, h) => {
+   g.fillStyle = "#b9ab90", g.fillRect(0, 0, w, h);
+   const rr = S.rng(77);
+   for (let y = 0, row = 0; y < h; y += 32, row++)
+    for (let x = row % 2 ? -24 : 0; x < w; x += 48) {
+     const v = .85 + rr() * .3,
+      c = [196 * v, 182 * v, 152 * v].map(q => Math.min(255, q | 0));
+     g.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`, g.fillRect(x + 2, y + 2, 44, 28);
+     for (let k = 0; k < 30; k++) g.fillStyle = `rgba(60,50,40,${.04 + rr() * .08})`, g.fillRect(x + 2 + rr() * 42, y + 2 + rr() * 26, 1 + rr() * 4, 1 + rr() * 3)
+    }
+   const gr = g.createLinearGradient(0, 0, 0, h);
+   gr.addColorStop(0, "rgba(40,36,30,0)"), gr.addColorStop(1, "rgba(40,36,30,.12)"), g.fillStyle = gr, g.fillRect(0, 0, w, h)
+  }, [1, 1]), TEX.masonry.wrapS = TEX.masonry.wrapT = THREE.RepeatWrapping);
+  const mat = new THREE.MeshStandardMaterial({
+    map: TEX.masonry,
+    roughness: .92,
+    side: THREE.DoubleSide
+   }),
+   capM = Mat("#d9cfbc", {
+    roughness: .85
+   }),
+   tun = i => (tr.tunnel || []).some(([a, b]) => i * tr.ds > a - 10 && i * tr.ds < b + 10);
+  for (const sd of [1, -1]) {
+   const P = [],
+    U = [],
+    I = [],
+    CP = [],
+    CI = [];
+   let prev = null,
+    u = 0;
+   for (let i = 0; i <= N; i++) {
+    const ii = i % N,
+     R2 = reachAt(ii, sd),
+     z = pt(ii, 0, 0)[1];
+    /* el muro va al pie del desnivel: primer punto (desde la acera hacia fuera) donde el terreno sube más de 1 m */
+    let Lw = -1,
+     hF = -1e9;
+    for (let L = streetWallL(R2); L < S.WALL + 48; L += 2) {
+     const q = pt(ii, sd * L, 0);
+     if (terrainH(q[0], q[2]) - z > 1) {
+      Lw = Math.max(streetWallL(R2), L - 2.5);
+      for (let L2 = L; L2 < L + 30; L2 += 2) {
+       const q2 = pt(ii, sd * L2, 0);
+       hF = Math.max(hF, terrainH(q2[0], q2[2]))
+      }
+      break
+     }
+    }
+    const p0 = Lw > 0 ? pt(ii, sd * Lw, 0) : null,
+     ok = p0 && !tun(ii) && hF - z > 3;
+    if (!ok) {
+     prev = null;
+     continue
+    }
+    const top = Math.min(hF + 1.05, z + 26),
+     bot = z - .3,
+     base = P.length / 3;
+    prev && (u += Math.hypot(p0[0] - prev[0], p0[2] - prev[2])), P.push(p0[0], bot, p0[2], p0[0], top, p0[2]), U.push(u / 4, 0, u / 4, (top - bot) / 4);
+    const off = pt(ii, sd * (Lw + .45), 0);
+    CP.push(p0[0], top, p0[2], off[0], top, off[2], p0[0], top + .12, p0[2], off[0], top + .12, off[2]);
+    if (prev) {
+     const a = base - 2;
+     I.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+     const c = CP.length / 3 - 4,
+      c0 = c - 4;
+     CI.push(c0 + 2, c + 2, c0 + 3, c0 + 3, c + 2, c + 3)
+    }
+    prev = p0
+   }
+   if (!I.length) continue;
+   const g = new THREE.BufferGeometry;
+   g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)), g.setAttribute("uv", new THREE.Float32BufferAttribute(U, 2)), g.setIndex(I), g.computeVertexNormals();
+   const m = new THREE.Mesh(g, mat);
+   m.castShadow = m.receiveShadow = !0, group.add(m);
+   const gc = new THREE.BufferGeometry;
+   gc.setAttribute("position", new THREE.Float32BufferAttribute(CP, 3)), gc.setIndex(CI), gc.computeVertexNormals();
+   const mc = new THREE.Mesh(gc, capM);
+   mc.material.side = THREE.DoubleSide, group.add(mc), R.__walls = (R.__walls || 0) + I.length / 6
   }
  }
 
@@ -15302,6 +15426,12 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
      .5) * 1.5, .5 + rn() * .9, vy * .3 + (rn() - .5) * 1.5, 1.6 + rn() * .8, .9 + rn() * .6, .5);
    pDust.step(1 / 30, .25), pSmoke.step(1 / 30, .6)
   }
+ }, R.__dbgWall = (i, sd) => {
+  const R2 = reachAt(i, sd),
+   Lw = streetWallL(R2),
+   pf = pt(i, sd * (Lw + 3), 0),
+   p0 = pt(i, 0, 0);
+  return [R2, Lw, terrainH(pf[0], pf[2]), p0[1], R.__walls]
  }, R.__tg = () => trackGroup, R.__scene = () => scene, R.__face = (x, z) => {
   const rc = new THREE.Raycaster;
   rc.setFromCamera(new THREE.Vector2(x * 2 - 1, -(z * 2 - 1)), camera);
@@ -16056,7 +16186,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
    }
    rain.g.attributes.position.needsUpdate = !0
   }
-  if (matRubber && w && (matRubber.opacity = Math.min(1, (.3 + .6 * w.rubber) * (1 - .6 * w.wetLine)), matDust && (matDust.opacity = .2 * (1 - .5 * w.rubber) * (1 - (w.wet ||
+  if (matRubber && w && (matRubber.opacity = Math.min(1, (.16 + .32 * w.rubber) * (1 - .6 * w.wetLine)), matRubber2 && (matRubber2.opacity = Math.min(1, (.25 + .45 * w.rubber) * (1 - .6 * w.wetLine))), matDust && (matDust.opacity = .2 * (1 - .5 * w.rubber) * (1 - (w.wet ||
     0)))), marbleMat && w && (marbleMat.opacity = clamp(w.marbles * 1.1, 0, .85) * (1 - .7 * w.wetLine)), skidStatic && w && (skidStatic.opacity = (.35 + .5 * w.rubber) * (1 -
     .6 * w.wetLine)), updatePosts(w, performance.now() / 1e3), bokeh) {
    const tvLike = (cam.mode === "tv" || cam.mode === "low") && focus;

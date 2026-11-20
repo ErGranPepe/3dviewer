@@ -37,6 +37,17 @@ def poly_of_b(b):
     if not p.is_valid: p = make_valid(p).buffer(0)
     return p if not p.is_empty and p.area > 0.5 else None
 
+import glob as _g
+_s = open(_g.glob('/home/claude/pages/a/data.*.js')[0]).read()
+_i = _s.find('window.REAL_TRACKS='); _j = _s.find(';window.', _i + 5)
+_T = [t for t in json.loads(_s[_i + 19:_j]) if t['key'] == KEY][0]
+TXY = np.c_[np.array(_T['x'], float), np.array(_T['y'], float)]
+STREET = KEY in ('Monaco',)
+def dtrack(x, y):
+    return float(np.min(np.hypot(TXY[:, 0] - x, TXY[:, 1] - y)))
+NONRES = {'garage': 3.2, 'garages': 3.2, 'shed': 3.0, 'static_caravan': 3.0, 'roof': 4.5, 'carport': 3.0, 'hut': 3.0, 'kiosk': 3.2, 'service': 3.5,
+          'industrial': None, 'warehouse': None, 'commercial': None, 'retail': None, 'barn': None, 'farm_auxiliary': None, 'hangar': None, 'office': None,
+          'grandstand': None, 'sports_hall': None, 'stadium': None, 'transportation': None, 'parking': None, 'toilets': 3.0, 'container': 2.8}
 old = W['b']
 oldP = [poly_of_b(b) for b in old]
 idx = [i for i, p in enumerate(oldP) if p is not None]
@@ -113,6 +124,11 @@ for o in blds:
             b[0] = round(h, 1); explicit[best] = True; stats['h_set'] += 1
         mh = o.get('min_height')
         if mh and 0 < mh < b[0] - 2: b[1] = round(float(mh), 1)
+        cls = str(o.get('class', '')).lower(); sub = str(o.get('subtype', '')).lower()
+        if not STREET and b[2] in (0, 2) and (cls in NONRES or sub in ('industrial', 'commercial', 'agricultural', 'outbuilding', 'transportation', 'entertainment', 'service')):
+            b[2] = 1; hz = NONRES.get(cls)
+            if hz and not explicit[best]: b[0] = hz
+            stats['nonres'] = stats.get('nonres', 0) + 1
         if ex and iou > 0.4:
             bx[best] = {**(bx[best] or {}), **ex}; stats['ex_set'] += 1
     elif bo < 0.08 and not osm:
@@ -121,6 +137,11 @@ for o in blds:
         if h is None:
             h = (6.6 if a < 160 else 9.5 if a < 600 else 12.5); ex['est'] = 1
         kd = 0 if (a < 260 and h < 11) else 2 if a < 5000 else 1
+        cxy = poly.centroid
+        if not STREET and dtrack(cxy.x, cxy.y) < 450:
+            # dentro del recinto del circuito: hospitality, garajes, carpas, casetas -> instalación de una o dos plantas, nunca casas
+            kd = 1
+            if ex.get('est'): h = 3.2 if a < 60 else 4.5 if a < 400 else 7.5
         ext = list(poly.exterior.coords)[:-1]
         if len(ext) > 40: ext = list(poly.simplify(0.4).exterior.coords)[:-1]
         bb = [round(h, 1), round(float(o.get('min_height') or 0), 1), kd]
@@ -178,6 +199,13 @@ if BAG:
             newb[best][0] = hh; bx[best] = {**(bx[best] or {}), **ex}; nb += 1
     stats['bag'] = nb
 
+if not STREET:
+    for i, b in enumerate(newb):
+        if b[2] in (0, 2) and DEF(old[i]) and not explicit[i] and oldP[i] is not None:
+            c = oldP[i].centroid; dd = dtrack(c.x, c.y); A = oldP[i].area
+            if (dd < 260 and A > 120) or (dd < 110 and A <= 120):
+                b[2] = 1; b[0] = 3.4 if A < 60 else 4.5 if A < 300 else 7.5 if A < 3000 else 10.0
+                stats['facil'] = stats.get('facil', 0) + 1
 for bb, ex in added:
     newb.append(bb); bx.append(ex)
 W['b'] = newb
