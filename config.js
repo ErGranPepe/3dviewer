@@ -8,7 +8,7 @@ window.SITE={
   interstitials:true,
   contact:"",
   /* Clave de Google Maps Platform (Map Tiles API) para el "mundo real" en 3D. Restríngela en Google Cloud a tu dominio. Vacío = desactivado. */
-  googleMapsKey:"",
+  googleMapsKey:"AIzaSyAKmcfKAcDXtp-RZqn9bO9EfQ8DFq9X9yw",
   sponsors:[]
 };
 window.SPONSORS=window.SITE.sponsors.length?window.SITE.sponsors:[{name:"TU MARCA AQUÍ"},{name:"ANÚNCIATE AQUÍ"}];
