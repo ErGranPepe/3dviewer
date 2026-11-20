@@ -6710,7 +6710,7 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
     }, sh.uniforms.tRock = {
      value: TEX.rock || TEX.macro
     }, sh.uniforms.tStone = {
-     value: TEX.cc && (TEX.cc("PavingStones128_color") || TEX.cc("Tiles141_color")) || TEX.macro
+     value: TEX.cc && (TEX.cc("Concrete048_color") || TEX.cc("Tiles141_color")) || TEX.macro
     }, sh.uniforms.uPhoto = {
      value: TEX.grassPhoto ? 1 : 0
     }, sh.vertexShader = `attribute float aLat;
@@ -6770,7 +6770,7 @@ varying vec2 vSoil;
         diffuseColor.rgb*=1.0+(gust-0.5)*0.14*uStripe*(1.0-vUrb);
         vec3 pave=vec3(0.085,0.083,0.079)*(0.82+0.3*mA+0.25*(texture2D(tUrb,vMapUv*0.8).r-0.3));pave=mix(pave,pave*vec3(0.8,0.95,0.7),smoothstep(0.55,0.75,mB)*0.6);
         /* en zona urbana: calzada de asfalto (vías) o enlosado de piedra (aceras, plazas, patios) */
-        vec3 stoneC=texture2D(tStone,vMapUv*3.5).rgb*vec3(0.3,0.29,0.27)*(0.8+0.35*mA)*(0.85+0.3*mD);pave=mix(pave,stoneC,smoothstep(0.3,0.7,vPav));
+        vec3 stoneC=texture2D(tStone,vMapUv*1.6).rgb*vec3(0.36,0.35,0.33)*(0.8+0.35*mA)*(0.85+0.3*mD);pave=mix(pave,stoneC,smoothstep(0.3,0.7,vPav));
         diffuseColor.rgb=mix(diffuseColor.rgb,pave,vUrb);
         if(vSat>0.001){vec3 sc=texture2D(tSat,vSatUv).rgb;sc=pow(sc,vec3(1.12))*0.66;diffuseColor.rgb=mix(diffuseColor.rgb,sc,vSat);}
       #endif`).replace("#include <color_fragment>", `#include <color_fragment>
@@ -11451,7 +11451,15 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
     pT = ptSM(sT, garL - 8, 0),
     hT = tr.hd[S.idxAt(tr, (sT % tr.L + tr.L) % tr.L)],
     G = new THREE.Group,
-    cl = new THREE.MeshStandardMaterial({
+    cl = tr.key === "Spa" && TEX.cc && TEX.cc("Bricks108A_color") ? new THREE.MeshStandardMaterial({
+     /* Spa: la torre de control es de ladrillo rojo */
+     color: "#c96a52",
+     map: (() => {
+      const t = TEX.cc("Bricks108A_color").clone();
+      return t.wrapS = t.wrapT = THREE.RepeatWrapping, t.repeat.set(3, 8), t.needsUpdate = !0, t
+     })(),
+     roughness: .85
+    }) : new THREE.MeshStandardMaterial({
      color: "#5d6168",
      map: TEX.clad || null,
      roughness: .5,
