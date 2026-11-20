@@ -8153,7 +8153,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
   const grM = new THREE.MeshLambertMaterial({
    vertexColors: !0
   });
-  for (const ap of apex) {
+  for (const ap of tr.street ? [] : apex) {
    const side = -(Math.sign(tr.k[ap.i]) || 1);
    group.add(new THREE.Mesh(ribbon({
     latA: side * (HW + 1.5),
@@ -9218,7 +9218,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
  }
 
  function geoWanted() {
-  return geoPref && !!geoKey() && !!(tr && GEOREF[tr.key]) && quality !== "low" && !!(root.TEXIMG && root.TEXIMG.tiles3d)
+  return geoPref && !!geoKey() && !!(tr && GEOREF[tr.key]) && !!(root.TEXIMG && root.TEXIMG.tiles3d)
  }
 
  function setProcVisible(v) {
@@ -9271,7 +9271,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
     dracoLoader: new T.DRACOLoader().setDecoderPath("https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/libs/draco/gltf/")
    })), tiles.registerPlugin(new T.TileCompressionPlugin), tiles.registerPlugin(new T.TilesFadePlugin);
    const flat = new T.TileFlatteningPlugin;
-   tiles.registerPlugin(flat), tiles.errorTarget = quality === "ultra" ? 6 : quality === "high" ? 10 : 20;
+   tiles.registerPlugin(flat), tiles.errorTarget = quality === "ultra" ? 6 : quality === "high" ? 10 : quality === "low" ? 28 : 20;
    const enu = new THREE.Matrix4;
    T.WGS84_ELLIPSOID.getEastNorthUpFrame(g.la * Math.PI / 180, g.lo * Math.PI / 180, 0, enu);
    const toENU = enu.clone().invert(),
@@ -10447,6 +10447,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
     }), cm);
     group.add(fr)
    }
+   const hotel0 = group.children.length;
    if (tr.key === "Monaco") try {
     /* el túnel de Mónaco pasa por debajo de un gran hotel: fachada blanca de terrazas corridas con barandilla de vidrio sobre la boca del túnel */
     let sea = 1;
@@ -10598,6 +10599,8 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    } catch (e) {
     console.warn("hotel", e)
    }
+   /* con el mundo real de Google el hotel ya viene fotografiado: se oculta el nuestro, el interior del túnel se queda */
+   for (let q = hotel0; q < group.children.length; q++) group.children[q].userData.geoHide = 1;
    tr._tun = [i0, i1]
   }
  }
