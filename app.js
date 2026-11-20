@@ -10273,6 +10273,94 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
     }), cm);
     group.add(fr)
    }
+   if (tr.key === "Monaco") try {
+    /* el túnel de Mónaco pasa por debajo de un gran hotel: fachada blanca de terrazas corridas con barandilla de vidrio sobre la boca del túnel */
+    let sea = 1;
+    {
+     const pa = pt((i0 + i1) >> 1, 45, 0),
+      pb = pt((i0 + i1) >> 1, -45, 0);
+     sea = terrainH(pa[0], pa[2]) < terrainH(pb[0], pb[2]) ? 1 : -1
+    }
+    TEX.hotel || (TEX.hotel = canvasTex(512, 512, (g, w, h) => {
+     g.fillStyle = "#e9e6df", g.fillRect(0, 0, w, h);
+     for (let f = 0; f < 4; f++) {
+      const y = f * 128;
+      g.fillStyle = "#3b4652", g.fillRect(0, y + 30, w, 70);
+      for (let x = 0; x < w; x += 64) g.fillStyle = "rgba(255,255,255,.08)", g.fillRect(x + 4, y + 34, 26, 62), g.fillStyle = "#d9d5cc", g.fillRect(x, y + 30, 5, 70);
+      g.fillStyle = "#f4f2ee", g.fillRect(0, y + 100, w, 16), g.fillStyle = "rgba(170,195,205,.75)", g.fillRect(0, y + 78, w, 22), g.fillStyle = "#c9c5bc", g.fillRect(0, y + 77, w, 3), g.fillStyle = "rgba(0,0,0,.18)", g.fillRect(0, y + 116, w, 6)
+     }
+    }, [1, 1]));
+    const fm = new THREE.MeshStandardMaterial({
+      map: TEX.hotel,
+      roughness: .6,
+      side: THREE.DoubleSide
+     }),
+     floors = 7,
+     yb = H2 + 1.2,
+     yt = yb + floors * 3.1,
+     depth = 26,
+     out = sea * (W2 + depth),
+     inn = -sea * (W2 + 1),
+     fac = (lat, ia, ib) => {
+      const g = ribbon({
+        latA: lat,
+        latB: lat,
+        y: yb,
+        yB: yt,
+        i0: ia,
+        i1: ib,
+        sub: 2,
+        uvLen: 24
+       }),
+       uv = g.attributes.uv;
+      for (let q = 0; q < uv.count; q++) uv.setY(q, uv.getY(q) * floors / 4);
+      const m = new THREE.Mesh(g, fm);
+      return m.castShadow = m.receiveShadow = !0, group.add(m), m
+     };
+    fac(out, i0 - 6, i1 + 6), fac(inn, i0, i1);
+    const roofM = Mat("#b9b5ad", {
+      roughness: .9
+     }),
+     roof = new THREE.Mesh(ribbon({
+      latA: inn,
+      latB: out,
+      y: yt,
+      i0: i0 - 6,
+      i1: i1 + 6,
+      sub: 2,
+      uvLen: 20
+     }), roofM);
+    roof.castShadow = !0, group.add(roof);
+    /* planta baja hacia el mar: pórtico de pilares entre la carretera y el paseo */
+    const colG = new THREE.BoxGeometry(.8, yb, .8);
+    colG.translate(0, yb / 2, 0);
+    const cols = [];
+    for (let i = i0 - 6; i <= i1 + 6; i += Math.max(1, Math.round(7 / tr.ds))) cols.push(pt(i, out - sea * .4, 0));
+    const im = new THREE.InstancedMesh(colG, Mat("#d9d5cc", {
+      roughness: .8
+     }), cols.length),
+     M4 = new THREE.Matrix4;
+    cols.forEach((p, k) => {
+     M4.makeTranslation(p[0], p[1], p[2]), im.setMatrixAt(k, M4)
+    }), im.castShadow = !0, group.add(im);
+    for (const ii of [i0 - 6, i1 + 6]) {
+     const g = ribbon({
+      latA: inn,
+      latB: out,
+      y: yb,
+      yB: yt,
+      i0: ii,
+      i1: ii + 1,
+      sub: 1,
+      uvLen: 24
+     });
+     group.add(Object.assign(new THREE.Mesh(g, fm), {
+      castShadow: !0
+     }))
+    }
+   } catch (e) {
+    console.warn("hotel", e)
+   }
    tr._tun = [i0, i1]
   }
  }
