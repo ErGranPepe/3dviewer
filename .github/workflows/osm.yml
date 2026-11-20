@@ -1,19 +1,23 @@
-name: tex-fetch
+name: bld-fetch
 on:
   push:
-    branches: [osm-fetch]
+    branches: [bld-fetch]
 permissions:
   contents: write
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
-      - run: pip install pillow
-      - run: python3 tools/fetch_tex.py
-      - name: Publicar en la rama tex-out
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install overturemaps pyproj
+      - run: python3 tools/fetch_bld.py
+      - name: Publicar en la rama bld-out
+        if: always()
         run: |
-          cd tex && git init -q && git checkout -q -b tex-out && git add -A
-          git -c user.name=tex-bot -c user.email=tex-bot@users.noreply.github.com commit -q -m "Texturas CC0 de ambientCG"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" tex-out
+          cd out && git init -q && git checkout -q -b bld-out && git add -A
+          git -c user.name=bld-bot -c user.email=bld-bot@users.noreply.github.com commit -q -m "Edificios de datos abiertos (Overture Maps, 3D BAG)"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" bld-out
