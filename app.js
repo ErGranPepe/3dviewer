@@ -6590,7 +6590,7 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
     }
     if (WD && !hasSat && dist[k] > S.WALL + (tr.street ? 1 : 10)) {
      let lc = wdLu(x, y);
-     tr.street && (lc === 0 || lc === 1 || lc === 4) && !(lc === 0 && (wdDem(x, y) || 9) + (WD.dem.h0 || 0) <= .3) && (lc = 9), urb[k] = (lc === 10 ? 1 : lc === 9 ? .9 : lc ===
+     tr.street && (lc === 0 || lc === 1 || lc === 4) && (lc = 9), urb[k] = (lc === 10 ? 1 : lc === 9 ? .9 : lc ===
       5 ? .7 : lc === 4 ? tr.key === "SaoPaulo" || tr.key === "MexicoCity" ? .85 : .45 : 0) * sstep((dist[k] - S.WALL - (tr.street ? 1 : 10)) / (tr.street ? 6 : 25)), pav[k] = lc === 10 ? 0 : 1
     }
     r < ny - 1 && c < nx - 1 && idx.push(k, k + nx, k + 1, k + 1, k + nx, k + nx + 1)
@@ -6648,7 +6648,7 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
   }
   if (WD && d > S.WALL + 8) {
    let lc = wdLu(x, y);
-   tr.street && (lc === 0 || lc === 1 || lc === 4) && !(lc === 0 && (wdDem(x, y) || 9) + (WD.dem.h0 || 0) <= .3) && (lc = 9);
+   tr.street && (lc === 0 || lc === 1 || lc === 4) && (lc = 9);
    const LT2 = [null, [1, 1.03, .95], null, [1.28, 1.12, .72],
     [1.25, 1, 1.45],
     [1.55, 1.22, 1.75],
@@ -11830,7 +11830,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    const far = reachAt(i, side) >= WALL + 14,
     lat = side * (tr.street ? WALL + .9 : far ? WALL + 7 + rp() * 3 : WALL + 3.5),
     p = ptS(s, lat, 0),
-    hgt = Math.max(terrainH(p[0], p[2]), p[1]) + (tr.street ? 4.6 + rp() * 1.8 : (far ? 7.5 : 6.2) + rp() * 3.5 + (rp() < .18 ? 7 : 0));
+    hgt = Math.max(terrainH(p[0], p[2]), p[1]) + (tr.street ? 7.2 + rp() * 2.6 : (far ? 7.5 : 6.2) + rp() * 3.5 + (rp() < .18 ? 7 : 0));
    /* nada de cámaras dentro del túnel ni bajo los edificios que lo cubren */
    if ((tr.tunnel || []).some(([a, b]) => s > a - 90 && s < b + 40)) continue;
    tvPosts.push({
