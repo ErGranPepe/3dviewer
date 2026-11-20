@@ -10458,13 +10458,31 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    });
   runoff.map.wrapS = THREE.RepeatWrapping, runoff.map.anisotropy = 8;
   for (const t of [TEX.gravel, TEX.gravelN]) t && t.repeat.set(12 / 2.5, 15.6 / 2.5);
-  const gravel = new THREE.MeshStandardMaterial({
-   map: TEX.gravel,
-   normalMap: TEX.gravelN || null,
-   roughness: 1,
-   metalness: 0,
-   envMapIntensity: .5
-  });
+  /* la grava no es igual en todas partes: gris oscura en Spa, beige en Monza y Barcelona, arena amarillenta en Zandvoort */
+  const GRV = {
+    Spa: "#9a9a96",
+    Monza: "#f0e2c4",
+    Zandvoort: "#f3e0a6",
+    Silverstone: "#cdb89a",
+    Suzuka: "#dcd8cf",
+    Spielberg: "#cfc8ba",
+    Catalunya: "#ecd8ae",
+    Austin: "#e3cfab",
+    Budapest: "#e2c89c",
+    Melbourne: "#e8d6b0",
+    MexicoCity: "#c9b49a",
+    SaoPaulo: "#d8c7a6",
+    Montreal: "#cfc6b6",
+    Shanghai: "#d9d2c4"
+   },
+   gravel = new THREE.MeshStandardMaterial({
+    map: TEX.gravel,
+    normalMap: TEX.gravelN || null,
+    color: GRV[tr.key] || "#ffffff",
+    roughness: 1,
+    metalness: 0,
+    envMapIntensity: .5
+   });
   gravMask = new Int8Array(N);
   for (const [a, b] of tr.street ? [] : runs(i => ka[i] > 1 / 110)) {
    let sg = 0;
@@ -10495,8 +10513,19 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
     m = new THREE.Mesh(g, gravel);
    m.receiveShadow = !0, trackGroup.add(m)
   }
-  TEX.tecpro || (TEX.tecpro = canvasTex(256, 64, (g, w, h) => {
-   const cs = ["#c81e28", "#eef0f2", "#c81e28", "#eef0f2"];
+  const TPC = {
+    Monaco: ["#1f3e8c", "#eef0f2"],
+    Monza: ["#1c8a4c", "#eef0f2"],
+    Spa: ["#c81e28", "#f0c419"],
+    Silverstone: ["#012169", "#eef0f2"],
+    Zandvoort: ["#ff7a00", "#eef0f2"],
+    Suzuka: ["#1f3a8a", "#eef0f2"],
+    SaoPaulo: ["#009c3b", "#ffdf00"],
+    MexicoCity: ["#006847", "#eef0f2"],
+    YasMarina: ["#5f6670", "#eef0f2"]
+   } [tr.key] || ["#c81e28", "#eef0f2"];
+  TEX.tecproKey !== tr.key && (TEX.tecpro = null, TEX.tecproKey = tr.key), TEX.tecpro || (TEX.tecpro = canvasTex(256, 64, (g, w, h) => {
+   const cs = [TPC[0], TPC[1], TPC[0], TPC[1]];
    for (let i = 0; i < 4; i++) g.fillStyle = cs[i], g.fillRect(i * 64, 0, 64, h), g.fillStyle = "rgba(0,0,0,.28)", g.fillRect(i * 64, 0, 3, h), g.fillStyle =
     "rgba(255,255,255,.12)", g.fillRect(i * 64 + 3, 4, 58, 6), g.fillStyle = "rgba(0,0,0,.18)", g.fillRect(i * 64, h - 10, 64, 10)
   }));
@@ -12017,7 +12046,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    })
   }
   lowPosts.sort((a, b) => a.s - b.s), buildDetails(trackGroup, ka);
-  for (const f of [buildCamTowers, buildFlagRow, buildParkedCranes, buildStreetDetails, buildSidewalkFurniture]) try {
+  for (const f of [buildCamTowers, buildFlagRow, buildParkedCranes, buildStreetDetails, buildSidewalkFurniture, buildSausages]) try {
    f(trackGroup)
   } catch (e) {
    console.warn("detalle", f.name, e)
@@ -12251,6 +12280,49 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    roughness: .6,
    metalness: .3
   }), L.bin, !1), R.__swf = [L.lamp.length, L.pit.length, L.bench.length, L.bin.length, L.bol.length], R.__forceTrees = palms.map(p => [p[0], p[2], "tree_palm"])
+ }
+
+ /* "salchichas" amarillas tras el piano a la salida de las curvas lentas, en los circuitos que las usan para los límites de pista */
+ function buildSausages(group) {
+  if (tr.street || quality === "low" || !["Spielberg", "Zandvoort", "Monza", "Catalunya", "Austin", "Silverstone", "Budapest", "MexicoCity", "Spa", "SaoPaulo"].includes(tr.key)) return;
+  const N = tr.N,
+   list = [],
+   E0 = S.HW + 1.6;
+  let last = -1e9;
+  for (let i = 0; i < N; i++) {
+   const k = Math.abs(tr.k[i]);
+   if (k < 1 / 55 || i - last < Math.round(160 / tr.ds)) continue;
+   let j = i;
+   for (; j < i + Math.round(80 / tr.ds) && Math.abs(tr.k[(j + 1) % N]) > 1 / 90; j++);
+   last = i;
+   const side = -(Math.sign(tr.k[i]) || 1),
+    j0 = j + Math.round(6 / tr.ds);
+   if (reachAt(j0 % N, side) < E0 + 3) continue;
+   for (let q = 0; q < 9; q++) {
+    const s0 = j0 * tr.ds + q * 1.05,
+     ii = S.idxAt(tr, (s0 % tr.L + tr.L) % tr.L),
+     p = ptS(s0, side * (E0 + .45), 0);
+    list.push([p[0], p[1] - .03, p[2], -tr.hd[ii]])
+   }
+  }
+  if (!list.length) return;
+  TEX.sausage || (TEX.sausage = canvasTex(64, 32, (g, w, h) => {
+   g.fillStyle = "#f2c200", g.fillRect(0, 0, w, h), g.fillStyle = "#111";
+   for (let x = 0; x < w; x += 16) g.fillRect(x, 0, 6, h);
+   g.fillStyle = "rgba(0,0,0,.25)", g.fillRect(0, h - 6, w, 6)
+  }, [1, 1]));
+  const geo = new THREE.CylinderGeometry(.17, .17, 1, 12);
+  geo.rotateZ(Math.PI / 2);
+  const im = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({
+    map: TEX.sausage,
+    roughness: .55
+   }), list.length),
+   M4 = new THREE.Matrix4,
+   Qq = new THREE.Quaternion,
+   Ee = new THREE.Euler;
+  list.forEach((p, k) => {
+   Ee.set(0, p[3], 0), Qq.setFromEuler(Ee), M4.compose(new THREE.Vector3(p[0], p[1], p[2]), Qq, new THREE.Vector3(1, 1, 1)), im.setMatrixAt(k, M4)
+  }), im.castShadow = !0, im.receiveShadow = !0, group.add(im)
  }
 
  /* fila de mástiles con banderas de países junto al lago de Interlagos */
