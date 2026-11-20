@@ -4056,6 +4056,8 @@ void main(){
 
  function wdPrep(d) {
   if (d._p) return d;
+  if (d.bx)
+   for (let i = 0; i < d.b.length; i++) d.bx[i] && (d.b[i].ex = d.bx[i]);
   const b = atob(d.lu.c),
    u = new Uint8Array(b.length);
   for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
@@ -5487,7 +5489,8 @@ void main(){
    tr.key === "SaoPaulo" && kd === 2 && mh < .1 && h <= 13 && area > 260 && area < 1600 && near > 140 && rnd() < .45 && (h = 3.1 * (12 + Math.floor(rnd() * 9)) + .5);
    const desert = tr.key === "Sakhir" || tr.key === "YasMarina",
     NORTH = ["Spa", "Zandvoort", "Silverstone", "Spielberg", "Suzuka", "Shanghai", "Montreal"].includes(tr.key),
-    pitched = !desert && mh < .1 && (kd === 0 && area < 520 && (!latin || rnd() < .35) || kd === 2 && NORTH && h < 16 && area < 1100 && rnd() < .8),
+    bxe = b.ex || null,
+    pitched = bxe && bxe.rs ? bxe.rs >= 2 && bxe.rs <= 5 && n <= 24 : !desert && mh < .1 && (kd === 0 && area < 520 && (!latin || rnd() < .35) || kd === 2 && NORTH && h < 16 && area < 1100 && rnd() < .8),
     y0 = gmin - .4 + mh,
     y1 = gmin + h,
     flr = 3.1;
@@ -5513,6 +5516,12 @@ void main(){
     cls !== "tower" && (pool.push(7, 8), h > 18 && pool.push(9, 10)), PH2.forEach((p, j) => {
      (p[2] === cls || cls === "tower" && p[2] === "tall") && pool.push(17 + j)
     }), T = W2[pool[rnd() * pool.length | 0]], col = new THREE.Color(.8, .8, .8).offsetHSL(0, 0, (rnd() - .5) * .1)
+   }
+   /* datos reales (Overture/OSM/3D BAG): material y color de fachada */
+   if (bxe && (bxe.fm || bxe.fc)) {
+    const want = bxe.fm === 2 ? "glass" : bxe.fm === 5 ? "stone" : bxe.fm === 3 ? "concrete" : bxe.fm === 4 ? "plaster" : null,
+     opts = want ? VAR.map((v, j) => j).filter(j => VAR[j].wall === want && (want !== "glass" || h >= 9)) : [];
+    opts.length ? (T = W2[11 + opts[rnd() * opts.length | 0]], col = want === "glass" ? new THREE.Color(.9, .92, .95) : new THREE.Color(.62, .62, .62)) : T = W2[kd] || T, bxe.fc && want !== "glass" && (col = C.set(bxe.fc).clone().multiplyScalar(.62))
    }
    const urban = wdLu(cx, cy) === 9 || wdLu(cx, cy) === 10,
     photoF = T === W2[7] || T === W2[8] || T === W2[9] || T === W2[10] || W2.indexOf(T) >= 17,
@@ -5714,9 +5723,9 @@ void main(){
    }
    if (pitched) {
     /* tejado a dos o cuatro aguas sobre planta rectangular, con vuelo de alero; piramidal si la planta no es rectangular */
-    const rc = C.set(TILE[rnd() * TILE.length | 0]).clone(),
+    const rc = C.set(bxe && bxe.rc ? bxe.rc : TILE[rnd() * TILE.length | 0]).clone(),
      terra = ["Catalunya", "Monza", "SaoPaulo", "MexicoCity", "Melbourne", "Monaco"].includes(tr.key),
-     tw = rc.clone().lerp(new THREE.Color(1, 1, 1), (terra ? .45 : .55) + rnd() * .2).multiplyScalar(terra ? 1 : 1.25),
+     tw = bxe && bxe.rc ? rc.clone().multiplyScalar(1.1) : rc.clone().lerp(new THREE.Color(1, 1, 1), (terra ? .45 : .55) + rnd() * .2).multiplyScalar(terra ? 1 : 1.25),
      triR = (A, B, Cc) => {
       const v1 = [B[0] - A[0], B[1] - A[1], B[2] - A[2]],
        v2 = [Cc[0] - A[0], Cc[1] - A[1], Cc[2] - A[2]];
@@ -5764,11 +5773,11 @@ void main(){
       su = [(Q[3][0] - Q[0][0]) / Wb, (Q[3][1] - Q[0][1]) / Wb],
       o = kd === 2 ? .5 : .42,
       tp = (terra || latin ? .42 : NORTH ? .75 : .58) + rnd() * .18,
-      rh = Math.min(kd === 2 ? 5.5 : 4.2, Wh * tp),
+      rh = bxe && bxe.rh ? Math.min(bxe.rh, Wh * 1.4) : Math.min(kd === 2 ? 5.5 : 4.2, Wh * tp),
       tq = rh / Wh,
       ye = y1 - o * tq,
       yr = y1 + rh,
-      hip = La < Wb * 1.12 ? 2 : terra || latin || MED ? rnd() < .7 ? 1 : 0 : rnd() < .3 ? 1 : 0,
+      hip = bxe && bxe.rs ? bxe.rs === 4 ? 2 : bxe.rs === 3 ? La < Wb * 1.12 ? 2 : 1 : 0 : La < Wb * 1.12 ? 2 : terra || latin || MED ? rnd() < .7 ? 1 : 0 : rnd() < .3 ? 1 : 0,
       ex = (q, a, b) => [Q[q][0] + lu[0] * a + su[0] * b, ye, Q[q][1] + lu[1] * a + su[1] * b],
       E0 = ex(0, -o, -o),
       E1 = ex(1, o, -o),
@@ -7761,8 +7770,9 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
   const bl = shuffle(bush).slice(0, capBush),
    tot = V.set.reduce((a, b) => a + b[1], 0),
    by = {};
+  const wet = (x, y) => R.__sea && terrainH(x, y) < R.__sea[1] + .3 || WD && wdLu(x, y) === 6;
   for (const p of list) {
-   if (inClear(p[0], p[1])) continue;
+   if (inClear(p[0], p[1]) || wet(p[0], p[1])) continue;
    let u = rr() * tot,
     k = V.set[0][0];
    for (const [key, w] of V.set)
@@ -7771,7 +7781,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
      break
     } k === "tree_bush" && rr() < .5 && (k = V.set[0][0]), (by[k] || (by[k] = [])).push(p)
   }
-  for (const p of bl) inClear(p[0], p[1]) || (by.tree_bush || (by.tree_bush = [])).push(p);
+  for (const p of bl) inClear(p[0], p[1]) || wet(p[0], p[1]) || (by.tree_bush || (by.tree_bush = [])).push(p);
   /* árboles puestos a mano por el decorado (palmeras en los alcorques de la acera) */
   for (const [x, y, kind] of R.__forceTrees || []) (by[kind] || (by[kind] = [])).push([x, y, terrainD(x, y)]);
   const M2 = new THREE.Matrix4,
@@ -10377,7 +10387,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
  }
 
  function buildSea(group) {
-  if (!WD || WD.off == null) return;
+  if (R.__sea = null, !WD || WD.off == null) return;
   const b = tr.bounds,
    pad = 1400,
    h0 = WD.dem.h0 || 0;
