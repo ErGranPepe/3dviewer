@@ -6782,6 +6782,7 @@ varying float vPav;
 uniform float uPhoto,uRockSat,uRockK,uGard;
 varying float vSlope;
 uniform float uHW,uWall,uStripe,uT;
+#define NZ(p) clamp(0.5+1.35*(0.5*(texture2D(tMacro,(p)).r+texture2D(tMacro,mat2(0.8,-0.6,0.6,0.8)*(p)*1.37+vec2(0.27,0.61)).r)-0.5),0.0,1.0)
 varying float vLat;
 varying float vUrb;
 varying float vSat;
@@ -6789,7 +6790,10 @@ varying vec2 vSatUv;
 varying vec2 vSoil;
 ` + sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
       #ifdef USE_MAP
-        float mA=texture2D(tMacro,vMapUv*0.025).r,mB=texture2D(tMacro,vMapUv*0.115+0.37).r;
+        float mA=NZ(vMapUv*0.025),mB=NZ(vMapUv*0.115+0.37);
+        /* anti-repetición: la hierba se mezcla con otra muestra girada y a otra escala, así no se ve la cuadrícula del mosaico desde el aire */
+        {vec3 lo=texture2D(map,vMapUv,4.5).rgb,avg=texture2D(map,vMapUv,12.0).rgb;diffuseColor.rgb*=clamp(avg/max(lo,vec3(0.03)),vec3(0.6),vec3(1.6));
+         vec2 ru=mat2(0.8,-0.6,0.6,0.8)*vMapUv*0.43+vec2(0.31,0.77);vec3 g2=texture2D(map,ru).rgb*avg/max(texture2D(map,ru,4.5).rgb,vec3(0.03));float bw=smoothstep(0.25,0.75,texture2D(tMacro,vMapUv*0.06+0.5).r);diffuseColor.rgb=mix(diffuseColor.rgb,g2*diffuse,0.25+0.35*bw);}
         diffuseColor.rgb*=0.74+0.4*mA+0.28*(mB-0.5);
         float sFr=fract(vLat/6.4),sBand=smoothstep(0.0,0.05,sFr)-smoothstep(0.5,0.55,sFr);
         float sFade=(1.0-smoothstep(uWall-0.6,uWall+1.2,vLat))*uStripe;
@@ -6798,12 +6802,12 @@ varying vec2 vSoil;
         vec3 dirtC=texture2D(tDirt,vMapUv*1.3).rgb*0.85,dirt2C=texture2D(tDirt2,vMapUv*0.9).rgb;
         diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(0.13,0.105,0.07),dirtC*0.6,uPhoto),clamp(wear,0.0,0.6));
         float wild=smoothstep(uWall+2.0,uWall+24.0,vLat)*uStripe;
-        float mC=texture2D(tMacro,vMapUv*0.9+0.11).r,mD=texture2D(tMacro,vMapUv*4.3).r;
+        float mC=NZ(vMapUv*0.9+0.11),mD=NZ(vMapUv*4.3);
         vec3 wildTint=mix(vec3(0.78,0.86,0.6),vec3(1.14,1.0,0.74),mA)*(0.6+0.55*mC)*(0.78+0.44*mD);
         diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*wildTint,wild);
-        float dryP=smoothstep(0.52,0.78,texture2D(tMacro,vMapUv*0.19+0.63).r)*uStripe;
+        float dryP=smoothstep(0.52,0.78,NZ(vMapUv*0.19+0.63))*uStripe;
         diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.32,1.08,0.62),dryP*0.85);
-        float bald=smoothstep(0.58,0.74,mC)*smoothstep(0.45,0.7,texture2D(tMacro,vMapUv*2.1+0.29).r)*uStripe;
+        float bald=smoothstep(0.58,0.74,mC)*smoothstep(0.45,0.7,NZ(vMapUv*2.1+0.29))*uStripe;
         diffuseColor.rgb=mix(diffuseColor.rgb,mix(vec3(0.2,0.155,0.1)*(0.7+0.6*mD),dirt2C*0.75,uPhoto),bald*0.8);
         /* senda pisada por comisarios y público detrás de las vallas */
         float trod=(smoothstep(uWall+0.7,uWall+1.5,vLat)-smoothstep(uWall+2.8,uWall+4.4,vLat))*uStripe*(0.3+0.7*smoothstep(0.3,0.7,mB))*(0.6+0.4*mD);
