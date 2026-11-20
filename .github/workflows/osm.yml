@@ -10,11 +10,14 @@ jobs:
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: pip install overturemaps pyproj
-      - run: python3 tools/fetch_bld.py
+      - run: BAGONLY=1 python3 tools/fetch_bld.py
+      - run: git fetch -q origin bld-out && for f in $(git ls-tree --name-only origin/bld-out); do [ -f out/$f ] || git show origin/bld-out:$f > out/$f; done
       - name: Publicar en la rama bld-out
         if: always()
         run: |

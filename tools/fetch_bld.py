@@ -74,7 +74,9 @@ def bag(fid):
         j = json.loads(d); pages += 1
         if pages == 1: log('bag keys', list(j.keys()), str(j)[:600])
         meta = j.get('metadata', meta)
-        for f in j.get('features', []): feats.append(f)
+        tf = (j.get('metadata') or {}).get('transform')
+        for f in j.get('features', []):
+            f['tf'] = tf; feats.append(f)
         nxt = [l['href'] for l in j.get('links', []) if l.get('rel') == 'next']
         url = nxt[0] if nxt else None
     log('bag', fid, 'paginas', pages, 'edificios', len(feats))
@@ -82,7 +84,7 @@ def bag(fid):
               open(f'out/{fid}.bag.json', 'w'), separators=(',', ':'))
 
 only = sys.argv[1:] or IDS
-for fid in only:
+for fid in ([] if os.environ.get('BAGONLY') else only):
     try: overture(fid)
     except Exception: log(fid, 'overture error', traceback.format_exc()[-800:])
 try: bag('nl-1948')
