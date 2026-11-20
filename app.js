@@ -6894,7 +6894,8 @@ varying vec2 vSoil;
 
  function vergeY(z, L, R2, x, yw) {
   const full = S.WALL + 16;
-  let w = sstep((L - (S.WALL + 1.2)) / 14.8);
+  /* en la ciudad la acera es plana y el desnivel se resuelve con un muro de contención al fondo, no con un talud */
+  let w = tr.street ? sstep((L - (S.WALL + 3.5)) / 2.5) : sstep((L - (S.WALL + 1.2)) / 14.8);
   R2 < full && (w = Math.max(w, sstep((L - (R2 - 8)) / 8)));
   /* en la ciudad, detrás del muro hay bordillo y acera 15 cm por encima de la calzada */
   const y0 = z - .02 + (tr.street && L >= S.WALL + .43 ? .15 : 0);
@@ -6973,12 +6974,13 @@ varying vec2 vSoil;
    }, sh.uniforms.uWallP = {
     value: S.WALL
    }, sh.vertexShader = `attribute float aLat;
-varying float vLatP;
+varying float vLatP;varying float vWNy;
 ` + sh.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
-vLatP=aLat;`), sh.fragmentShader = `uniform sampler2D tTiles;uniform float uWallP;varying float vLatP;
+vLatP=aLat;vWNy=normalize(mat3(modelMatrix)*objectNormal).y;`), sh.fragmentShader = `uniform sampler2D tTiles;uniform float uWallP;varying float vLatP;varying float vWNy;
 ` + sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
 #ifdef USE_MAP
 {float k=smoothstep(uWallP+0.38,uWallP+0.42,vLatP);vec3 tc=texture2D(tTiles,vMapUv*3.5).rgb;
+float steep=1.0-smoothstep(0.45,0.7,vWNy);vec3 mas=vec3(0.66,0.62,0.54)*(0.7+0.5*dot(texture2D(tTiles,vMapUv*2.2+0.21).rgb,vec3(0.33)));tc=mix(tc,mas,steep);
 float curb=smoothstep(uWallP+0.39,uWallP+0.41,vLatP)-smoothstep(uWallP+0.66,uWallP+0.69,vLatP);
 float gut=(smoothstep(uWallP-0.05,uWallP+0.05,vLatP)-smoothstep(uWallP+0.3,uWallP+0.4,vLatP));
 diffuseColor.rgb*=1.0-0.35*gut;
@@ -10532,6 +10534,27 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
      }
     }
     fac(inn, i0, i1);
+    /* torre del hotel sobre la boca del túnel (lado Portier): bloque más alto de hormigón crema con frente liso */
+    try {
+     const ic = i0 + Math.round(9 / tr.ds),
+      wB = Math.abs(out - inn),
+      lB = 22,
+      hB = yt - yb + 6.2,
+      mid = (out + inn) / 2,
+      pc = pt(ic, mid, 0),
+      cream = Mat("#d3c8b3", {
+       roughness: .85
+      }),
+      side = new THREE.MeshStandardMaterial({
+       map: TEX.hotel,
+       roughness: .6
+      }),
+      gB = new THREE.BoxGeometry(lB, hB, wB),
+      uvB = gB.attributes.uv;
+     for (let q = 0; q < uvB.count; q++) uvB.setXY(q, uvB.getX(q) * 2, uvB.getY(q) * hB / 12.4);
+     const tw = new THREE.Mesh(gB, [cream, cream, cream, cream, side, side]);
+     tw.position.set(pc[0], pc[1] + yb + hB / 2, pc[2]), tw.rotation.y = -tr.hd[(ic % N + N) % N], tw.castShadow = tw.receiveShadow = !0, group.add(tw)
+    } catch (e) {}
     const roofM = Mat("#b9b5ad", {
       roughness: .9
      }),
@@ -12051,7 +12074,32 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
   const picked = [];
   for (const i of corners)
    if (picked.every(j => Math.min(Math.abs(i - j), N - Math.abs(i - j)) > 70) && picked.push(i), picked.length >= (quality === "low" ? 3 : 6)) break;
-  for (const i of picked) stands.push([i * tr.ds, -(Math.sign(tr.k[i]) || 1), 80 + i * 7 % 3 * 20]);
+  if (tr.key === "Monaco")
+   /* tribunas reales de Mónaco: K y L en el Tabac, N-O-P en la Piscina (todas en el muelle del puerto) y V en la Rascasse; en la horquilla del Fairmont no hay gradas, solo el hotel */
+   for (const [f, kind, len] of [
+     [.665, 0, 70],
+     [.705, 0, 90],
+     [.775, 0, 80],
+     [.815, 0, 70],
+     [.905, 1, 60]
+    ]) {
+    const i = Math.round(f * N) % N;
+    let side = -(Math.sign(tr.k[i]) || 1);
+    if (kind === 0 && WD) {
+     /* lado del puerto: el que tiene agua (cota del modelo por debajo del nivel del mar) más cerca */
+     let sc = 0;
+     for (const sd of [1, -1])
+      for (let L = WALL + 20; L <= WALL + 140; L += 10)
+       for (const di of [-6, 0, 6]) {
+        const p = pt(i + di, sd * L, 0),
+         dm = wdDem(p[0], p[2]);
+        dm != null && dm + (WD.dem.h0 || 0) <= .25 && (sc += sd * (160 - L))
+       }
+     side = sc >= 0 ? 1 : -1
+    }
+    stands.push([i * tr.ds, side, len])
+   } else
+    for (const i of picked) stands.push([i * tr.ds, -(Math.sign(tr.k[i]) || 1), 80 + i * 7 % 3 * 20]);
   TEX.crowd2Key !== tr.key && (TEX.crowd2 = null, TEX.crowd2Key = tr.key), TEX.crowd2 || (TEX.crowd2 = canvasTex(2048, 128, (g, w, h) => {
    g.fillStyle = "#23272d", g.fillRect(0, 0, w, h);
    const sg = g.createLinearGradient(0, h - 22, 0, h);
@@ -15251,14 +15299,14 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
      .5) * 1.5, .5 + rn() * .9, vy * .3 + (rn() - .5) * 1.5, 1.6 + rn() * .8, .9 + rn() * .6, .5);
    pDust.step(1 / 30, .25), pSmoke.step(1 / 30, .6)
   }
- }, R.__face = (x, z) => {
+ }, R.__tg = () => trackGroup, R.__scene = () => scene, R.__face = (x, z) => {
   const rc = new THREE.Raycaster;
   rc.setFromCamera(new THREE.Vector2(x * 2 - 1, -(z * 2 - 1)), camera);
-  const h = rc.intersectObjects(scene.children, !0).filter(q => q.object.material && !q.object.material.alphaTest && !q.object.material.transparent).slice(0, 2);
+  const h = rc.intersectObjects(scene.children, !0).filter(q => q.object.material && q.object.visible).slice(0, 4);
   return h.map(q => {
    const g = q.object.geometry, P = g.attributes.position, U = g.attributes.uv, f = q.face, ids = [f.a, f.b, f.c];
    return {
-    i: trackGroup.children.indexOf(q.object), mat: q.object.material.type, ud: Object.keys(q.object.userData).join(","), p: ids.map(k => [P.getX(k), P.getY(k), P.getZ(k)].map(v => Math.round(v * 10) / 10)), u: U ? ids.map(k => [U.getX(k), U.getY(k)].map(v => Math.round(v * 100) / 100)) : null, n: [f.normal.x, f.normal.y, f.normal.z].map(v => Math.round(v * 100) / 100), col: g.attributes.color ? [g.attributes.color.getX(f.a), g.attributes.color.getY(f.a), g.attributes.color.getZ(f.a)].map(v => Math.round(v * 100) / 100) : null, map: q.object.material.map ? q.object.material.map.uuid.slice(0, 6) + ":" + (q.object.material.map.name || "") : null, vc: q.object.material.vertexColors, mc: q.object.material.color && q.object.material.color.getHexString(), pave: q.object.material === PAVE, gm: q.object.material === groundMat, key: q.object.material.customProgramCacheKey && q.object.material.customProgramCacheKey().slice(0, 30), vis: q.object.visible
+    i: trackGroup.children.indexOf(q.object), mat: q.object.material.type, ud: Object.keys(q.object.userData).join(","), p: ids.map(k => [P.getX(k), P.getY(k), P.getZ(k)].map(v => Math.round(v * 10) / 10)), u: U ? ids.map(k => [U.getX(k), U.getY(k)].map(v => Math.round(v * 100) / 100)) : null, n: [f.normal.x, f.normal.y, f.normal.z].map(v => Math.round(v * 100) / 100), col: g.attributes.color ? [g.attributes.color.getX(f.a), g.attributes.color.getY(f.a), g.attributes.color.getZ(f.a)].map(v => Math.round(v * 100) / 100) : null, map: q.object.material.map ? q.object.material.map.uuid.slice(0, 6) + ":" + (q.object.material.map.name || "") : null, vc: q.object.material.vertexColors, mc: q.object.material.color && q.object.material.color.getHexString(), pave: q.object.material === PAVE, gm: q.object.material === groundMat, key: q.object.material.customProgramCacheKey && q.object.material.customProgramCacheKey().slice(0, 30), vis: q.object.visible, tr: q.object.material.transparent, at: q.object.material.alphaTest, d: Math.round(q.distance), inst: !!q.object.isInstancedMesh
    }
   })
  }, R.__ray = pts => {
