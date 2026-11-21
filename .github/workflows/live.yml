@@ -1,0 +1,23 @@
+name: live-shots
+on:
+  push:
+    branches: [live-shots]
+permissions:
+  contents: write
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install playwright && python -m playwright install --with-deps chromium
+      - run: python live_shot.py
+      - name: Publicar capturas
+        if: always()
+        run: |
+          cd out && git init -q && git checkout -q -b live-shots-out && git add -A
+          git -c user.name=shot-bot -c user.email=shot-bot@users.noreply.github.com commit -q -m "capturas de la web publicada"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" live-shots-out
