@@ -57,27 +57,25 @@ LAB.susp = (() => {
     const IC = lineX(g.LI, LO, g.UI, UO), rc = IC ? lineX(CP, IC, [0, 0], [0, 1]) : null;
     return { LO, UO, CP, WC, PP, RA, RD, Ld, beta, camber: g.cam0 + (lean - lean0), IC, rcz: rc ? rc[1] : NaN, s: CP[1] - CP0[1], dy: CP[0] - CP0[0] }
   }
-  /* tabla cinemática en función del recorrido de rueda (m, + = compresión) */
+  /* tabla cinemática en función del recorrido de rueda (m, + = compresión), calculada con la cinemática 3D */
   function kinTable(P) {
-    const g = geom(P), raw = [];
-    let prev = null;
-    for (let k = -240; k <= 240; k++) { const r = solve(g, k * .0012, prev && raw.length ? raw[raw.length - 1] : null); if (r) raw.push(r) }
-    const mid = solve(g, 0, null);
-    if (!mid || raw.length < 30) return { ok: !1, g };
-    raw.sort((a, b) => a.s - b.s);
-    const S = new Float32Array(121), L = new Float32Array(121), CAM = new Float32Array(121), RC = new Float32Array(121), DY = new Float32Array(121), MR = new Float32Array(121), BETA = new Float32Array(121);
+    const H = LAB.kin3d.fromParams(P), T3 = LAB.kin3d.table(H), raw = T3.raw, N = 121;
+    if (raw.length < 30) return { ok: !1, g: H };
+    const A = () => new Float32Array(N), S = A(), L = A(), CAM = A(), RC = A(), DY = A(), MR = A(), BETA = A(), TOE = A(), CAS = A(), KPI = A(), SCR = A(), TRL = A(), SVA = A();
     let j = 0, ok = !0;
-    for (let i = 0; i < 121; i++) {
-      const s = -.06 + i * .001;
-      S[i] = s;
-      for (; j < raw.length - 2 && raw[j + 1].s < s;) j++;
+    for (let i = 0; i < N; i++) {
+      const sw = -.06 + i * .001;
+      S[i] = sw;
+      for (; j < raw.length - 2 && raw[j + 1].sw < sw;) j++;
       const a = raw[j], b = raw[j + 1];
-      if (!a || !b || s < raw[0].s || s > raw[raw.length - 1].s) { ok = !1; L[i] = NaN; continue }
-      const t = (s - a.s) / (b.s - a.s || 1e-9);
-      L[i] = lerp(a.Ld, b.Ld, t), CAM[i] = lerp(a.camber, b.camber, t), RC[i] = lerp(a.rcz, b.rcz, t), DY[i] = lerp(a.dy, b.dy, t), BETA[i] = lerp(a.beta, b.beta, t)
+      if (!a || !b || sw < raw[0].sw || sw > raw[raw.length - 1].sw) { ok = !1, L[i] = NaN; continue }
+      const t = (sw - a.sw) / (b.sw - a.sw || 1e-9), li = k => lerp(a[k], b[k], t);
+      L[i] = li("Ld"), CAM[i] = li("camber"), RC[i] = li("rcz"), DY[i] = li("dy"), BETA[i] = li("beta"), TOE[i] = li("toe"), CAS[i] = li("caster"), KPI[i] = li("kpi"), SCR[i] = li("scrub"), TRL[i] = li("trail"), SVA[i] = li("svAng")
     }
-    for (let i = 0; i < 121; i++) MR[i] = -((L[Math.min(120, i + 1)] - L[Math.max(0, i - 1)]) / ((Math.min(120, i + 1) - Math.max(0, i - 1)) * .001));
-    return { ok, g, S, L, CAM, RC, DY, MR, BETA, mid, raw }
+    for (let i = 0; i < N; i++) MR[i] = -((L[Math.min(N - 1, i + 1)] - L[Math.max(0, i - 1)]) / ((Math.min(N - 1, i + 1) - Math.max(0, i - 1)) * .001));
+    const mid = raw.reduce((q, r) => Math.abs(r.sw) < Math.abs(q.sw) ? r : q, raw[0]);
+    H.tw = H.tw || P.track / 2e3;
+    return { ok, g: H, g3: T3.g, S, L, CAM, RC, DY, MR, BETA, TOE, CAS, KPI, SCR, TRL, SVA, mid, raw }
   }
   const at = (T, arr, s) => { const x = clamp((s + .06) / .001, 0, 119.999), i = x | 0, f = x - i, a = arr[i], b = arr[i + 1]; return isFinite(a) && isFinite(b) ? a + (b - a) * f : isFinite(a) ? a : b };
 
@@ -251,32 +249,46 @@ LAB.susp = (() => {
       { id: "cheave", label: "Amortiguador del tercer elemento", unit: "N·s/m", min: 0, max: 60000, step: 100, v: 8000 },
       { id: "inerter", label: "Inerter (J-damper)", unit: "kg", min: 0, max: 60, step: .5, v: 0, help: "Masa aparente entre carrocería y rueda; se usaba para calmar el rebote del neumático (wheel hop)." }
     ]},
-    { title: "Geometría: trapecios (vista frontal, mm)", adv: !0, help: "y = distancia lateral desde el eje del coche; z = altura sobre el suelo en posición estática.", items: [
-      { id: "liy", label: "Inferior interior y", unit: "mm", min: 50, max: 400, step: 1, v: 210 }, { id: "liz", label: "Inferior interior z", unit: "mm", min: 40, max: 300, step: 1, v: 135 },
-      { id: "loy", label: "Inferior exterior y", unit: "mm", min: 400, max: 800, step: 1, v: 690 }, { id: "loz", label: "Inferior exterior z", unit: "mm", min: 40, max: 300, step: 1, v: 160 },
-      { id: "uiy", label: "Superior interior y", unit: "mm", min: 80, max: 450, step: 1, v: 290 }, { id: "uiz", label: "Superior interior z", unit: "mm", min: 200, max: 600, step: 1, v: 365 },
-      { id: "uoy", label: "Superior exterior y", unit: "mm", min: 400, max: 780, step: 1, v: 655 }, { id: "uoz", label: "Superior exterior z", unit: "mm", min: 250, max: 650, step: 1, v: 505 },
+    { title: "Rueda: vía, caída y convergencia", adv: !0, items: [
       { id: "track", label: "Vía", unit: "mm", min: 1400, max: 2000, step: 1, v: 1620 }, { id: "rtyre", label: "Radio del neumático", unit: "mm", min: 300, max: 400, step: 1, v: 360 },
-      { id: "camber", label: "Caída estática", unit: "°", min: -5, max: 1, step: .05, v: -3.2 }
+      { id: "camber", label: "Caída estática", unit: "°", min: -5, max: 1, step: .05, v: -3.2 }, { id: "toe", label: "Convergencia estática (+ abierta)", unit: "°", min: -1.5, max: 1.5, step: .01, v: .1 }
     ]},
-    { title: "Geometría: bieleta y balancín (mm)", adv: !0, items: [
-      { id: "prf", label: "Anclaje de la bieleta (fracción del trapecio)", unit: "", min: .5, max: 1, step: .01, v: .9 },
-      { id: "prh", label: "Altura del soporte de la bieleta", unit: "mm", min: -40, max: 80, step: 1, v: 25 },
-      { id: "r1", label: "Brazo del balancín (bieleta)", unit: "mm", min: 30, max: 150, step: 1, v: 75 },
-      { id: "r2", label: "Brazo del balancín (amortiguador)", unit: "mm", min: 30, max: 150, step: 1, v: 55 },
-      { id: "rpy", label: "Pushrod · eje del balancín y", unit: "mm", min: 0, max: 400, step: 1, v: 120 },
-      { id: "rpz", label: "Pushrod · eje del balancín z", unit: "mm", min: 300, max: 700, step: 1, v: 560 },
-      { id: "rbeta", label: "Pushrod · ángulo estático del balancín", unit: "°", min: -180, max: 180, step: 1, v: 50, help: "Lo ideal es que el brazo quede perpendicular a la bieleta en estático: relación de movimiento máxima y lineal." },
-      { id: "ralpha", label: "Pushrod · ángulo entre brazos", unit: "°", min: -180, max: 180, step: 1, v: 40 },
-      { id: "sdy", label: "Pushrod · anclaje del amortiguador y", unit: "mm", min: -300, max: 300, step: 1, v: -150 },
-      { id: "sdz", label: "Pushrod · anclaje del amortiguador z", unit: "mm", min: 300, max: 750, step: 1, v: 600 },
-      { id: "rpyL", label: "Pullrod · eje del balancín y", unit: "mm", min: 0, max: 400, step: 1, v: 150 },
-      { id: "rpzL", label: "Pullrod · eje del balancín z", unit: "mm", min: 30, max: 300, step: 1, v: 120 },
-      { id: "rbetaL", label: "Pullrod · ángulo estático del balancín", unit: "°", min: -180, max: 180, step: 1, v: 4 },
-      { id: "ralphaL", label: "Pullrod · ángulo entre brazos", unit: "°", min: -180, max: 180, step: 1, v: 124 },
-      { id: "r2L", label: "Pullrod · brazo del amortiguador", unit: "mm", min: 30, max: 150, step: 1, v: 80 },
-      { id: "sdyL", label: "Pullrod · anclaje del amortiguador y", unit: "mm", min: -300, max: 300, step: 1, v: -120 },
-      { id: "sdzL", label: "Pullrod · anclaje del amortiguador z", unit: "mm", min: 20, max: 300, step: 1, v: 65 }
+    { title: "Puntos duros 3D (mm)", adv: !0, help: "x adelante desde el eje delantero, y hacia fuera desde el eje del coche, z altura sobre el suelo, rueda derecha en estático. La izquierda es simétrica.", items: [
+      { id: "hp_LF_x", label: "Trapecio inferior · anclaje delantero · x", unit: "mm", min: -450, max: 450, step: 1, v: 210 },
+      { id: "hp_LF_y", label: "Trapecio inferior · anclaje delantero · y", unit: "mm", min: -350, max: 900, step: 1, v: 235 },
+      { id: "hp_LF_z", label: "Trapecio inferior · anclaje delantero · z", unit: "mm", min: 0, max: 800, step: 1, v: 150 },
+      { id: "hp_LR_x", label: "Trapecio inferior · anclaje trasero · x", unit: "mm", min: -450, max: 450, step: 1, v: -240 },
+      { id: "hp_LR_y", label: "Trapecio inferior · anclaje trasero · y", unit: "mm", min: -350, max: 900, step: 1, v: 225 },
+      { id: "hp_LR_z", label: "Trapecio inferior · anclaje trasero · z", unit: "mm", min: 0, max: 800, step: 1, v: 140 },
+      { id: "hp_LO_x", label: "Rótula inferior · x", unit: "mm", min: -450, max: 450, step: 1, v: -5 },
+      { id: "hp_LO_y", label: "Rótula inferior · y", unit: "mm", min: -350, max: 900, step: 1, v: 705 },
+      { id: "hp_LO_z", label: "Rótula inferior · z", unit: "mm", min: 0, max: 800, step: 1, v: 170 },
+      { id: "hp_UF_x", label: "Trapecio superior · anclaje delantero · x", unit: "mm", min: -450, max: 450, step: 1, v: 175 },
+      { id: "hp_UF_y", label: "Trapecio superior · anclaje delantero · y", unit: "mm", min: -350, max: 900, step: 1, v: 310 },
+      { id: "hp_UF_z", label: "Trapecio superior · anclaje delantero · z", unit: "mm", min: 0, max: 800, step: 1, v: 380 },
+      { id: "hp_UR_x", label: "Trapecio superior · anclaje trasero · x", unit: "mm", min: -450, max: 450, step: 1, v: -215 },
+      { id: "hp_UR_y", label: "Trapecio superior · anclaje trasero · y", unit: "mm", min: -350, max: 900, step: 1, v: 300 },
+      { id: "hp_UR_z", label: "Trapecio superior · anclaje trasero · z", unit: "mm", min: 0, max: 800, step: 1, v: 370 },
+      { id: "hp_UO_x", label: "Rótula superior · x", unit: "mm", min: -450, max: 450, step: 1, v: -35 },
+      { id: "hp_UO_y", label: "Rótula superior · y", unit: "mm", min: -350, max: 900, step: 1, v: 660 },
+      { id: "hp_UO_z", label: "Rótula superior · z", unit: "mm", min: 0, max: 800, step: 1, v: 505 },
+      { id: "hp_PO_x", label: "Bieleta · punto en la mangueta · x", unit: "mm", min: -450, max: 450, step: 1, v: -15 },
+      { id: "hp_PO_y", label: "Bieleta · punto en la mangueta · y", unit: "mm", min: -350, max: 900, step: 1, v: 650 },
+      { id: "hp_PO_z", label: "Bieleta · punto en la mangueta · z", unit: "mm", min: 0, max: 800, step: 1, v: 222 },
+      { id: "hp_TI_x", label: "Dirección · extremo de cremallera · x", unit: "mm", min: -450, max: 450, step: 1, v: 95 },
+      { id: "hp_TI_y", label: "Dirección · extremo de cremallera · y", unit: "mm", min: -350, max: 900, step: 1, v: 255 },
+      { id: "hp_TI_z", label: "Dirección · extremo de cremallera · z", unit: "mm", min: 0, max: 800, step: 1, v: 198 },
+      { id: "hp_TO_x", label: "Dirección · brazo en la mangueta · x", unit: "mm", min: -450, max: 450, step: 1, v: 92 },
+      { id: "hp_TO_y", label: "Dirección · brazo en la mangueta · y", unit: "mm", min: -350, max: 900, step: 1, v: 668 },
+      { id: "hp_TO_z", label: "Dirección · brazo en la mangueta · z", unit: "mm", min: 0, max: 800, step: 1, v: 252 },
+      { id: "hp_RP_x", label: "Eje del balancín · x", unit: "mm", min: -450, max: 450, step: 1, v: -30 },
+      { id: "hp_RP_y", label: "Eje del balancín · y", unit: "mm", min: -350, max: 900, step: 1, v: 115 },
+      { id: "hp_RP_z", label: "Eje del balancín · z", unit: "mm", min: 0, max: 800, step: 1, v: 560 },
+      { id: "hp_SD_x", label: "Amortiguador · anclaje al chasis · x", unit: "mm", min: -450, max: 450, step: 1, v: -30 },
+      { id: "hp_SD_y", label: "Amortiguador · anclaje al chasis · y", unit: "mm", min: -350, max: 900, step: 1, v: -150 },
+      { id: "hp_SD_z", label: "Amortiguador · anclaje al chasis · z", unit: "mm", min: 0, max: 800, step: 1, v: 600 },
+      { id: "hp_r1", label: "Balancín · brazo de la bieleta", unit: "mm", min: 30, max: 150, step: 1, v: 75 }, { id: "hp_r2", label: "Balancín · brazo del amortiguador", unit: "mm", min: 30, max: 150, step: 1, v: 55 },
+      { id: "hp_rbeta", label: "Balancín · ángulo estático", unit: "°", min: -180, max: 180, step: 1, v: 50 }, { id: "hp_ralpha", label: "Balancín · ángulo entre brazos", unit: "°", min: -180, max: 180, step: 1, v: 40 }
     ]},
     { title: "Masas, neumático y aerodinámica", adv: !0, items: [
       { id: "mass", label: "Masa suspendida del coche", unit: "kg", min: 500, max: 900, step: 1, v: 740 },
@@ -312,21 +324,41 @@ LAB.susp = (() => {
   function kinPlots() {
     const K = model.K;
     if (!K.ok) return;
-    const n = 121, s = new Float32Array(n), cam = new Float32Array(n), mr = new Float32Array(n), wr = new Float32Array(n), rc = new Float32Array(n), dy = new Float32Array(n);
-    for (let i = 0; i < n; i++) s[i] = K.S[i] * 1e3, cam[i] = K.CAM[i] / DEG, mr[i] = K.MR[i], wr[i] = prm.v.kspr * K.MR[i] * K.MR[i], rc[i] = K.RC[i] * 1e3, dy[i] = K.DY[i] * 1e3;
-    plots.kin1.draw([{ x: s, y: cam, n, col: "#ffd23f", label: "Caída (°)" }], { title: "Caída frente a recorrido", xlabel: "recorrido mm (+ compresión)", vlines: [{ x: 0, col: "rgba(255,255,255,.3)" }] });
-    plots.kin2.draw([{ x: s, y: mr, n, col: "#3d8bff", label: "Relación de movimiento" }], { title: "Amortiguador / rueda", xlabel: "recorrido mm", vlines: [{ x: 0, col: "rgba(255,255,255,.3)" }] });
-    plots.kin3.draw([{ x: s, y: wr, n, col: "#2fd16c", label: "Rigidez en rueda (N/mm)" }], { title: "Wheel rate", xlabel: "recorrido mm", zero: !0 });
-    plots.kin4.draw([{ x: s, y: rc, n, col: "#ff6b1a", label: "Centro de balanceo (mm)" }, { x: s, y: dy, n, col: "#b45cff", label: "Cambio de vía (mm)" }], { title: "Centro de balanceo y vía", xlabel: "recorrido mm" });
-    const v = new Float32Array(81), F = new Float32Array(81);
-    for (let i = 0; i < 81; i++) v[i] = (i - 40) * 7.5, F[i] = damperF(prm.v, v[i] / 1e3);
-    plots.damp.draw([{ x: v, y: F, n: 81, col: "#ff3b3b", label: "Fuerza (N)" }], { title: "Curva del amortiguador", xlabel: "velocidad de pistón mm/s (+ compresión)", zero: !0, vlines: [{ x: 0, col: "rgba(255,255,255,.25)" }] });
+    const n = 121, s = new Float32Array(n), cam = new Float32Array(n), mr = new Float32Array(n), wr = new Float32Array(n), rc = new Float32Array(n), dy = new Float32Array(n), toe = new Float32Array(n), cas = new Float32Array(n), kpi = new Float32Array(n), scr = new Float32Array(n), trl = new Float32Array(n);
+    for (let i = 0; i < n; i++) s[i] = K.S[i] * 1e3, cam[i] = K.CAM[i] / DEG, mr[i] = K.MR[i], wr[i] = prm.v.kspr * K.MR[i] * K.MR[i], rc[i] = K.RC[i] * 1e3, dy[i] = K.DY[i] * 1e3, toe[i] = K.TOE[i] / DEG * 60, cas[i] = K.CAS[i] / DEG, kpi[i] = K.KPI[i] / DEG, scr[i] = K.SCR[i] * 1e3, trl[i] = K.TRL[i] * 1e3;
+    const v0 = { vlines: [{ x: 0, col: "rgba(255,255,255,.3)" }] };
+    plots.kin1.draw([{ x: s, y: cam, n, col: "#ffd23f", label: "Caída (°)" }], { title: "Caída frente a recorrido", xlabel: "recorrido mm (+ compresión)", ...v0 });
+    plots.kin2.draw([{ x: s, y: toe, n, col: "#ff6b1a", label: "Convergencia (′)" }], { title: "Bump steer", xlabel: "recorrido mm", zero: !0, ...v0 });
+    plots.kin3.draw([{ x: s, y: mr, n, col: "#3d8bff", label: "Relación de movimiento" }, { x: s, y: wr.map(x => x / 100), n, col: "#2fd16c", label: "Rigidez rueda ×100 N/mm" }], { title: "MR y rigidez", xlabel: "recorrido mm", ...v0 });
+    plots.kin4.draw([{ x: s, y: rc, n, col: "#ff6b1a", label: "Centro de balanceo (mm)" }, { x: s, y: dy, n, col: "#b45cff", label: "Cambio de vía (mm)" }], { title: "Centro de balanceo y vía", xlabel: "recorrido mm", ...v0 });
+    plots.kin5.draw([{ x: s, y: cas, n, col: "#ffd23f", label: "Avance (°)" }, { x: s, y: kpi, n, col: "#3d8bff", label: "Incl. pivote (°)" }], { title: "Eje de pivote", xlabel: "recorrido mm", ...v0 });
+    plots.kin6.draw([{ x: s, y: scr, n, col: "#2fd16c", label: "Pivotamiento (mm)" }, { x: s, y: trl, n, col: "#ff6b1a", label: "Avance mec. (mm)" }], { title: "En el suelo", xlabel: "recorrido mm", ...v0 });
+    /* Ackermann: ángulo de cada rueda frente al volante (giro a izquierdas) */
+    const g = K.g3, th0 = (K.raw.find(r => Math.abs(r.sw) < 1e-3) || K.mid).th, sw = [], dl = [], dr = [], ideal = [], tb = prm.v.track / 1e3, wb = 3.6;
+    let pl = null, pr = null;
+    for (let a = 0; a <= 180; a += 5) {
+      const rk = a * .3e-3, R = LAB.kin3d.solve(g, th0, rk, pr), L = LAB.kin3d.solve(g, th0, -rk, pl);
+      if (!R || !L) break;
+      pr = R, pl = L;
+      const dR = (R.toe - g.toe0) / DEG, dL = -(L.toe - g.toe0) / DEG;
+      sw.push(a), dl.push(dL), dr.push(dR), ideal.push(dR > .05 ? Math.atan(1 / (1 / Math.tan(dR * DEG) - tb / wb)) / DEG : dR)
+    }
+    const F = a => Float32Array.from(a);
+    plots.ack.draw([{ x: F(sw), y: F(dl), n: sw.length, col: "#ffd23f", label: "Interior" }, { x: F(sw), y: F(dr), n: sw.length, col: "#3d8bff", label: "Exterior" }, { x: F(sw), y: F(ideal), n: sw.length, col: "rgba(255,255,255,.4)", label: "Ackermann 100 %" }], { title: "Giro de rueda", xlabel: "volante °", ymin: 0 });
+    const vv = new Float32Array(81), FF = new Float32Array(81);
+    for (let i = 0; i < 81; i++) vv[i] = (i - 40) * 7.5, FF[i] = damperF(prm.v, vv[i] / 1e3);
+    plots.damp.draw([{ x: vv, y: FF, n: 81, col: "#ff3b3b", label: "Fuerza (N)" }], { title: "Curva del amortiguador", xlabel: "velocidad de pistón mm/s (+ compresión)", zero: !0, vlines: [{ x: 0, col: "rgba(255,255,255,.25)" }] });
+    const k = sw.length - 1;
+    model.ack = k > 2 && dr[k] > .1 ? (dl[k] - dr[k]) / Math.max(1e-6, ideal[k] - dr[k]) * 100 : NaN, model.lockDeg = k > 0 ? dr[k] : NaN;
     /* frecuencias naturales (lineal alrededor del estático) */
     const m = model, kw = prm.v.kspr * 1e3 * m.MR0 * m.MR0 + (prm.v.kheave * 1e3 * m.MR0 * m.MR0) / 2, kt = m.kt, mc = m.mb / 2, kr = kw * kt / (kw + kt);
     const fb = Math.sqrt(kr / mc) / TAU, fw = Math.sqrt((kw + kt) / m.mu) / TAU, cw = prm.v.cbl * m.MR0 * m.MR0, zb = cw / (2 * Math.sqrt(kr * mc)), zw = cw / (2 * Math.sqrt((kw + kt) * m.mu));
     const kroll = (prm.v.kspr * 1e3 * m.MR0 * m.MR0 + m.karbW * 2) * kt / (prm.v.kspr * 1e3 * m.MR0 * m.MR0 + m.karbW * 2 + kt) * 2 * m.h * m.h * DEG;
     ro.set("fb", fb, 2, fb > 6 ? "warn" : ""), ro.set("fw", fw, 1), ro.set("zb", zb, 2, zb < .3 ? "bad" : zb > .9 ? "warn" : "ok"), ro.set("zw", zw, 2, zw < .2 ? "warn" : "");
-    ro.set("mr0", m.MR0, 3), ro.set("wr0", kw / 1e3, 0), ro.set("kroll", kroll / 1e3, 2), ro.set("rc0", at(m.K, m.K.RC, 0) * 1e3, 0), ro.set("cg", (m.K.CAM[61] - m.K.CAM[59]) / 2 / DEG * 10, 3)
+    ro.set("mr0", m.MR0, 3), ro.set("wr0", kw / 1e3, 0), ro.set("kroll", kroll / 1e3, 2), ro.set("rc0", at(m.K, m.K.RC, 0) * 1e3, 0), ro.set("cg", (m.K.CAM[61] - m.K.CAM[59]) / 2 / DEG * 10, 3);
+    const bs = (m.K.TOE[70] - m.K.TOE[50]) / 2 / DEG * 60, ad = Math.tan(at(m.K, m.K.SVA, 0)) * 3.6 / .3 * .57 * 100;
+    ro.set("cas", at(m.K, m.K.CAS, 0) / DEG, 2), ro.set("kpi", at(m.K, m.K.KPI, 0) / DEG, 2), ro.set("scr", at(m.K, m.K.SCR, 0) * 1e3, 1), ro.set("trl", at(m.K, m.K.TRL, 0) * 1e3, 1);
+    ro.set("bs", bs, 2, Math.abs(bs) > 3 ? "bad" : Math.abs(bs) > 1.2 ? "warn" : "ok"), ro.set("ad", ad, 0), ro.set("ack", m.ack, 0), ro.set("lock", m.lockDeg, 1)
   }
   function draw2D() {
     const c = $("susCv"), g = c.getContext("2d"), r = c.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
@@ -335,7 +367,7 @@ LAB.susp = (() => {
     const W = r.width, H = r.height;
     g.clearRect(0, 0, W, H);
     const K = model.K;
-    if (!K.ok) return;
+    if (!K.ok || !K.g.LI) return;
     const aux = model.aux || {}, s = aux.sR || 0, ex = 3.2;
     const sol = K.raw.reduce((b, q) => Math.abs(q.s - s) < Math.abs(b.s - s) ? q : b, K.raw[0]);
     const sc = Math.min(W / 1.05, H / .9), ox = 18, oy = H - 22;
@@ -425,8 +457,22 @@ LAB.susp = (() => {
       verdict(A, mean, sd, mn, mx)
     }
     if (use3d) {
-      const aux = model.aux || {}, sol = LAB.susp3d.frame(model, aux);
-      frame % 4 === 0 && sol && ($("sus3dInfo").innerHTML = `<b>Rueda derecha</b> recorrido ${((aux.sR || 0) * 1e3).toFixed(1)} mm · caída ${(sol.camber / DEG).toFixed(2)}° · carga ${((aux.FtR || 0) / 1e3).toFixed(2)} kN · amortiguador ${((aux.vdR || 0) * 1e3).toFixed(0)} mm/s<br><span>Color = fuerza que transmite cada pieza · arrastra para girar, rueda para acercar</span>`)
+      const aux = model.aux || {}, man = $("susMan").value, Fz = Math.max(0, aux.FtR || 0), Fze = man === "live" ? Fz : Math.max(Fz, 6500), tp = .03;
+      const FR = man === "brake" ? [-1.9 * Fze, 0, Fze] : man === "corner" ? [0, -1.75 * Fze, Fze] : man === "comb" ? [-1.15 * Fze, -1.3 * Fze, Fze] : [0, 0, Fz], FL = [man === "brake" || man === "comb" ? -1.9 * (aux.FtL || 0) : 0, 0, aux.FtL || 0];
+      const live = { FR, FL }, last = render.sol;
+      last && (live.loads = LAB.kin3d.loads(model.K.g3, last.R, FR, -tp * FR[1]));
+      const sol = LAB.susp3d.frame(model, aux, live);
+      sol && (render.sol = sol);
+      if (frame % 6 === 0 && sol) {
+        const R = sol.R;
+        const sr = aux.sR || 0, K = model.K;
+        $("sus3dInfo").innerHTML = `<b>Rueda derecha</b> recorrido ${(sr * 1e3).toFixed(1)} mm · caída ${(at(K, K.CAM, sr) / DEG).toFixed(2)}° · convergencia ${(at(K, K.TOE, sr) / DEG * 60).toFixed(1)}′ · avance ${(at(K, K.CAS, sr) / DEG).toFixed(2)}° · centro de balanceo ${(at(K, K.RC, sr) * 1e3).toFixed(0)} mm · carga ${(Fz / 1e3).toFixed(2)} kN<br><span>Barras: azul tracción, rojo compresión · flechas en la huella: verde vertical, azul lateral, naranja longitudinal · movimiento dibujado ×${$("susEx").value}, valores reales · arrastra para girar, botón derecho para desplazar</span>`;
+        if (live.loads) {
+          const tie = live.loads[5].f, rackF = Math.abs(tie) * Math.abs(LAB.kin3d.util.nrm(LAB.kin3d.util.sub(R.TI, R.TO))[1]), tq = rackF * .0075 * .3;
+          ro.set("frack", rackF / 1e3, 2), ro.set("tqsw", tq, 1);
+          $("susLoads").innerHTML = `<b>Fuerza axial en cada barra (${{ live: "en vivo", brake: "frenada a 5 g", corner: "curva a 4,5 g", comb: "frenada en curva" }[man]}, huella ${(FR[0] / 1e3).toFixed(1)} / ${(FR[1] / 1e3).toFixed(1)} / ${(FR[2] / 1e3).toFixed(1)} kN)</b>` + live.loads.map(q => `<div class="${q.f >= 0 ? "t" : "c"}"><span>${q.name}</span><i style="width:${Math.min(100, Math.abs(q.f) / 400).toFixed(0)}%"></i><em>${q.f >= 0 ? "tracción" : "compresión"} ${Math.abs(q.f / 1e3).toFixed(2)} kN</em></div>`).join("")
+        }
+      }
     } else draw2D()
   }
   function verdict(A, mean, sd, mn, mx) {
@@ -446,13 +492,19 @@ LAB.susp = (() => {
       <aside class="params" id="susParams"></aside>
       <section class="views">
         <div class="vrow"><div class="s3host" id="sus3d"><div class="s3info" id="sus3dInfo"></div><canvas id="susCv" class="big" hidden></canvas></div><div class="verdict" id="susVerdict"></div></div>
-        <div class="ctrl"><button id="susRun" class="btn on">Pausa</button><label>Velocidad de simulación <select id="susSpd"><option value=".1">×0,1 (cámara lenta)</option><option value=".25">×0,25</option><option value="1" selected>×1 (tiempo real)</option></select></label><label>Movimiento <select id="susEx"><option value="1">real</option><option value="3" selected>exagerado ×3</option><option value="6">exagerado ×6</option></select></label><button id="susReset" class="btn">Reiniciar</button><button id="susCsv" class="btn adv">Exportar CSV</button><span id="susWarn" class="warnt"></span></div>
+        <div class="ctrl"><button id="susRun" class="btn on">Pausa</button><label>Velocidad de simulación <select id="susSpd"><option value=".1">×0,1 (cámara lenta)</option><option value=".25">×0,25</option><option value="1" selected>×1 (tiempo real)</option></select></label><label>Volante <input type="range" id="susSteer" min="-180" max="180" step="1" value="0" style="width:120px;vertical-align:middle"> <b id="susSteerV">0°</b></label><label>Cargas <select id="susMan"><option value="live">En vivo (firme)</option><option value="brake">Frenada a 5 g</option><option value="corner" selected>Curva a 4,5 g (rueda exterior)</option><option value="comb">Frenada en curva</option></select></label><label>Movimiento <select id="susEx"><option value="1">real</option><option value="3" selected>exagerado ×3</option><option value="6">exagerado ×6</option></select></label><button id="susReset" class="btn">Reiniciar</button><button id="susCsv" class="btn adv">Exportar CSV</button><span id="susWarn" class="warnt"></span></div>
+        <div class="ctrl s3views"><span>Vista</span><button class="btn" data-sv="all">Eje completo</button><button class="btn" data-sv="corner">Rueda</button><button class="btn" data-sv="steer">Dirección</button><button class="btn" data-sv="top">Planta</button></div>
         <div class="readouts" id="susRo"></div>
+        <div class="loadtbl" id="susLoads"></div>
         <div class="pgrid"><canvas id="susLoad"></canvas><canvas id="susTrav"></canvas><canvas id="susHist"></canvas><canvas id="susFft"></canvas></div>
-        <h3 class="adv">Cinemática y amortiguador</h3>
-        <div class="pgrid adv"><canvas id="susK1"></canvas><canvas id="susK2"></canvas><canvas id="susK3"></canvas><canvas id="susK4"></canvas><canvas id="susDamp"></canvas></div>
+        <h3 class="adv">Cinemática 3D, dirección y amortiguador</h3>
+        <div class="pgrid adv"><canvas id="susK1"></canvas><canvas id="susK2"></canvas><canvas id="susK3"></canvas><canvas id="susK4"></canvas><canvas id="susK5"></canvas><canvas id="susK6"></canvas><canvas id="susAck"></canvas><canvas id="susDamp"></canvas></div>
       </section></div>`;
-    prm = new Params($("susParams"), DEF, id => { clearTimeout(init.t), init.t = setTimeout(reset, id === "speed" || id === "road" ? 10 : 120) });
+    let lastType = "push";
+    prm = new Params($("susParams"), DEF, id => {
+      if (prm.v.type !== lastType) { lastType = prm.v.type; const H = lastType === "pull" ? LAB.kin3d.PULL : LAB.kin3d.PUSH, o = {}; for (const k of LAB.kin3d.PTS) ["x", "y", "z"].forEach((a, i) => o["hp_" + k + "_" + a] = H[k][i]); o.hp_r1 = H.r1, o.hp_r2 = H.r2, o.hp_rbeta = H.rbeta, o.hp_ralpha = H.ralpha, prm.set(o, !0) }
+      clearTimeout(init.t), init.t = setTimeout(reset, id === "speed" || id === "road" ? 10 : 120)
+    });
     const pre = $("susPre");
     for (const k in PRESETS) pre.appendChild(el("button", { class: "btn", text: PRESETS[k].name, onclick: () => { prm.set(Object.fromEntries(DEF.flatMap(g => g.items.map(i => [i.id, i.v]))), !0), prm.set(PRESETS[k].v) } }));
     ro = new Readouts($("susRo"), [
@@ -460,13 +512,19 @@ LAB.susp = (() => {
       { id: "hrmin", label: "Altura mínima", unit: "mm" }, { id: "porp", label: "Oscilación de altura", unit: "mm p-p" }, { id: "plank", label: "Tabla tocando", unit: "% tiempo", adv: !0 },
       { id: "fb", label: "Frecuencia carrocería", unit: "Hz" }, { id: "fw", label: "Rebote de rueda", unit: "Hz", adv: !0 }, { id: "zb", label: "Amortiguamiento crítico carrocería", unit: "ζ" },
       { id: "zw", label: "Amortiguamiento crítico rueda", unit: "ζ", adv: !0 }, { id: "mr0", label: "Relación de movimiento", unit: "amort./rueda", adv: !0 }, { id: "wr0", label: "Rigidez en rueda", unit: "N/mm" },
-      { id: "kroll", label: "Rigidez al balanceo eje", unit: "kNm/°", adv: !0 }, { id: "rc0", label: "Centro de balanceo", unit: "mm", adv: !0 }, { id: "cg", label: "Ganancia de caída", unit: "°/10 mm", adv: !0 }, { id: "aero", label: "Carga aero eje", unit: "kN" }
+      { id: "kroll", label: "Rigidez al balanceo eje", unit: "kNm/°", adv: !0 }, { id: "rc0", label: "Centro de balanceo", unit: "mm", adv: !0 }, { id: "cg", label: "Ganancia de caída", unit: "°/10 mm", adv: !0 }, { id: "aero", label: "Carga aero eje", unit: "kN" },
+      { id: "cas", label: "Avance (caster)", unit: "°" }, { id: "kpi", label: "Inclinación del pivote", unit: "°", adv: !0 }, { id: "scr", label: "Radio de pivotamiento", unit: "mm", adv: !0 }, { id: "trl", label: "Avance mecánico", unit: "mm", adv: !0 },
+      { id: "bs", label: "Bump steer", unit: "min/10 mm" }, { id: "ad", label: "Antihundimiento", unit: "%", adv: !0 }, { id: "ack", label: "Ackermann", unit: "%" }, { id: "lock", label: "Giro de rueda a 180° de volante", unit: "°", adv: !0 },
+      { id: "frack", label: "Fuerza en la cremallera", unit: "kN" }, { id: "tqsw", label: "Par en el volante (con asistencia)", unit: "N·m" }
     ]);
     plots.load = new Plot($("susLoad")), plots.trav = new Plot($("susTrav")), plots.hist = new Plot($("susHist")), plots.fft = new Plot($("susFft"));
-    plots.kin1 = new Plot($("susK1")), plots.kin2 = new Plot($("susK2")), plots.kin3 = new Plot($("susK3")), plots.kin4 = new Plot($("susK4")), plots.damp = new Plot($("susDamp"));
+    plots.kin1 = new Plot($("susK1")), plots.kin2 = new Plot($("susK2")), plots.kin3 = new Plot($("susK3")), plots.kin4 = new Plot($("susK4")), plots.kin5 = new Plot($("susK5")), plots.kin6 = new Plot($("susK6")), plots.ack = new Plot($("susAck")), plots.damp = new Plot($("susDamp"));
     $("susRun").onclick = () => { running = !running, $("susRun").textContent = running ? "Pausa" : "Seguir", $("susRun").classList.toggle("on", running) };
     $("susReset").onclick = reset, $("susSpd").onchange = e => simSpeed = +e.target.value;
     use3d = !!(LAB.susp3d && LAB.susp3d.init($("sus3d"))), use3d || ($("susCv").hidden = !1), $("susEx").onchange = e => LAB.susp3d && LAB.susp3d.setEx(+e.target.value);
+    $("susSteer").oninput = e => { $("susSteerV").textContent = e.target.value + "°", LAB.susp3d && LAB.susp3d.setOpts({ steer: +e.target.value }) };
+    $("susMan").onchange = e => LAB.susp3d && LAB.susp3d.setOpts({ discT: e.target.value === "brake" || e.target.value === "comb" ? 950 : 450 });
+    document.querySelectorAll("[data-sv]").forEach(b => b.onclick = () => $("sus3d").view && $("sus3d").view(b.dataset.sv));
     $("susCsv").onclick = () => { const n = buf.n, rows = []; for (let j = 0; j < n; j += 3) { const k = (buf.i - n + j + NB) % NB; rows.push([buf.t[k], buf.FL[k], buf.FR[k], buf.sL[k], buf.sR[k], buf.hr[k], buf.vd[k], buf.ab[k], buf.rR[k], buf.fa[k]]) } downloadCSV("suspension.csv", ["t_s", "carga_izq_kN", "carga_dcha_kN", "recorrido_izq_mm", "recorrido_dcho_mm", "altura_mm", "vel_amort_dcho_mm_s", "acel_carroceria_g", "firme_dcho_mm", "carga_aero_kN"], rows) };
     window.addEventListener("labmode", () => setTimeout(() => { for (const p of Object.values(plots)) p.fit(); kinPlots() }, 50));
     reset(), loop()
