@@ -72,10 +72,45 @@ canvas.big{height:420px}
 .ro[data-state=bad] b{color:var(--red)}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:10px}
 .pgrid canvas{height:230px}
+.vgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));margin:12px 0 4px}
+.e3wrap{display:grid;grid-template-columns:1fr 320px;gap:12px}
+.e3view{position:relative;height:min(68vh,640px);min-height:380px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#0b0e12;touch-action:none}
+.e3view canvas{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:0;background:none;cursor:grab}
+.e3view canvas:active{cursor:grabbing}
+.e3lab{position:absolute;left:0;top:0;pointer-events:none;font:600 11.5px var(--body);color:#e9eef3;background:rgba(12,15,18,.72);border:1px solid rgba(255,255,255,.14);padding:2px 7px;border-radius:999px;white-space:nowrap;backdrop-filter:blur(3px)}
+.e3legend{position:absolute;left:10px;bottom:10px;z-index:2;display:grid;grid-template-columns:auto auto;gap:2px 8px;font-size:11px;color:var(--mute);background:rgba(12,15,18,.7);padding:6px 9px;border-radius:8px;pointer-events:none}
+.e3legend:empty{display:none}
+.e3legend b{grid-column:1/-1;color:var(--ink);font:700 12px var(--display);text-transform:uppercase;letter-spacing:.04em}
+.e3legend i{grid-column:1/-1;display:block;height:8px;width:180px;border-radius:4px}
+.e3legend span:last-child{text-align:right}
+.e3cams{position:absolute;right:8px;top:8px;z-index:2;display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+.e3cams button,.seg button{font:600 12px var(--body);color:var(--ink);background:rgba(32,38,46,.86);border:1px solid var(--line);border-radius:7px;padding:5px 9px;cursor:pointer}
+.e3cams button:hover,.seg button:hover{border-color:var(--accent)}
+.seg{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.seg span{color:var(--mute);font-size:12px;margin-right:2px;min-width:78px}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#111}
+.e3side{display:flex;flex-direction:column;gap:10px;min-width:0}
+.e3btns{display:flex;flex-direction:column;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
+.e3hud{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-height:150px}
+.e3live b{display:block;font:800 26px/1 var(--display);letter-spacing:.02em}
+.e3live span{color:var(--mute);font-size:11.5px}
+.e3cyl{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;margin:8px 0}
+.e3cyl div{border-top:3px solid var(--c);background:var(--panel2);border-radius:4px;padding:3px 2px;text-align:center}
+.e3cyl b{display:block;font:700 13px var(--display)}
+.e3cyl span{display:block;font-size:9.5px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.e3hud h4{margin:8px 0 4px;font:700 15px var(--display);text-transform:uppercase;letter-spacing:.03em;color:var(--accent)}
+.e3hud table{width:100%;border-collapse:collapse;font-size:12.5px}
+.e3hud td{padding:3px 0;border-bottom:1px solid var(--line)}
+.e3hud td:last-child{text-align:right;font-family:var(--mono);font-size:12px;color:var(--ink)}
+.e3hud td:first-child{color:var(--mute)}
+.e3hint{color:var(--mute);font-size:12.5px;margin:6px 0 0}
+.e3log{display:flex;flex-direction:column;gap:6px}
+.e3log .vd span{color:var(--ink)}
+body[data-mode=pro] .easyonly{display:none}
 h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color:var(--mute)}
 .note{color:var(--faint);font-size:12px;margin-top:20px;max-width:100ch}
-@media (max-width:1000px){header{position:static}.views{order:-1}.labgrid{grid-template-columns:1fr}.params{position:static;max-height:none}.vrow{grid-template-columns:1fr}canvas.big{height:340px}.pgrid{grid-template-columns:1fr}}
-@media (max-width:560px){main{padding:10px 12px 30px}header{padding:10px 12px}.modes{margin-left:0}canvas.big{height:300px}.readouts{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:1000px){.e3wrap{grid-template-columns:1fr}.e3view{height:58vh;min-height:320px}header{position:static}.views{order:-1}.labgrid{grid-template-columns:1fr}.params{position:static;max-height:none}.vrow{grid-template-columns:1fr}canvas.big{height:340px}.pgrid{grid-template-columns:1fr}}
+@media (max-width:560px){.e3view{height:52vh}.e3lab{font-size:10px;padding:1px 5px}.seg span{min-width:0;width:100%}main{padding:10px 12px 30px}header{padding:10px 12px}.modes{margin-left:0}canvas.big{height:300px}.readouts{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body data-mode="easy">
@@ -88,9 +123,10 @@ h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color
 <main>
   <section id="tab-susp"></section>
   <section id="tab-engine" hidden></section>
-  <p class="note">Modelos físicos simplificados pero completos: cinemática exacta en vista frontal, dinámica de medio eje integrada con Runge-Kutta a 3 kHz, ciclo de una zona con combustión de Wiebe, transferencia de calor de Woschni, detonación por Livengood-Wu (Douaud-Eyzat), mecánica biela-manivela exacta, fatiga de Goodman, pandeo de Euler y vibración torsional por análisis modal. Los valores por defecto son estimaciones razonables de un F1 actual, no datos de ningún equipo.</p>
+  <p class="note">Modelos físicos simplificados pero completos: cinemática exacta en vista frontal, dinámica de medio eje integrada con Runge-Kutta a 3 kHz, motor en 3D con cinemática exacta pieza a pieza, tren de válvulas con flotación y holgura con el pistón, turbo con compresor y turbina, daño por fatiga acumulado (Basquin y Miner), ciclo de una zona con combustión de Wiebe, transferencia de calor de Woschni, detonación por Livengood-Wu (Douaud-Eyzat), mecánica biela-manivela exacta, fatiga de Goodman, pandeo de Euler y vibración torsional por análisis modal. Los valores por defecto son estimaciones razonables de un F1 actual, no datos de ningún equipo.</p>
 </main>
-<script src="a/lab.1ffbbe3eac.js"></script>
+<script src="a/three.04d0db4a9b.js"></script>
+<script src="a/lab.d0e35def01.js"></script>
 <script>
 (function(){
   LAB.setMode(LAB.mode);
