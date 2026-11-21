@@ -9328,7 +9328,9 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
       o.receiveShadow = quality !== "med", o.castShadow = !1
      })
     }), tiles.addEventListener("load-error", e => {
-    R.geoStatus = "Error de Google 3D: revisa la clave", console.warn("3D tiles", e && e.error)
+    const msg = String(e && e.error && e.error.message || "");
+    /* si falla la raíz (clave, región o API sin activar) se abandona el mundo real y se queda el construido */
+    R.geoStatus = /40[34]/.test(msg) ? "Google 3D no disponible para esta clave (en el EEE Google no sirve teselas 3D a proyectos nuevos)" : "Error de Google 3D: revisa la clave", console.warn("3D tiles", e && e.error), !G.cal && (G.attr && (G.attr.remove(), G.attr = null), G.failed = !0)
    });
    const box2 = document.createElement("div");
    box2.className = "geo-attr";
