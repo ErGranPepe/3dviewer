@@ -1,0 +1,41 @@
+key len 39
+== referer: 'https://ergranpepe.github.io/'
+{
+  "error": {
+    "code": 404,
+    "message": "Requested entity was not found.",
+    "status": "NOT_FOUND"
+  }
+}
+
+HTTP 404
+
+== referer: ''
+{
+  "error": {
+    "code": 404,
+    "message": "Requested entity was not found.",
+    "status": "NOT_FOUND"
+  }
+}
+
+HTTP 404
+
+== 2D tiles createSession (otro producto de la misma API)
+{
+  "error": {
+    "code": 404,
+    "message": "Requested entity was not found.",
+    "errors": [
+      {
+        "message": "Requested entity was not found.",
+        "domain": "global",
+        "reason": "notFound"
+      }
+    ],
+    "status": "NOT_FOUND"
+  }
+}
+
+HTTP 404
+
