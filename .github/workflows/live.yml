@@ -5,19 +5,15 @@ on:
 permissions:
   contents: write
 jobs:
-  shots:
+  probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install playwright && python -m playwright install --with-deps chromium
-      - run: python live_shot.py
-      - name: Publicar capturas
+      - run: ./probe.sh | tee probe.txt
+      - name: Publicar
         if: always()
         run: |
-          cd out && git init -q && git checkout -q -b live-shots-out && git add -A
-          git -c user.name=shot-bot -c user.email=shot-bot@users.noreply.github.com commit -q -m "capturas de la web publicada"
-          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" live-shots-out
+          mkdir out && cp probe.txt out/ && cd out && git init -q && git checkout -q -b live-probe-out && git add -A
+          git -c user.name=shot-bot -c user.email=shot-bot@users.noreply.github.com commit -q -m probe
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" live-probe-out
