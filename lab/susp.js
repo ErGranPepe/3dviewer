@@ -189,7 +189,7 @@ LAB.susp = (() => {
       out[4] = a[0], out[5] = a[1], out[6] = a[2], out[7] = a[3]
     } else out[4] = Fb / m.mb, out[5] = Mphi / m.Ixx, out[6] = FuL / m.mu, out[7] = FuR / m.mu;
     out[0] = vb, out[1] = wphi, out[2] = vuL, out[3] = vuR;
-    if (aux) aux.FtL = FtL, aux.FtR = FtR, aux.sL = sL, aux.sR = sR, aux.vdL = cL.vd, aux.vdR = cR.vd, aux.hr = hr, aux.Fa = Fa, aux.rL = rL, aux.rR = rR, aux.phi = phi, aux.zb = zb, aux.ab = out[4], aux.Fpl = Fpl, aux.FsR = FsR
+    if (aux) aux.FtL = FtL, aux.FtR = FtR, aux.sL = sL, aux.sR = sR, aux.vdL = cL.vd, aux.vdR = cR.vd, aux.hr = hr, aux.Fa = Fa, aux.rL = rL, aux.rR = rR, aux.phi = phi, aux.zb = zb, aux.ab = out[4], aux.Fpl = Fpl, aux.FsR = FsR, aux.FsL = FsL
   }
   function gauss(A, b) {
     const n = b.length, M = A.map((r, i) => [...r, b[i]]);
@@ -294,7 +294,7 @@ LAB.susp = (() => {
     ]}
   ];
 
-  let host, prm, model, plots = {}, ro, raf, buf, running = !0, dtSim = 1 / 3000, histo = new Float32Array(41), simSpeed = 1, statsAcc;
+  let use3d = !1, host, prm, model, plots = {}, ro, raf, buf, running = !0, dtSim = 1 / 3000, histo = new Float32Array(41), simSpeed = 1, statsAcc;
   const NB = 3000 * 6;
   function mkBuf() { buf = { n: 0, i: 0, t: new Float32Array(NB), FL: new Float32Array(NB), FR: new Float32Array(NB), sL: new Float32Array(NB), sR: new Float32Array(NB), hr: new Float32Array(NB), vd: new Float32Array(NB), ab: new Float32Array(NB), rR: new Float32Array(NB), fa: new Float32Array(NB) } }
   function reset() {
@@ -424,7 +424,10 @@ LAB.susp = (() => {
       ro.set("aero", model.aeroLag / 1e3, 2);
       verdict(A, mean, sd, mn, mx)
     }
-    draw2D()
+    if (use3d) {
+      const aux = model.aux || {}, sol = LAB.susp3d.frame(model, aux);
+      frame % 4 === 0 && sol && ($("sus3dInfo").innerHTML = `<b>Rueda derecha</b> recorrido ${((aux.sR || 0) * 1e3).toFixed(1)} mm · caída ${(sol.camber / DEG).toFixed(2)}° · carga ${((aux.FtR || 0) / 1e3).toFixed(2)} kN · amortiguador ${((aux.vdR || 0) * 1e3).toFixed(0)} mm/s<br><span>Color = fuerza que transmite cada pieza · arrastra para girar, rueda para acercar</span>`)
+    } else draw2D()
   }
   function verdict(A, mean, sd, mn, mx) {
     const out = [], v = sd / mean;
@@ -442,8 +445,8 @@ LAB.susp = (() => {
     <div class="labgrid">
       <aside class="params" id="susParams"></aside>
       <section class="views">
-        <div class="vrow"><canvas id="susCv" class="big"></canvas><div class="verdict" id="susVerdict"></div></div>
-        <div class="ctrl"><button id="susRun" class="btn on">Pausa</button><label>Velocidad de simulación <select id="susSpd"><option value=".1">×0,1 (cámara lenta)</option><option value=".25">×0,25</option><option value="1" selected>×1 (tiempo real)</option></select></label><button id="susReset" class="btn">Reiniciar</button><button id="susCsv" class="btn adv">Exportar CSV</button><span id="susWarn" class="warnt"></span></div>
+        <div class="vrow"><div class="s3host" id="sus3d"><div class="s3info" id="sus3dInfo"></div><canvas id="susCv" class="big" hidden></canvas></div><div class="verdict" id="susVerdict"></div></div>
+        <div class="ctrl"><button id="susRun" class="btn on">Pausa</button><label>Velocidad de simulación <select id="susSpd"><option value=".1">×0,1 (cámara lenta)</option><option value=".25">×0,25</option><option value="1" selected>×1 (tiempo real)</option></select></label><label>Movimiento <select id="susEx"><option value="1">real</option><option value="3" selected>exagerado ×3</option><option value="6">exagerado ×6</option></select></label><button id="susReset" class="btn">Reiniciar</button><button id="susCsv" class="btn adv">Exportar CSV</button><span id="susWarn" class="warnt"></span></div>
         <div class="readouts" id="susRo"></div>
         <div class="pgrid"><canvas id="susLoad"></canvas><canvas id="susTrav"></canvas><canvas id="susHist"></canvas><canvas id="susFft"></canvas></div>
         <h3 class="adv">Cinemática y amortiguador</h3>
@@ -463,6 +466,7 @@ LAB.susp = (() => {
     plots.kin1 = new Plot($("susK1")), plots.kin2 = new Plot($("susK2")), plots.kin3 = new Plot($("susK3")), plots.kin4 = new Plot($("susK4")), plots.damp = new Plot($("susDamp"));
     $("susRun").onclick = () => { running = !running, $("susRun").textContent = running ? "Pausa" : "Seguir", $("susRun").classList.toggle("on", running) };
     $("susReset").onclick = reset, $("susSpd").onchange = e => simSpeed = +e.target.value;
+    use3d = !!(LAB.susp3d && LAB.susp3d.init($("sus3d"))), use3d || ($("susCv").hidden = !1), $("susEx").onchange = e => LAB.susp3d && LAB.susp3d.setEx(+e.target.value);
     $("susCsv").onclick = () => { const n = buf.n, rows = []; for (let j = 0; j < n; j += 3) { const k = (buf.i - n + j + NB) % NB; rows.push([buf.t[k], buf.FL[k], buf.FR[k], buf.sL[k], buf.sR[k], buf.hr[k], buf.vd[k], buf.ab[k], buf.rR[k], buf.fa[k]]) } downloadCSV("suspension.csv", ["t_s", "carga_izq_kN", "carga_dcha_kN", "recorrido_izq_mm", "recorrido_dcho_mm", "altura_mm", "vel_amort_dcho_mm_s", "acel_carroceria_g", "firme_dcho_mm", "carga_aero_kN"], rows) };
     window.addEventListener("labmode", () => setTimeout(() => { for (const p of Object.values(plots)) p.fit(); kinPlots() }, 50));
     reset(), loop()
