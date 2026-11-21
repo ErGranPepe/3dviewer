@@ -635,9 +635,7 @@
    tr.twisty = clamp((ks2 * ds / (2 * Math.PI) - 2) / 2, 0, 1)
   }
   tr.wingRec = tr.aeroCda ? clamp((tr.aeroCda - 1.3) / .55, 0, 1) : clamp(.35 + .45 * tr.twisty, 0, 1);
-  const cdaR = 1.3 + .55 * tr.wingRec,
-   sp = speedProfile(tr, COMP.M.mu * CAR.muScale * 1.02, CAR.mass + 20, cdaR * CAR.LD, cdaR, CAR.pIce + CAR.pK);
-  tr.vref = sp.v, tr.ideal = sp.t;
+  trackVref(tr);
   const straight = new Uint8Array(N),
    win = Math.round(40 / ds);
   for (let i = 0; i < N; i++) {
@@ -654,6 +652,11 @@
     on = straight[i] && q < N;
    on && start < 0 && (start = i0 + q), !on && start >= 0 && (runs.push([start, i0 + q]), start = -1)
   }
+  /* 2026: zonas de aerodinámica activa (modo recta) en todas las rectas de más de 250 m */
+  tr.xz = runs.filter(r => (r[1] - r[0]) * ds > 250).map(r => ({
+   a: (r[0] * ds + 30) % tr.L,
+   b: (r[1] * ds - 70) % tr.L
+  }));
   runs.sort((a, b) => b[1] - b[0] - (a[1] - a[0])), tr.drs = runs.filter(r => (r[1] - r[0]) * ds > 280).slice(0, 2).map(r => ({
    a: (r[0] * ds + 50) % tr.L,
    b: (r[1] * ds - 90) % tr.L,
@@ -1447,7 +1450,7 @@
    dmg = c.dmg;
   let cl = CAR.cla * st.cl * pf.cl * (1 - .22 * dmg.fw - .35 * dmg.floor),
    aF = CAR.aeroF + st.bal - .07 * dmg.fw;
-  c.drs && (cl *= .93, aF += .025);
+  c.drs && (CAR.reg === "2026" ? (cl *= .6, aF += .01) : (cl *= .93, aF += .025));
   const cd = CAR.cda * st.cd * pf.cd * (c.drs ? CAR.drsCd : 1) * (1 - c.slip) * (1 + .12 * dmg.fw + .08 * dmg.floor),
    dF = 1 - c.dirty * 1.5,
    dR = 1 - c.dirty * .5,
@@ -1462,9 +1465,21 @@
    Pk = 0;
   c.ersOn = !1;
   const noErs = c.fail && c.fail.ers;
-  c.mgr && c.mgr.ers && (c.mgr.ers === "harv" ? c.ers = !1 : c.mgr.ers === "dep" && thr > .6 && u0 > 25 && (c.ers = !0)), c.ers && !noErs && c.batt > .003 && c.dLeft > 0 && thr >
-   .5 && w.vsc <= 0 && !(w.sc && w.sc.on) && (Pk = CAR.pK * thr, c.ersOn = !0);
-  c.sys && (Pice *= c.sys.pMul, Pk *= c.sys.kMul);
+  c.mgr && c.mgr.ers && (c.mgr.ers === "harv" ? c.ers = !1 : c.mgr.ers === "dep" && thr > .6 && u0 > 25 && (c.ers = !0));
+  const ersReq = CAR.reg === "2026" ? ecu2026(w, c, u0, dt) : c.ers;
+  ersReq && !noErs && c.batt > .003 && c.dLeft > 0 && thr >
+   .5 && w.vsc <= 0 && !(w.sc && w.sc.on) && (Pk = CAR.pK * thr * kTaper(u0, c.mom), c.ersOn = Pk > 0);
+  c.sys && (Pice *= c.sys.pMul, Pk *= c.sys.kMul), c.pKW = Pk;
+  /* 2026: recorte («superclipping») — sin despliegue y por encima de ~250 km/h, la centralita desvía parte del térmico
+     al MGU-K para cargar la batería cuando está por debajo de su objetivo; el coche pierde velocidad al final de recta */
+  c.clip = 0;
+  if (CAR.reg === "2026" && !noErs && !c.ersOn && thr > .9 && c.hLeft > 0 && w.vsc <= 0) {
+   const M = c.mgr && c.mgr.ers, top = M === "harv" ? .98 : .9;
+   (M === "harv" ? u0 > 40 : u0 * 3.6 > Math.max(282, c.vDep + 45) && c.batt < (c.socT != null ? c.socT : .5) + .05) && c.batt < top && (c.clip = Math.min(25e4, Pice * .62) * clamp((top - c.batt) * 6, .3, 1), Pice -= c.clip)
+  }
+  /* 2026: a gas parcial el térmico trabaja más de lo que pide el piloto y el MGU-K se queda la diferencia */
+  c.partH = 0;
+  CAR.reg === "2026" && !noErs && !c.ersOn && thr > .05 && thr < .88 && c.brk < .05 && u0 > 15 && c.batt < .98 && c.hLeft > 0 && (c.partH = Math.min(CAR.pK * .7, CAR.pIce * (.92 - thr) * .55));
   const windF = w.windX * Math.cos(c.h) + w.windY * Math.sin(c.h),
    bk = tr.bank ? tr.bank[c.idx] : 0,
    slope = tr.slope[c.idx];
@@ -1576,6 +1591,7 @@
    const e = Math.max(0, Pk - pH) * dt * Math.max(.3, pFrac);
    c.batt = Math.max(0, c.batt - e / CAR.bat), c.dLeft -= e
   }
+  c.clip && (eHarv += c.clip * dt * .93), c.partH && (eHarv += c.partH * dt * .93, c.fuel = Math.max(0, c.fuel - c.partH * dt / (.5 * 43e6)));
   if (eHarv > 0) {
    const e = Math.min(eHarv, c.hLeft);
    c.batt = Math.min(1, c.batt + e / CAR.bat), c.hLeft -= e
@@ -1608,8 +1624,65 @@
     .4 * wet) * (1 - .3 * Math.min(1, c.dirty * 5)))
  }
 
+ /* ===== reglamento técnico: 2014-2025 (MGU-K 120 kW + MGU-H, DRS) o 2026 (MGU-K 350 kW con recorte por velocidad,
+    8,5 MJ de recuperación por vuelta, sin MGU-H, aerodinámica activa en recta para todos y modo adelantamiento) ===== */
+ function regsTable() {
+  return {
+   "2025": { mass: 798, cla: 5.5, cda: 1.6, drsCd: .75, LD: 3.93, pIce: 431e3, pK: 12e4, pH: 6e4, bat: 4e6, dLap: 4e6, hLap: 2e6, gripF: .98, gripR: 1.05 },
+   /* 2026: térmico ~400 kW (−28 %), 350 kW eléctricos, ~30 % menos carga, menos resistencia y aún menos en modo recta,
+      neumáticos más estrechos (−25/−30 mm) y 30 kg menos */
+   "2026": { mass: 768, cla: 5.5 * .84, cda: 1.6 * .9, drsCd: .7, LD: 3.93 * .93, pIce: 322e3, pK: 35e4, pH: 0, bat: 4e6, dLap: 1e12, hLap: 8.5e6, gripF: .98 * .99, gripR: 1.05 * .99 }
+  }
+ }
+
+ function setRegs(r) {
+  const T = regsTable();
+  r = T[r] ? r : "2026", CAR.reg = r, Object.assign(CAR, T[r])
+ }
+
+ /* potencia disponible del MGU-K en 2026: plena hasta 290 km/h (337 en modo adelantamiento) y nada a 355 km/h */
+ /* gestión de energía 2026: la centralita despliega por debajo de una velocidad umbral que se adapta sola para
+    equilibrar la batería (cada julio rinde más a baja velocidad: a = P / (m·v)) y recarga por encima; el piloto pide
+    más con el botón de ERS (ataque), el modo adelantamiento sube el umbral y el ingeniero puede forzar carga o ataque */
+ function ecu2026(w, c, u0, dt) {
+  const M = c.mgr && c.mgr.ers, kmh = u0 * 3.6, q = !w.started, L = w.track.L;
+  c.vDep == null && (c.vDep = (q ? w.track.vDepQ : w.track.vDepR) || 230);
+  /* objetivo de carga: en carrera, constante; en una vuelta lanzada, de llena en la línea a vacía al final */
+  const lapF = clamp((c.prog || 0) / L - Math.floor(Math.max(0, c.prog || 0) / L), 0, 1),
+   tgt = q ? 1 - .97 * lapF : .5 - .15 * ((c.attack != null ? c.attack : .5) - .5);
+  c.socT = tgt;
+  M !== "harv" && (c.vDep = clamp(c.vDep + (c.batt - tgt) * (q ? 140 : 30) * dt, 90, 350));
+  let want = kmh < c.vDep + (c.ers && c.player ? 30 : 0) + (c.mom ? 35 : 0);
+  return q && (c.prog || 0) < 0 && (want = !1), M === "harv" && (want = !1), M === "dep" && (want = !0), c.batt < .02 && (want = !1), want
+ }
+
+ function kTaper(u, mom) {
+  if (CAR.reg !== "2026") return 1;
+  const k = u * 3.6, a = mom ? 337 : 290;
+  return clamp((355 - k) / (355 - a), 0, 1)
+ }
+
+ function trackVref(tr) {
+  CAR.reg || setRegs("2026");
+  const cdaR = 1.3 + .55 * tr.wingRec,
+   sp = speedProfile(tr, COMP.M.mu * CAR.muScale * 1.02, CAR.mass + 20, cdaR * CAR.LD, cdaR, CAR.pIce + CAR.pK * (CAR.reg === "2026" ? .55 : 1));
+  tr.vref = sp.v, tr.ideal = sp.t, tr.vrefReg = CAR.reg;
+  /* plan de energía 2026: cuánta energía se recupera en las frenadas de este trazado y por debajo de qué velocidad
+     hay que desplegar para gastarla (en carrera, la misma que se recupera; en clasificación, además la batería llena) */
+  if (CAR.reg === "2026") {
+   const v = sp.v, N = tr.N, ds = tr.ds;
+   let H = 0;
+   const acc = [];
+   for (let i = 0; i < N; i++) { const a = v[i], b = v[(i + 1) % N], dt = ds / Math.max(5, a); b < a - .02 ? H += CAR.pK * dt : b > a && acc.push([a, dt]) }
+   H = Math.min(H * .85, CAR.hLap);
+   const need = V => acc.reduce((q, [a, dt]) => a * 3.6 < V ? q + CAR.pK * kTaper(a, !1) * dt : q, 0), pick = E => { let V = 90; for (; V < 350 && need(V + 5) < E; V += 5); return V };
+   tr.eHarv = H, tr.vDepR = pick(H * .9), tr.vDepQ = pick(H * .9 + CAR.bat * .95)
+  }
+ }
+
  function newWorld(track, o) {
-  return useTrack(track), Object.assign({
+  return useTrack(track), track.vrefReg !== CAR.reg && trackVref(track), Object.assign({
+   regs: CAR.reg,
    track,
    cars: [],
    all: null,
@@ -2341,7 +2414,7 @@
   COMPS = [
    ["pis", "Pistones", "motor", 190, 2.5], ["ring", "Segmentos", "motor", 220, 2.2], ["rod", "Bielas y cigüeñal", "motor", 320, 3], ["brg", "Cojinetes", "motor", 230, 2.5],
    ["valve", "Válvulas y PVRS", "motor", 200, 2.2], ["head", "Culata y junta", "motor", 260, 2], ["exh", "Escape", "motor", 240, 2], ["cool", "Refrigeración", "fluidos", 170, 1.8],
-   ["oil", "Lubricación", "fluidos", 190, 1.8], ["fuel", "Combustible", "fluidos", 330, 1.5], ["turbo", "Turbo y MGU-H", "ers", 110, 2], ["mguk", "MGU-K", "ers", 140, 2],
+   ["oil", "Lubricación", "fluidos", 190, 1.8], ["fuel", "Combustible", "fluidos", 330, 1.5], ["turbo", "Turbo", "ers", 110, 2], ["mguk", "MGU-K", "ers", 140, 2],
    ["es", "Batería y electrónica", "ers", 120, 1.8], ["gb", "Caja de cambios", "trans", 150, 2.2], ["hyd", "Hidráulica", "trans", 140, 1.6], ["brk", "Frenos", "frenos", 300, 2],
    ["susp", "Suspensión y estructura", "chasis", 380, 1.8]
   ],
@@ -2401,7 +2474,7 @@
  function sysFail(w, c, k) {
   const S = c.sys, why = {
    pis: "Pistón roto", ring: "Pérdida de compresión (segmentos)", rod: "Rotura de biela", brg: "Cojinete gripado", valve: "Válvula rota", head: "Fuga de agua por la junta de culata",
-   exh: "Escape agrietado", cool: "Fuga en el circuito de refrigeración", oil: "Fuga de aceite", fuel: "Presión de combustible", turbo: "Avería del turbo (MGU-H)", mguk: "Avería del MGU-K",
+   exh: "Escape agrietado", cool: "Fuga en el circuito de refrigeración", oil: "Fuga de aceite", fuel: "Presión de combustible", turbo: "Avería del turbo", mguk: "Avería del MGU-K",
    es: "Fallo de la batería", gb: "Caja de cambios", hyd: "Pérdida de presión hidráulica", brk: "Fallo de frenos", susp: "Rotura de suspensión"
   }[k];
   S.failed = S.failed || {}, S.failed[k] = w.t;
@@ -2426,7 +2499,7 @@
   if (S.acc += dt, S.acc < .05) return;
   const h = S.acc, tr = w.track, air = w.airT, u = Math.max(0, c.u), rpm = c.rpm || 4e3, thr = c.thr, g = clamp(c.gear, 0, 7), st = c.setup;
   S.acc = 0;
-  const pI = c.pIceW || 0, pK = c.ersOn ? CAR.pK * thr * S.kMul : 0, pH = c.pHarvW || 0, load = clamp(pI / CAR.pIce, 0, 1.1), ay = u * c.r, ax = c.axF || 0, G = Math.hypot(ax, ay) / 9.81;
+  const pI = c.pIceW || 0, pK = c.ersOn ? (c.pKW != null ? c.pKW : CAR.pK * thr) * S.kMul : 0, pH = c.pHarvW || 0, load = clamp(pI / CAR.pIce, 0, 1.1), ay = u * c.r, ax = c.axF || 0, G = Math.hypot(ax, ay) / 9.81;
   const dirty = Math.min(1, (c.dirty || 0) * 5), wet = c.wetL || 0, running = !c.retired && !c.inPit && !c.hold, idx = c.idx || 0, ex = (a, b) => Math.exp((a - b));
   S.load += (load - S.load) * Math.min(1, h / 1.2);
   /* ---- motor: aceite, pistón, segmentos, cojinetes ---- */
@@ -2468,9 +2541,12 @@
   S.bolt < .72 && !S.coolLeak && (S.coolLeak = .5, sysLog(w, c, "bad", "Los tornillos de culata han perdido apriete (" + Math.round(S.bolt * 100) + " %): fuga de agua", "boltL"));
   S.seal = S.seal + h * 1.2e-5 * Math.exp((S.Toil - 120) / 14);
   /* ---- híbrido ---- */
-  S.Tbat += h * (.03 * (pK + pH) - 60 * (1 + u / 60) * (1 - .3 * dirty) * (S.Tbat - 45)) / 2e4;
-  S.Tmgk += h * (.04 * (pK + pH) - 70 * (1 + u / 60) * (S.Tmgk - c.engT)) / 8e3;
-  S.Tmgh += (S.Toil + 20 + 40 * S.load - S.Tmgh) * Math.min(1, h / 8), S.Tinv += (c.engT - 50 + 35 * ((pK + pH) / 12e4) ** 2 - S.Tinv) * Math.min(1, h / 5);
+  /* el sistema de 2026 maneja casi el triple de potencia pero su refrigeración está dimensionada para ello: las pérdidas
+     se escalan con la potencia nominal; la recuperación (frenada, recorte, gas parcial) también calienta */
+  const kn = Math.pow(12e4 / CAR.pK, .85), Pe = (pK + pH * .6 + (c.clip || 0) * .6 + (c.partH || 0) * .6) * kn;
+  S.Tbat += h * (.03 * Pe - 60 * (1 + u / 60) * (1 - .3 * dirty) * (S.Tbat - 45)) / 2e4;
+  S.Tmgk += h * (.04 * Pe - 70 * (1 + u / 60) * (S.Tmgk - c.engT)) / 8e3;
+  S.Tmgh += (S.Toil + 20 + 40 * S.load - S.Tmgh) * Math.min(1, h / 8), S.Tinv += (c.engT - 50 + 35 * (Pe / 12e4) ** 2 - S.Tinv) * Math.min(1, h / 5);
   S.kMul = S.Tbat > 68 ? clamp(1 - (S.Tbat - 68) / 10, .35, 1) : 1;
   S.kMul < .95 && sysLog(w, c, "warn", "Batería a " + S.Tbat.toFixed(0) + " °C: limitamos el despliegue al " + Math.round(S.kMul * 100) + " %", "bat");
   /* ---- transmisión ---- */
@@ -2707,6 +2783,7 @@
  }
 
  function drsLogic(w, c) {
+  if (CAR.reg === "2026") return activeAero(w, c);
   const tr = w.track,
    L = tr.L,
    s = c.s;
@@ -2730,6 +2807,39 @@
    c.drsZone = zone
   }
   c.drs = c.drsOk && zone >= 0 && c.thr > .85 && c.brk < .05
+ }
+
+ /* 2026: modo recta para todos en las zonas marcadas (alerones delantero y trasero abiertos) y modo adelantamiento:
+    a menos de 1 s del de delante en el punto de detección, más potencia eléctrica (350 kW hasta 337 km/h) y 0,5 MJ extra */
+ function activeAero(w, c) {
+  const tr = w.track,
+   L = tr.L,
+   s = c.s,
+   inZ = zs => {
+    for (let z = 0; z < zs.length; z++) {
+     const d = zs[z];
+     if (d.a < d.b ? s >= d.a && s <= d.b : s >= d.a || s <= d.b) return z
+    }
+    return -1
+   },
+   ok = w.wetLine < .45 && w.vsc <= 0 && !(w.sc && w.sc.on) && !c.inPit,
+   xz = inZ(tr.xz || []);
+  c.drs = ok && xz >= 0 && c.thr > .85 && c.brk < .05 && Math.abs(c.v || 0) < 2.5;
+  /* detección del modo adelantamiento en los puntos de las antiguas zonas de DRS */
+  let det = -1;
+  for (let z = 0; z < tr.drs.length; z++) {
+   const d = tr.drs[z].det;
+   ((s - d + L) % L) < 40 && (det = z)
+  }
+  if (det >= 0 && det !== c.drsZone) {
+   const legal = w.started && lapOf(w, c) >= 2 && ok && w.t > w.drsOff && !w.chequered;
+   let gap = 9;
+   const ai = w.order.indexOf(c);
+   ai > 0 && (gap = gapTo(w, c, w.order[ai - 1]));
+   const was = c.mom;
+   c.mom = legal && gap < 1, c.drsOk = c.mom, c.mom && !was && (c.hLeft += 5e5, c.player && radio(w, c, "Modo adelantamiento disponible"))
+  }
+  c.drsZone = det
  }
 
  function gapTo(w, c, a) {
@@ -3010,10 +3120,10 @@
        .finished) {
        const key = c.id + "-" + o.id;
        if (w.ovT || (w.ovT = {}), w.ovT[key] && w.t - w.ovT[key] < 6) continue;
-       w.ovT[key] = w.t, c.overtakes++, evt(w, c.code + " adelanta a " + o.code + " por el P" + (i + 1) + (c.drs ? " con DRS" : ""), "pass", c, {
+       w.ovT[key] = w.t, c.overtakes++, evt(w, c.code + " adelanta a " + o.code + " por el P" + (i + 1) + (CAR.reg === "2026" ? c.mom ? " con el modo adelantamiento" : "" : c.drs ? " con DRS" : ""), "pass", c, {
         other: o,
         pos: i + 1,
-        drs: c.drs,
+        drs: CAR.reg === "2026" ? !!c.mom : c.drs,
         inside: Math.sign(w.track.k[c.idx]) === Math.sign(c.lat - o.lat)
        });
        const ms = Math.floor(c.s / w.track.L * w.track.nms) % w.track.nms;
@@ -3261,7 +3371,7 @@
     const vt = targetSpeed(w, c, .86 + .12 * c.push + .07);
     c.u > vt && (c.thr = 0, c.brk = Math.max(c.brk, clamp((c.u - vt) / 8, .3, 1)))
    }
-   if (physics(w, c, DT), c.sys && sysStep(w, c, DT), locate(track, c), Math.abs(c.lat) > WALL || Math.abs(c.beta) > 1) {
+   if (CAR.reg === "2026" && (w.order || (w.order = [c]), activeAero(w, c)), physics(w, c, DT), c.sys && sysStep(w, c, DT), locate(track, c), o.trace && steps % 6 === 0 && o.trace.push([Math.round(c.s), +(c.u * 3.6).toFixed(1), +c.batt.toFixed(3), Math.round((c.clip || 0) / 1e3), c.ersOn ? 1 : 0, c.drs ? 1 : 0, c.gear, +c.thr.toFixed(2)]), Math.abs(c.lat) > WALL || Math.abs(c.beta) > 1) {
     time = 1 / 0;
     break
    }
@@ -3364,6 +3474,9 @@
   newTire,
   applySetup,
   newWorld,
+  setRegs,
+  kTaper,
+  regsTable,
   setWeather,
   place,
   locate,
@@ -16979,7 +17092,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
     if (!o) break;
     const loc = where(w, c),
      how = d.inside ? pickW(["por dentro", "por el interior", "tirándose por dentro"]) : pickW(["por fuera", "por el exterior", "aguantando por fuera"]),
-     drs = d.drs ? pickW([" con el DRS abierto", " con el alerón abierto, ayudado por el rebufo", ""]) : "";
+     drs = d.drs ? pickW(S.CAR.reg === "2026" ? [" con el modo adelantamiento", " con los 350 kilovatios del modo adelantamiento", ""] : [" con el DRS abierto", " con el alerón abierto, ayudado por el rebufo", ""]) : "";
     if (p === 1) {
      hypeUp(.9), say(pickW(["¡¡" + who(w, c, 1) + "... " + how.toUpperCase() + "... SÍ, SÍ, SÍ!! ¡¡NUEVO LÍDER DEL GRAN PREMIO!!", "¡¡ADELANTAMIENTO POR EL LIDERATO " + loc
       .toUpperCase() + "!! ¡¡" + who(w, c, 1) + " SUPERA A " + who(w, o, 1) + "!!", "¡¡LO HA HECHO!! ¡¡" + who(w, c, 1) + " SE PONE PRIMERO!! " + how[0].toUpperCase() + how
@@ -17125,8 +17238,8 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
    g < bg && (bg = g, bp = [a, b, i])
   }
   bp && bg < 1.2 && topics.push(() => say(pickW([who(w, bp[1]) + " está a " + gapTxt(bg) + " de " + who(w, bp[0]) + ". ¡Le tiene en el punto de mira!", "¡Qué pelea por la " + ord(
-   bp[2]) + " plaza! " + who(w, bp[1]) + " pegado a la caja de cambios de " + who(w, bp[0]) + ".", "¡" + who(w, bp[1]) + " aprieta! " + (bg < 1 ? "Ya tiene el DRS" :
-   "Casi en zona de DRS") + " sobre " + who(w, bp[0]) + "."]), "nar", 2));
+   bp[2]) + " plaza! " + who(w, bp[1]) + " pegado a la caja de cambios de " + who(w, bp[0]) + ".", "¡" + who(w, bp[1]) + " aprieta! " + (bg < 1 ? S.CAR.reg === "2026" ? "Ya tiene el modo adelantamiento" : "Ya tiene el DRS" :
+   S.CAR.reg === "2026" ? "Casi a un segundo, a por el modo adelantamiento" : "Casi en zona de DRS") + " sobre " + who(w, bp[0]) + "."]), "nar", 2));
   for (let i = 1; i < Math.min(10, ordr.length); i++) {
    const a = ordr[i - 1],
     b = ordr[i];
@@ -17565,6 +17678,12 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
   CW = Math.max(1, Math.round(r.width * dpr)), CH = Math.max(1, Math.round(r.height * dpr)), cv.width = CW, cv.height = CH
  }
  const cv3 = $("cv3");
+ /* reglamento elegido (por defecto, el vigente: 2026) */
+ try {
+  S.setRegs(store.get("pn3-regs") || "2026");
+  const rr = $("rRegs");
+  rr && (rr.value = S.regsTable()[store.get("pn3-regs")] ? store.get("pn3-regs") : "2026", rr.onchange = () => { S.setRegs(rr.value), store.set("pn3-regs", rr.value) })
+ } catch (e) { console.warn(e) }
  let has3d = !1;
  try {
   const q = store.get("pn3-q") || (window.matchMedia && (matchMedia("(max-width:820px)").matches || matchMedia("(pointer:coarse)").matches) ? "med" : "high");
@@ -18363,7 +18482,7 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
    if (!r) return;
    r._car = c;
    const k = r.children;
-   k[0].textContent = i + 1, k[1].style.background = c.color, k[2].innerHTML = esc(c.code) + (c.drs ? '<span class="badge b-drs">DRS</span>' : "") + (c.pen ?
+   k[0].textContent = i + 1, k[1].style.background = c.color, k[2].innerHTML = esc(c.code) + (S.CAR.reg === "2026" ? c.mom ? '<span class="badge b-drs">MA</span>' : "" : c.drs ? '<span class="badge b-drs">DRS</span>' : "") + (c.pen ?
     '<span class="badge b-pen">+' + c.pen + "</span>" : "") + (c.blue ? '<span class="badge b-blue">A</span>' : "");
    let g = "",
     cls = "gap";
@@ -18475,10 +18594,14 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
   ["fvap", "fluidos", "Presión de vapor del combustible", "kPa", S => 60 * Math.exp(3900 * (1 / 311 - 1 / (S.Tfuel + 273))), 0, S => lin(60 * Math.exp(3900 * (1 / 311 - 1 / (S.Tfuel + 273))), 100, 300), "Si se acerca a la presión de la bomba de alimentación (3 bar), se forman burbujas: bloqueo por vapor."],
   ["seal", "fluidos", "Envejecimiento de retenes", "%", S => S.seal * 100, 0, S => lin(S.seal, .3, 1), "Deformación remanente del elastómero por temperatura (Arrhenius). Al 100 % empieza a fugar."],
   ["Tbat", "ers", "Batería", "°C", S => S.Tbat, 0, S => lin(S.Tbat, 55, 72), "Por encima de 68 °C se limita la potencia eléctrica para proteger las celdas."],
-  ["kMul", "ers", "Despliegue disponible", "%", S => S.kMul * 100, 0, S => 1 - S.kMul, "Fracción de los 120 kW del MGU-K que se puede usar ahora."],
-  ["batt", "ers", "Carga de la batería", "%", (S, c) => c.batt * 100, 0, (S, c) => lin(.3 - c.batt, 0, .3), "Estado de carga."],
+  ["kMul", "ers", "Despliegue disponible", "%", S => S.kMul * 100, 0, S => 1 - S.kMul, "Fracción de la potencia del MGU-K que la batería permite usar ahora (limitada si se calienta)."],
+  ["batt", "ers", "Carga de la batería", "%", (S, c) => c.batt * 100, 0, (S, c) => lin(.3 - c.batt, 0, .3), "Estado de carga (ventana útil de 4 MJ)."],
+  ["eK", "ers", "Potencia del MGU-K", "kW", (S, c) => ((c.ersOn ? c.pKW || 0 : 0) - (c.pHarvW || 0) - (c.clip || 0) - (c.partH || 0)) / 1e3, 0, () => 0, "Positiva al empujar, negativa al recuperar (frenada, recorte en recta o gas parcial). En 2026, 350 kW que se recortan de 290 a 355 km/h."],
+  ["eClip", "ers", "Recorte en recta", "kW", (S, c) => (c.clip || 0) / 1e3, 0, (S, c) => lin(c.clip || 0, 5e4, 2.5e5), "2026: potencia del térmico desviada a cargar la batería a fondo en recta; el coche pierde velocidad punta."],
+  ["eRec", "ers", "Recuperable en esta vuelta", "MJ", (S, c) => Math.max(0, c.hLeft) / 1e6, 1, (S, c) => lin(1.5e6 - c.hLeft, 0, 1.5e6), "Lo que aún se puede cargar antes de la línea (2026: 8,5 MJ por vuelta; 2025: 2 MJ del MGU-K)."],
+  ["eVd", "ers", "Umbral de despliegue", "km/h", (S, c) => c.vDep || 0, 0, () => 0, "2026: la centralita despliega por debajo de esta velocidad y lo ajusta sola para que la batería cuadre en la vuelta."],
   ["Tmgk", "ers", "MGU-K", "°C", S => S.Tmgk, 0, S => lin(S.Tmgk, 120, 165), "Motor-generador del cigüeñal: se calienta con la potencia que mueve."],
-  ["Tmgh", "ers", "MGU-H", "°C", S => S.Tmgh, 0, S => lin(S.Tmgh, 150, 200), "Motor-generador del eje del turbo."],
+  ["Tmgh", "ers", "MGU-H (hasta 2025)", "°C", S => S.Tmgh, 0, S => lin(S.Tmgh, 150, 200), "Motor-generador del eje del turbo. Desaparece con el reglamento de 2026."],
   ["Nt", "ers", "Turbo", "rpm", S => S.Nt, 0, S => lin(S.Nt, 1e5, 125e3), "El reglamento limita el turbo a 125 000 rpm."],
   ["Tint", "ers", "Aire de admisión", "°C", S => S.Tint, 0, S => lin(S.Tint, 55, 95), "Aire tras el intercooler. A poca velocidad o en el rebufo se enfría peor: más detonación y menos potencia."],
   ["Tinv", "ers", "Electrónica de potencia", "°C", S => S.Tinv, 0, S => lin(S.Tinv, 75, 110), "Inversor del sistema híbrido."],
@@ -18672,7 +18795,7 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
     length: 14
    }, (_, i) => '<i style="background:' + (i < rpmN ? i < 8 ? "#2fd16c" : i < 11 ? "#ff3b3b" : "#b45cff" : "") + '"></i>').join("") + "</div>",
    pills = [];
-  train || pills.push('<span class="pill ' + (c.drs ? "on" : c.drsOk ? "warn" : "") + '">DRS</span>'), pills.push('<span class="pill ' + (c.ersOn ? "ers" : "") + '">ERS</span>'),
+  train || (S.CAR.reg === "2026" ? pills.push('<span class="pill ' + (c.drs ? "on" : "") + '">RECTA</span>', '<span class="pill ' + (c.mom ? "warn" : "") + '">ADELANT.</span>', '<span class="pill ' + (c.clip ? "warn" : "") + '">RECORTE</span>') : pills.push('<span class="pill ' + (c.drs ? "on" : c.drsOk ? "warn" : "") + '">DRS</span>')), pills.push('<span class="pill ' + (c.ersOn ? "ers" : "") + '">ERS</span>'),
    c.slip > .05 && pills.push('<span class="pill on">Rebufo</span>'), c.dirty > .04 && pills.push('<span class="pill warn">Aire sucio</span>'), (c.lockF || c.lockR) && pills.push(
     '<span class="pill bad">Bloqueo</span>'), c.spinR && pills.push('<span class="pill bad">Patina</span>'), c.load > 1.02 && pills.push(
     '<span class="pill warn">Al límite</span>'), c.reflex && pills.push('<span class="pill warn">Reflejo</span>'), c.surf === 2 && pills.push(
@@ -18714,7 +18837,7 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
    "var(--yellow)") + '">' + tyFlags + "</b></div><div><span>Agarre</span><b>" + fmt(c.mu, 2) + " μ (cree " + fmt(c.muEst, 2) +
    ')</b></div></div></div><div class="kv"><div><span>Frenos</span><b style="color:' + (c.brakeT > 1050 ? "var(--red)" : c.brakeT < 250 ? "var(--blue)" : "var(--ink)") + '">' +
    Math.round(c.brakeT) + ' °C</b></div><div><span>Motor</span><b style="color:' + (c.engT > 124 ? "var(--red)" : "var(--ink)") + '">' + Math.round(c.engT) +
-   " °C</b></div><div><span>Gasolina</span><b>" + fmt(c.fuel, 1) + " kg (" + fmt(c.fuel / fpl, 1) + " v.)</b></div><div><span>ERS vuelta</span><b>" + fmt(Math.max(0, c.dLeft) /
+   " °C</b></div><div><span>Gasolina</span><b>" + fmt(c.fuel, 1) + " kg (" + fmt(c.fuel / fpl, 1) + " v.)</b></div><div><span>" + (S.CAR.reg === "2026" ? "Recuperable" : "ERS vuelta") + "</span><b>" + fmt(Math.max(0, S.CAR.reg === "2026" ? c.hLeft : c.dLeft) /
     1e6, 1) + " MJ</b></div><div><span>Modo motor</span><b>" + ["Ahorro", "Normal", "Ataque"][c.mode] + "</b></div><div><span>Alerón / freno</span><b>" + Math.round(c.setup.wing *
     100) + "% / " + Math.round(c.setup.bias * 100) + '%</b></div><div><span>Alerón del.</span><b style="color:' + (c.dmg.fw > .3 ? "var(--red)" : "var(--ink)") + '">' + Math
    .round((1 - c.dmg.fw) * 100) + '%</b></div><div><span>Fondo / susp.</span><b style="color:' + (c.dmg.floor + c.dmg.susp > .4 ? "var(--red)" : "var(--ink)") + '">' + Math.round(
@@ -18935,7 +19058,7 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
      gp < 60 && (ga = " · a <b>" + fmt(gp, 1) + " s</b> de " + a.code)
     }
     h.push('<span class="chip" style="color:var(--accent)">P' + p + ga + "</span>"), me.drsOk && me.drsZone >= 0 && h.push(
-     '<span class="chip" style="color:var(--green)">DRS abierto</span>')
+     '<span class="chip" style="color:var(--green)">' + (S.CAR.reg === "2026" ? "Modo adelantamiento" : "DRS abierto") + '</span>')
    }
   }
   $("hud").innerHTML = h.join("");
@@ -20582,14 +20705,14 @@ registerProcessor('engine-proc',EngineProc);`;
      length: 12
     }, (_, i) => '<i style="background:' + (i < rpmN ? i < 7 ? "#2fd16c" : i < 10 ? "#ff3b3b" : "#b45cff" : "") + '"></i>').join("") +
     '</div><div class="pd"><div><u style="width:' + Math.round(c.thr * 100) + '%;background:#2fd16c"></u></div><div><u style="width:' + Math.round(c.brk * 100) +
-    '%;background:#ff3b3b"></u></div></div><div class="fl"><span class="' + (c.drs ? "on" : "") + '">DRS</span><span class="' + (c.ersOn ? "e" : "") + '">ERS ' + Math.round(c
+    '%;background:#ff3b3b"></u></div></div><div class="fl"><span class="' + (c.drs ? "on" : "") + '">' + (S.CAR.reg === "2026" ? "RECTA" : "DRS") + '</span><span class="' + (c.ersOn ? "e" : "") + '">ERS ' + Math.round(c
      .batt * 100) + "%</span><span>" + (c.code || "") + (pos ? " P" + pos : "") + "</span></div>", $("onb").hidden = !1
   } else $("onb").hidden = !0;
   if (!isTrain() && pos > 1 && w.started && !c.inPit) {
    const a = w.order[pos - 2],
     g = S.gapTo(w, c, a);
    g < 1.2 && !a.inPit ? ($("battle").innerHTML = '<i style="background:' + a.color + '"></i>' + esc(a.code) + ' <span class="gp">' + fmt(g, 1) + '</span> <i style="background:' +
-    c.color + '"></i>' + esc(c.code) + (c.drsOk ? ' · <span style="color:var(--green)">DRS</span>' : ""), $("battle").hidden = !1) : $("battle").hidden = !0
+    c.color + '"></i>' + esc(c.code) + (c.drsOk ? ' · <span style="color:var(--green)">' + (S.CAR.reg === "2026" ? "ADELANTAMIENTO" : "DRS") + '</span>' : ""), $("battle").hidden = !1) : $("battle").hidden = !0
   } else $("battle").hidden = !0
  }
 
@@ -20737,6 +20860,7 @@ registerProcessor('engine-proc',EngineProc);`;
    const ok = V.filter(v => v.sim),
     mean = ok.reduce((a, v) => a + Math.abs(v.err), 0) / Math.max(1, ok.length);
    el.innerHTML =
+    "<p><b>Reglamento 2026</b> (por defecto, elegible en la carrera): motor térmico de ~400 kW y MGU-K de 350 kW que se recorta de 290 a 355 km/h, sin MGU-H; hasta 8,5 MJ recuperados por vuelta (frenada, recorte en recta y gas parcial) con 4 MJ de ventana de batería; la centralita despliega por debajo de una velocidad umbral que se ajusta sola para que la energía cuadre. Aerodinámica activa: en las rectas todos abren los alerones delantero y trasero (modo recta); a menos de 1 s del de delante en el punto de detección se gana el modo adelantamiento (350 kW hasta 337 km/h y 0,5 MJ más). Calibrado para que la vuelta rápida sea un 3–6 % más lenta que en 2025, como en las primeras carreras de 2026.</p>" +
     "<p>Los 16 circuitos son reales: línea central y anchura del <b>TUM racetrack-database</b> (Universidad Técnica de Múnich; OpenStreetMap + imágenes de satélite, licencia LGPL-3.0), alineada por ICP con la <b>telemetría oficial de posición de la F1 de 2024</b> (vía FastF1 / TracingInsights). De esa telemetría salen la elevación, la trazada de la vuelta de referencia, las zonas DRS, la numeración de curvas, la temperatura, la presión y la humedad (densidad del aire).</p><p>La física del coche se calibró con esas mismas vueltas: potencia en rueda y resistencia por circuito ajustadas a las aceleraciones en recta, curva de potencia según el caudal de combustible del reglamento, sensibilidad a la carga del neumático, elipse de fricción y eficiencia aerodinámica ajustadas para reproducir las vueltas reales. Error medio del modelo dinámico: <b>" +
     mean.toFixed(1).replace(".", ",") +
     ' %</b> en tiempo de vuelta.</p><p>Encima de esa dinámica, cada coche lleva un <b>modelo físico de sus sistemas</b> que se integra en tiempo real: aceite (ecuación de Vogel, película de cojinete tipo Sommerfeld, aireación y descebe por G), refrigeración (presión de vapor de Antoine, ebullición nucleada frente a crítica, cavitación por NPSH), pistón y segmentos (dilatación diferencial acero/aluminio), detonación con control de picado, muelles neumáticos de válvula, torsión del cigüeñal por órdenes, tornillería (fluencia de Arrhenius y autoaflojamiento de Junker), retenes, caja (Basquin y picado por marcha), frenos por eje (convección, radiación de Stefan-Boltzmann y oxidación del carbono), presión del neumático (gas ideal), altura al suelo y tablón, rebote de rueda, flameo del alerón, piloto y latencia de la telemetría. La fiabilidad usa vidas de Weibull con factores de aceleración: las averías salen del estado de cada pieza. Se ve en «Ingeniería en vivo» desde la telemetría de cualquier coche.</p><table class="tbl"><thead><tr><th>Circuito</th><th style="text-align:right">Simulado</th><th style="text-align:right">Real 2024</th><th style="text-align:right">Error</th><th style="text-align:right">V. punta</th></tr></thead><tbody>' +
