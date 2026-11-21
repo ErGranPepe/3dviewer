@@ -10,6 +10,107 @@ LAB.limits = (() => {
   const A = (n, f) => { const x = new Float32Array(n), y = new Float32Array(n); for (let i = 0; i < n; i++) { const r = f(i, n); x[i] = r[0], y[i] = r[1] } return { x, y, n } };
   const S = (o, col, label, extra) => ({ ...o, col, label, ...extra });
   const vapW = T => Math.pow(10, 8.14019 - 1810.94 / (244.485 + T)) * 133.322 / 1e5, tsatW = p => 1810.94 / (8.14019 - Math.log10(p * 1e5 / 133.322)) - 244.485;
+  /* ---------- vista 3D pequeña para los bancos (Three.js ya cargado por el laboratorio) ---------- */
+  function mini3d(cv, camPos) {
+    const T = window.THREE;
+    if (!T) return null;
+    const R = new T.WebGLRenderer({ canvas: cv, antialias: !0 });
+    R.setPixelRatio(Math.min(2, devicePixelRatio || 1)), R.outputColorSpace = T.SRGBColorSpace, R.toneMapping = T.ACESFilmicToneMapping;
+    const sc = new T.Scene(), cam = new T.PerspectiveCamera(35, 1, .01, 50);
+    sc.background = new T.Color("#0d1014"), sc.add(new T.HemisphereLight("#dfe8f2", "#1a1f26", 1.4));
+    const key = new T.DirectionalLight("#fff3e2", 2.2);
+    key.position.set(1, 2, 1.5), sc.add(key);
+    const st = { az: camPos[0], el: camPos[1], d: camPos[2], t: new T.Vector3(...camPos[3]) };
+    const place = () => { const c = Math.cos(st.el); cam.position.set(st.t.x + st.d * c * Math.cos(st.az), st.t.y + st.d * Math.sin(st.el), st.t.z + st.d * c * Math.sin(st.az)), cam.lookAt(st.t) };
+    let drag = null;
+    cv.addEventListener("pointerdown", e => { drag = [e.clientX, e.clientY], cv.setPointerCapture(e.pointerId) });
+    cv.addEventListener("pointermove", e => { if (!drag) return; st.az += (e.clientX - drag[0]) * .008, st.el = clamp(st.el + (e.clientY - drag[1]) * .006, -1.2, 1.4), drag = [e.clientX, e.clientY], place() });
+    cv.addEventListener("pointerup", () => drag = null), cv.addEventListener("wheel", e => { e.preventDefault(), st.d = clamp(st.d * Math.exp(e.deltaY * .001), .2, 10), place() }, { passive: !1 });
+    const fit = () => { const r = cv.getBoundingClientRect(); if (!r.width) return; R.setSize(r.width, r.height, !1), cam.aspect = r.width / r.height, cam.updateProjectionMatrix() };
+    new ResizeObserver(fit).observe(cv), fit(), place();
+    return { T, R, sc, cam, render: () => R.render(sc, cam), visible: () => cv.offsetParent && cv.getBoundingClientRect().bottom > 0 && cv.getBoundingClientRect().top < innerHeight }
+  }
+  const heat = t => { t = clamp(t, 0, 1); const s = [[61, 139, 255], [47, 209, 108], [255, 210, 63], [255, 107, 26], [255, 59, 59]], x = t * (s.length - 1), i = Math.min(s.length - 2, x | 0), f = x - i; return [0, 1, 2].map(k => (s[i][k] + (s[i + 1][k] - s[i][k]) * f) / 255) };
+  /* alerón delantero en 3D: dos mitades en voladizo desde el morro, tres elementos; flexión por viga, torsión, tensión de
+     flexión en color y, por encima de la velocidad de flameo, oscilación divergente flexión-torsión */
+  function wing3d(cv) {
+    const M = mini3d(cv, [-.9, .55, 2.6, [0, -.02, .1]]);
+    if (!M) return () => {};
+    const { T, sc } = M, L = .9, els = [[0, 0, .28, 0], [.2, .045, .16, .18], [.31, .095, .12, .38]], meshes = [];
+    for (const side of [-1, 1]) for (const [z0, y0, ch, aoa] of els) {
+      const g = new T.PlaneGeometry(L, ch, 48, 4);
+      g.rotateX(-Math.PI / 2), g.translate(side * L / 2, 0, 0);
+      const m = new T.Mesh(g, new T.MeshStandardMaterial({ vertexColors: !0, metalness: .2, roughness: .45, side: T.DoubleSide }));
+      g.setAttribute("color", new T.BufferAttribute(new Float32Array(g.attributes.position.count * 3), 3)), m.userData = { base: g.attributes.position.array.slice(), side, z0, y0, ch, aoa }, sc.add(m), meshes.push(m)
+    }
+    const nose = new T.Mesh(new T.BoxGeometry(.16, .12, .9), new T.MeshStandardMaterial({ color: "#20252b", metalness: .3, roughness: .5 }));
+    nose.position.set(0, .07, .5), sc.add(nose);
+    const grid = new T.GridHelper(3, 30, "#23303c", "#182028");
+    grid.position.y = -.08, sc.add(grid);
+    let v = null, t0 = performance.now(), amp = 0;
+    const loop = () => {
+      requestAnimationFrame(loop);
+      if (!v || !M.visible()) return;
+      const t = (performance.now() - t0) / 1e3, k = 1 + 1.5 * v.dmg / 100, Vf = v.Vf * Math.sqrt(Math.max(.05, 1 - .8 * v.dmg / 100)), q = (v.v / 300) ** 2, amp0 = Math.max(.05, 1 - (v.v / Vf) ** 2 * .6);
+      const tip = v.d300 * k * q / amp0 / 1e3 * v.ex, twist = .6 * DEG * k * q / amp0 * v.ex / 10;
+      amp = v.v > Vf ? Math.min(.25, amp + .002 + amp * .02) : amp * .95;
+      const osc = amp * Math.sin(t * TAU * 2.2) * v.ex / 10, osT = amp * Math.sin(t * TAU * 2.2 + 1.1) * .4 * v.ex / 10;
+      for (const m of meshes) {
+        const { base, side, z0, y0, ch, aoa } = m.userData, pos = m.geometry.attributes.position, col = m.geometry.attributes.color;
+        for (let i = 0; i < pos.count; i++) {
+          const x = base[i * 3], zc = base[i * 3 + 2], s = Math.abs(x) / L, w = s * s * (6 - 4 * s + s * s) / 3, th = aoa + (twist + osT) * s;
+          const zz = zc + z0, yy = y0 - (tip + osc) * w;
+          pos.setXYZ(i, x, yy + Math.sin(-th) * zc, z0 + Math.cos(th) * zc);
+          const sig = (1 - s) ** 2 * (q / amp0) * k + Math.abs(osc) * 3 * (1 - s), c = heat(sig / 1.6);
+          col.setXYZ(i, c[0], c[1], c[2])
+        }
+        pos.needsUpdate = !0, col.needsUpdate = !0, m.geometry.computeVertexNormals()
+      }
+      M.render()
+    };
+    requestAnimationFrame(loop);
+    return nv => { v = nv }
+  }
+  /* neumático en 3D: se aplasta contra el suelo con la carga (huella), la carcasa se ladea con la fuerza lateral y la
+     banda se colorea con la temperatura interior/centro/exterior según la caída y la presión */
+  function tyre3d(cv) {
+    const M = mini3d(cv, [-.42, .22, 1.95, [0, -.06, 0]]);
+    if (!M) return () => {};
+    /* 18": diámetro exterior 720 mm, llanta 457 mm, ancho 305 mm (toro escalado a lo ancho) */
+    const { T, sc } = M, R0 = .36, Rc = .295, tb = .065, W = 2.35, g = new T.TorusGeometry(Rc, tb, 36, 160);
+    g.setAttribute("color", new T.BufferAttribute(new Float32Array(g.attributes.position.count * 3), 3));
+    const base = g.attributes.position.array.slice(), mesh = new T.Mesh(g, new T.MeshStandardMaterial({ vertexColors: !0, roughness: .78, metalness: 0 }));
+    sc.add(mesh);
+    const rim = new T.Mesh(new T.CylinderGeometry(.229, .229, .3, 64, 1, !0).rotateX(Math.PI / 2), new T.MeshStandardMaterial({ color: "#30363d", metalness: .85, roughness: .3, side: T.DoubleSide }));
+    sc.add(rim);
+    const ground = new T.Mesh(new T.PlaneGeometry(3, 3), new T.MeshStandardMaterial({ color: "#1d232a", roughness: .9 }));
+    ground.rotation.x = -Math.PI / 2, sc.add(ground);
+    const patch = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ color: "#ff6b1a", transparent: !0, opacity: .55 }));
+    patch.rotation.x = -Math.PI / 2, sc.add(patch);
+    let v = null, spin = 0;
+    const loop = () => {
+      requestAnimationFrame(loop);
+      if (!v || !M.visible()) return;
+      const p = (v.p0 + 1.013) * (v.Tc + 273) / (v.Tb + 273) - 1.013, defl = v.Fz * 1e3 / (260e3 * Math.max(.4, p / 1.8)), floor = -R0 + defl, lean = v.Fy / 12 * .03, top = { S: 88, M: 95, H: 102 }[v.c];
+      ground.position.y = floor - .0005, spin += .01;
+      const Lp = 2 * Math.sqrt(Math.max(0, 2 * R0 * defl - defl * defl));
+      patch.scale.set(Lp, .3 * (1 - Math.abs(v.cam) * .03), 1), patch.position.set(0, floor + .0008, lean * .8);
+      const pos = g.attributes.position, col = g.attributes.color;
+      for (let i = 0; i < pos.count; i++) {
+        const x = base[i * 3], y = base[i * 3 + 1], z0 = base[i * 3 + 2], a = Math.atan2(y, x), r = Math.hypot(x, y), tread = r > Rc + tb * .55;
+        let z = z0 * W, ny = y, nx = x;
+        const low = Math.max(0, -Math.sin(a)) ** 3;
+        z += lean * low * (1 + Math.cos(Math.atan2(z0, r - Rc))) * .5;
+        if (y < floor) { ny = floor, z *= 1 + (floor - y) * 2.5 }
+        pos.setXYZ(i, nx, ny, z);
+        const zl = z0 / tb, after = ((a + Math.PI / 2 - spin) % TAU + TAU) % TAU, Tz = v.Tc + (-v.cam) * 4 * zl + (p - 1.8) * 28 * (1 - zl * zl) - 10 + 14 * Math.exp(-after / 1.1);
+        if (tread) { const c = heat((Tz - top + 35) / 70); col.setXYZ(i, c[0] * .92, c[1] * .92, c[2] * .92) } else col.setXYZ(i, .1, .1, .11)
+      }
+      pos.needsUpdate = !0, col.needsUpdate = !0, g.computeVertexNormals(), M.render()
+    };
+    requestAnimationFrame(loop);
+    return nv => { v = nv }
+  }
   const BENCH = [
     {
       id: "bolt", g: "Uniones", t: "Tornillos de culata", d: "Un tornillo apretado es un muelle estirado que sujeta la junta. La presión de combustión intenta separarla: el tornillo sólo nota una fracción Φ de esa carga mientras la junta no se abra. Con el tiempo pierde precarga por fluencia (más con calor) y por microdeslizamientos si vibra de lado (ensayo de Junker).",
@@ -105,10 +206,12 @@ LAB.limits = (() => {
     },
     {
       id: "tyre", g: "Neumáticos", t: "Neumático: presión, huella y ventana", d: "Es un globo de gas: sale de la manta a una presión y sube con la temperatura de la carcasa (gas ideal). La huella es la carga dividida por la presión, así que crece con la carga aerodinámica. Cada compuesto agarra en una ventana de temperatura.",
-      p: [{ id: "p0", label: "Presión de salida", unit: "bar", min: 1.2, max: 2, step: .01, v: 1.59 }, { id: "Tb", label: "Manta", unit: "°C", min: 20, max: 100, step: 1, v: 70 }, { id: "Tc", label: "Carcasa", unit: "°C", min: 20, max: 160, step: 1, v: 105 }, { id: "Fz", label: "Carga en la rueda", unit: "kN", min: 1, max: 12, step: .1, v: 5.5 }, { id: "c", label: "Compuesto", v: "M", opts: [["S", "Blando (ventana ~88 °C)"], ["M", "Medio (~95 °C)"], ["H", "Duro (~102 °C)"]] }],
+      p: [{ id: "p0", label: "Presión de salida", unit: "bar", min: 1.2, max: 2, step: .01, v: 1.59 }, { id: "Tb", label: "Manta", unit: "°C", min: 20, max: 100, step: 1, v: 70 }, { id: "Tc", label: "Carcasa", unit: "°C", min: 20, max: 160, step: 1, v: 105 }, { id: "Fz", label: "Carga en la rueda", unit: "kN", min: 1, max: 12, step: .1, v: 5.5 }, { id: "c", label: "Compuesto", v: "M", opts: [["S", "Blando (ventana ~88 °C)"], ["M", "Medio (~95 °C)"], ["H", "Duro (~102 °C)"]] }, { id: "Fy", label: "Fuerza lateral", unit: "kN", min: -12, max: 12, step: .1, v: 6 }, { id: "cam", label: "Caída", unit: "°", min: -4.5, max: 0, step: .1, v: -3 }],
+      three: tyre3d,
       run(v) {
         const pp = Tc => (v.p0 + 1.013) * (Tc + 273) / (v.Tb + 273) - 1.013, top = { S: 88, M: 95, H: 102 }[v.c], p = pp(v.Tc), area = v.Fz * 1e3 / (p * 1e5) * 1e4 * .82;
-        return { plots: [[[S(A(100, (i, n) => { const T = 20 + i / (n - 1) * 140; return [T, pp(T)] }), "#3d8bff", "Presión (bar)")], { title: "Gas ideal", xlabel: "°C carcasa", points: [{ x: v.Tc, y: p, col: "#fff", r: 5 }] }], [[S(A(100, (i, n) => { const T = 30 + i / (n - 1) * 120, d = (T - top) / (T < top ? 60 : 50); return [T, 1 - .3 * Math.min(1, d * d)] }), "#2fd16c", "Agarre relativo")], { title: "Ventana de temperatura", xlabel: "°C banda", ymin: .6, ymax: 1.02 }]], v: [["ok", "Presión en caliente " + p.toFixed(2) + " bar (" + (p * 14.5).toFixed(1) + " psi)", "Huella de " + area.toFixed(0) + " cm² con " + v.Fz + " kN."], v.Tc > 140 ? ["bad", "Carcasa a " + v.Tc + " °C", "Se separan las capas: pinchazo."] : ["ok", "Carcasa en margen", ""]] }
+        const defl = v.Fz * 1e3 / (260e3 * Math.max(.4, p / 1.8)), Lp = 2 * Math.sqrt(2 * .36 * defl - defl * defl);
+        return { plots: [[[S(A(100, (i, n) => { const T = 20 + i / (n - 1) * 140; return [T, pp(T)] }), "#3d8bff", "Presión (bar)")], { title: "Gas ideal", xlabel: "°C carcasa", points: [{ x: v.Tc, y: p, col: "#fff", r: 5 }] }], [[S(A(100, (i, n) => { const T = 30 + i / (n - 1) * 120, d = (T - top) / (T < top ? 60 : 50); return [T, 1 - .3 * Math.min(1, d * d)] }), "#2fd16c", "Agarre relativo")], { title: "Ventana de temperatura", xlabel: "°C banda", ymin: .6, ymax: 1.02 }]], v: [["ok", "Presión en caliente " + p.toFixed(2) + " bar (" + (p * 14.5).toFixed(1) + " psi)", "Huella de " + area.toFixed(0) + " cm² con " + v.Fz + " kN: aplasta " + (defl * 1e3).toFixed(0) + " mm y mide " + (Lp * 1e3).toFixed(0) + " mm de largo. Con caída negativa el hombro interior va más caliente; con presión alta, el centro."], v.Tc > 140 ? ["bad", "Carcasa a " + v.Tc + " °C", "Se separan las capas: pinchazo."] : ["ok", "Carcasa en margen", ""]] }
       }
     },
     {
@@ -134,7 +237,8 @@ LAB.limits = (() => {
     },
     {
       id: "wing", g: "Aerodinámica", t: "Alerón: flexión y flameo", d: "La fuerza del alerón crece con la velocidad al cuadrado y lo dobla. Por encima de la velocidad de flameo la flexión y la fuerza se realimentan: el alerón vibra cada vez más hasta romperse. Un golpe le quita rigidez y baja esa velocidad.",
-      p: [{ id: "d300", label: "Flexión de la punta a 300 km/h", unit: "mm", min: 2, max: 20, step: .5, v: 7.5 }, { id: "Vf", label: "Velocidad de flameo intacto", unit: "km/h", min: 250, max: 500, step: 5, v: 389 }, { id: "dmg", label: "Daño", unit: "%", min: 0, max: 90, step: 1, v: 0 }, { id: "v", label: "Velocidad", unit: "km/h", min: 100, max: 360, step: 1, v: 320 }],
+      p: [{ id: "d300", label: "Flexión de la punta a 300 km/h", unit: "mm", min: 2, max: 20, step: .5, v: 7.5 }, { id: "Vf", label: "Velocidad de flameo intacto", unit: "km/h", min: 250, max: 500, step: 5, v: 389 }, { id: "dmg", label: "Daño", unit: "%", min: 0, max: 90, step: 1, v: 0 }, { id: "v", label: "Velocidad", unit: "km/h", min: 100, max: 360, step: 1, v: 320 }, { id: "ex", label: "Exagerar la deformación", unit: "×", min: 1, max: 60, step: 1, v: 25 }],
+      three: wing3d,
       run(v) {
         const k = 1 + 1.5 * v.dmg / 100, Vf = v.Vf * Math.sqrt(Math.max(.05, 1 - .8 * v.dmg / 100));
         const def = A(120, (i, n) => { const s = 50 + i / (n - 1) * 350, q = (s / 300) ** 2; return [s, v.d300 * k * q / Math.max(.05, 1 - (s / Vf) ** 2 * .6)] });
@@ -156,9 +260,11 @@ LAB.limits = (() => {
     const box = el("section", { class: "lim", id: "lim-" + B.id }), pl = el("div", { class: "limplots" }), vd = el("div", { class: "limv" }), side = el("aside", { class: "limp" });
     box.append(el("header", {}, [el("span", { class: "limg", text: B.g }), el("h3", { text: B.t })]), el("p", { class: "sub", text: B.d }), el("div", { class: "limb" }, [side, el("div", {}, [pl, vd])]));
     const plots = [];
-    let prm;
+    let prm, upd3 = null;
+    if (B.three) { const c3 = el("canvas", { class: "lim3d", title: "Arrastra para girar, rueda para acercar" }); pl.before(c3), upd3 = B.three(c3) }
     const go = () => {
       const r = B.run(prm.v);
+      upd3 && upd3({ ...prm.v });
       while (plots.length < r.plots.length) { const c = el("canvas", { class: "limc" }); pl.appendChild(c), plots.push(new Plot(c)) }
       r.plots.forEach(([ser, o], i) => plots[i].draw(ser, o)), vd.innerHTML = r.v.map(([s, t, d]) => `<div class="vd ${s}"><b>${t}</b><span>${d}</span></div>`).join("")
     };
