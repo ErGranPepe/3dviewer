@@ -12,9 +12,9 @@
 <meta property="og:url" content="https://ergranpepe.github.io/3dviewer/"><meta property="og:image" content="https://ergranpepe.github.io/3dviewer/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Parrilla Neuronal — Simulador de carreras gratis en el navegador con circuitos reales"><meta name="twitter:description" content="Simulador de carreras de monoplazas gratis y sin descargas: 16 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada."><meta name="twitter:image" content="https://ergranpepe.github.io/3dviewer/og.jpg">
 <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="manifest" href="manifest.webmanifest">
-<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.f66c2e33a0.js" as="script"><link rel="preload" href="a/data.af7a7018c4.js" as="script">
+<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.37d77a5862.js" as="script"><link rel="preload" href="a/data.af7a7018c4.js" as="script">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "VideoGame", "name": "Parrilla Neuronal", "url": "https://ergranpepe.github.io/3dviewer/", "description": "Simulador de carreras de monoplazas gratis y sin descargas: 16 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada.", "inLanguage": "es", "genre": ["Carreras", "Simulación", "Estrategia"], "gamePlatform": "Navegador web", "applicationCategory": "Game", "operatingSystem": "Cualquiera", "image": "https://ergranpepe.github.io/3dviewer/og.jpg", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}}</script>
-<script>(function(){var B="f66c2e33a0af7a";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
+<script>(function(){var B="37d77a5862af7a";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
 
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -480,6 +480,7 @@ html.fslock,html.fslock body{overflow:hidden!important}
           <label class="full">Circuito<select id="rTrack"></select></label>
           <label>Vueltas<select id="rLaps"><option>3</option><option>5</option><option selected>8</option><option>12</option><option>20</option><option>30</option><option>50</option></select></label>
           <label>Clima<select id="rWeather"><option value="seco">Seco</option><option value="variable" selected>Variable</option><option value="lluvia">Lluvia</option><option value="azar">Al azar</option></select></label>
+          <label>Reglamento<select id="rRegs"><option value="2026" selected>2026: 350 kW eléctricos y aero activa</option><option value="2025">2014-2025: MGU-H y DRS</option></select></label>
           <label>Degradación<select id="rWear"><option value="1">Real ×1</option><option value="3" selected>Alta ×3</option><option value="6">Extrema ×6</option></select></label>
           <label>Averías<select id="rFail"><option value="0">Sin averías</option><option value="1" selected>Realistas</option><option value="3">Frecuentes</option></select></label>
           <label class="full" data-mode="race">Dirigir equipo (muro de boxes)<select id="rTeam"><option value="-1">Ninguno (solo ver la carrera)</option><option value="0">Ferrocarril Rosso</option><option value="1">Albatros GP</option><option value="2">Mercurio Plata</option><option value="3">Papaya Racing</option><option value="4">Verde Andino</option><option value="5">Lince Azur</option><option value="6">Ciervo Blanco</option><option value="7">Tormenta Motorsport</option><option value="8">Halcón Haas</option><option value="9">Dorado Sauber</option></select></label>
@@ -621,7 +622,7 @@ html.fslock,html.fslock body{overflow:hidden!important}
 <script src="config.js?v=20261121a"></script>
 <script src="a/three.04d0db4a9b.js"></script>
 <script src="a/data.af7a7018c4.js"></script>
-<script src="a/app.f66c2e33a0.js"></script>
+<script src="a/app.37d77a5862.js"></script>
 <script src="a/site.d8caeb0496.js"></script>
 </body>
 </html>
