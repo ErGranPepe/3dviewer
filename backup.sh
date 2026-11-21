@@ -3,7 +3,7 @@
 set -e
 F=/home/claude/fuente
 cp /home/claude/src/app.js /home/claude/src/deploy.sh /home/claude/src/backup.sh /home/claude/src/*.py /home/claude/src/*.sh $F/ 2>/dev/null || true
-cp /home/claude/src/package.json $F/; cp /home/claude/src/xf.json $F/ 2>/dev/null || true
+cp /home/claude/src/package.json $F/; mkdir -p $F/lab && cp /home/claude/src/lab/*.js /home/claude/src/lab/*.html /home/claude/src/lab/*.sh $F/lab/; cp /home/claude/src/xf.json $F/ 2>/dev/null || true
 cat > $F/README.md <<'R'
 # Parrilla Neuronal: código fuente
 

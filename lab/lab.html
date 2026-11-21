@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Laboratorio técnico · Parrilla Neuronal</title>
+<meta name="description" content="Laboratorio de ingeniería de F1 en el navegador: suspensión pushrod/pullrod en tiempo real y motor V6 turbo con presiones, tensiones, temperaturas y vibraciones.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{--bg:#0c0f12;--panel:#13171c;--panel2:#191e24;--panel3:#20262e;--line:#262d35;--ink:#e9eef3;--mute:#8b97a4;--faint:#5b6672;--accent:#ff6b1a;--green:#2fd16c;--yellow:#ffd23f;--red:#ff3b3b;--blue:#3d8bff;--purple:#b45cff;
+--display:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;--body:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;--mono:'JetBrains Mono',ui-monospace,Menlo,monospace}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--body)}
+a{color:var(--accent)}
+header{display:flex;align-items:center;gap:16px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header h1{font:800 22px/1 var(--display);letter-spacing:.02em;margin:0;text-transform:uppercase}
+header h1 span{color:var(--accent)}
+header .back{color:var(--mute);text-decoration:none;font-weight:600}
+header .back:hover{color:var(--ink)}
+nav.tabs{display:flex;gap:4px;background:var(--panel2);padding:4px;border-radius:10px}
+nav.tabs button,.modes button{font:700 14px var(--display);letter-spacing:.04em;text-transform:uppercase;color:var(--mute);background:none;border:0;padding:8px 14px;border-radius:7px;cursor:pointer}
+nav.tabs button.on,.modes button.on{background:var(--accent);color:#111}
+.modes{display:flex;gap:4px;background:var(--panel2);padding:4px;border-radius:10px;margin-left:auto}
+.modes button.on{background:var(--ink)}
+main{padding:14px 18px 40px;max-width:1700px;margin:0 auto}
+.labhead{display:flex;gap:16px;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
+.labhead h2{font:800 28px/1 var(--display);text-transform:uppercase;margin:0 0 4px}
+.sub{color:var(--mute);margin:0;max-width:70ch}
+.presets{display:flex;gap:6px;flex-wrap:wrap}
+.btn{font:600 13px var(--body);color:var(--ink);background:var(--panel3);border:1px solid var(--line);border-radius:8px;padding:7px 11px;cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+.btn.on{background:var(--accent);border-color:var(--accent);color:#111}
+.labgrid{display:grid;grid-template-columns:340px 1fr;gap:14px;align-items:start}
+.params{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px;position:sticky;top:70px;max-height:calc(100vh - 84px);overflow:auto}
+.pg{border-bottom:1px solid var(--line);padding:4px 6px}
+.pg:last-child{border-bottom:0}
+.pg summary{font:700 15px var(--display);text-transform:uppercase;letter-spacing:.04em;cursor:pointer;padding:8px 2px;list-style:none}
+.pg summary::before{content:"▸ ";color:var(--accent)}
+.pg[open] summary::before{content:"▾ "}
+.ghelp{color:var(--mute);font-size:12.5px;margin:0 2px 8px}
+.prow{display:grid;grid-template-columns:1fr 74px 52px;grid-template-areas:"l l l" "r n u" "h h h";gap:2px 6px;align-items:center;padding:5px 2px}
+.prow label{grid-area:l;font-size:13px;color:#c9d2db}
+.prow input[type=range]{grid-area:r;width:100%;accent-color:var(--accent)}
+.prow input[type=number],.prow select{grid-area:n;width:100%;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:3px 5px;font:12px var(--mono)}
+.prow select{grid-column:1/-1;grid-row:2;font:13px var(--body);padding:6px}
+.prow .unit{grid-area:u;color:var(--faint);font-size:11px}
+.phelp{grid-area:h;color:var(--faint);font-size:11.5px;margin:2px 0 0}
+body[data-mode=easy] .adv{display:none!important}
+body[data-mode=easy] .phelp{display:block}
+body[data-mode=pro] .phelp{display:none}
+.views{min-width:0}
+.vrow{display:grid;grid-template-columns:1fr 300px;gap:12px}
+canvas{display:block;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+canvas.big{height:420px}
+.verdict{display:flex;flex-direction:column;gap:8px}
+.vd{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--faint);border-radius:10px;padding:9px 11px}
+.vd b{display:block;font:700 15px var(--display);text-transform:uppercase;letter-spacing:.03em}
+.vd span{color:var(--mute);font-size:13px}
+.vd.ok{border-left-color:var(--green)}.vd.warn{border-left-color:var(--yellow)}.vd.bad{border-left-color:var(--red)}
+.vd.bad b{color:var(--red)}.vd.warn b{color:var(--yellow)}.vd.ok b{color:var(--green)}
+.ctrl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.ctrl label{color:var(--mute);font-size:13px}
+.ctrl select{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px}
+.warnt{color:var(--yellow);font-size:13px}
+.readouts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:6px 0 12px}
+.ro{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;border-top:3px solid var(--line)}
+.ro .rl{display:block;color:var(--mute);font-size:11.5px;line-height:1.2;min-height:28px}
+.ro b{font:700 22px/1.1 var(--display)}
+.ro small{color:var(--faint);margin-left:4px}
+.ro[data-state=ok]{border-top-color:var(--green)}.ro[data-state=warn]{border-top-color:var(--yellow)}.ro[data-state=bad]{border-top-color:var(--red)}
+.ro[data-state=bad] b{color:var(--red)}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:10px}
+.pgrid canvas{height:230px}
+h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color:var(--mute)}
+.note{color:var(--faint);font-size:12px;margin-top:20px;max-width:100ch}
+@media (max-width:1000px){header{position:static}.views{order:-1}.labgrid{grid-template-columns:1fr}.params{position:static;max-height:none}.vrow{grid-template-columns:1fr}canvas.big{height:340px}.pgrid{grid-template-columns:1fr}}
+@media (max-width:560px){main{padding:10px 12px 30px}header{padding:10px 12px}.modes{margin-left:0}canvas.big{height:300px}.readouts{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body data-mode="easy">
+<header>
+  <a class="back" href="./">← Simulador</a>
+  <h1>Laboratorio <span>técnico</span></h1>
+  <nav class="tabs"><button data-tab="susp" class="on">Suspensión</button><button data-tab="engine">Motor</button></nav>
+  <div class="modes"><button data-setmode="easy">Modo fácil</button><button data-setmode="pro">Modo ingeniero</button></div>
+</header>
+<main>
+  <section id="tab-susp"></section>
+  <section id="tab-engine" hidden></section>
+  <p class="note">Modelos físicos simplificados pero completos: cinemática exacta en vista frontal, dinámica de medio eje integrada con Runge-Kutta a 3 kHz, ciclo de una zona con combustión de Wiebe, transferencia de calor de Woschni, detonación por Livengood-Wu (Douaud-Eyzat), mecánica biela-manivela exacta, fatiga de Goodman, pandeo de Euler y vibración torsional por análisis modal. Los valores por defecto son estimaciones razonables de un F1 actual, no datos de ningún equipo.</p>
+</main>
+<script src="__LABJS__"></script>
+<script>
+(function(){
+  LAB.setMode(LAB.mode);
+  for (const b of document.querySelectorAll("[data-setmode]")) b.onclick = () => LAB.setMode(b.dataset.setmode);
+  const inited = {};
+  const show = t => {
+    for (const b of document.querySelectorAll("[data-tab]")) b.classList.toggle("on", b.dataset.tab === t);
+    for (const s of ["susp", "engine"]) document.getElementById("tab-" + s).hidden = s !== t;
+    if (!inited[t]) inited[t] = 1, LAB[t].init(document.getElementById("tab-" + t));
+    try { history.replaceState(null, "", "#" + t) } catch (e) {}
+  };
+  for (const b of document.querySelectorAll("[data-tab]")) b.onclick = () => show(b.dataset.tab);
+  show(location.hash === "#engine" ? "engine" : "susp");
+})();
+</script>
+</body>
+</html>
