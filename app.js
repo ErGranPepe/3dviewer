@@ -75,7 +75,7 @@
    cda: 1.6,
    LD: 3.93,
    aeroF: .43,
-   muScale: 1.575,
+   muScale: 1.589,
    kLoad: .142,
    muXr: .852,
    drsCd: .75,
@@ -93,7 +93,10 @@
    rpmMax: 12500,
    gears: [23, 31.5, 40.5, 50, 60.5, 72, 85, 100],
    gripF: .98,
-   gripR: 1.05
+   gripR: 1.05,
+   tf: 1.6,
+   trr: 1.55,
+   lltd: .52
   },
   COMP = {
    S: {
@@ -387,7 +390,8 @@
    v = new Float32Array(N),
    c = .5 * RHO * cla / mass;
   let cda = cda0;
-  const muV = vv => mu * Math.pow(1 + c * vv * vv / 9.81, -CAR.kLoad);
+  /* sensibilidad a la carga y pérdida por transferencia lateral (≈2 % a 5 g) */
+  const muV = vv => { const m = mu * Math.pow(1 + c * vv * vv / 9.81, -CAR.kLoad), gy = m * (1 + c * vv * vv / 9.81); return m * (1 - 8e-4 * gy * gy) };
   for (let i = 0; i < N; i++) {
    let k = kEff(tr, i),
     vv = 100;
@@ -1391,6 +1395,8 @@
    dT = (T - cp.topt) / (T < cp.topt ? 60 : 50);
   m *= 1 - .3 * Math.min(1, dT * dT);
   const wr = ax ? t.wr : t.wf;
+  /* presión de la carcasa (modelo de sistemas): fuera de la óptima la huella se deforma y el agarre cae */
+  if (c.sys) { const dp = (ax ? c.sys.pR - 1.52 : c.sys.pF - 1.7); m *= 1 - .15 * dp * dp }
   return m *= wr < .7 ? 1 - .11 * wr : wr < 1 ? .923 - Math.pow(wr - .7, 1.5) : .6, m *= 1 - .1 * t.grain - .14 * t.blister - .04 * Math.min(1, t.flat), t.punct === ax && (m *=
    .55), m
  }
@@ -1492,8 +1498,14 @@
     drag = q * cd + mass * 9.81 * (.012 + sDrag) * (u > .3 ? 1 : 0) + mass * 9.81 * slope * (u > .3 || slope < 0 ? 1 : 0);
    let Fzf = Math.max(300, mass * 9.81 * vload * CAR.b / CAR.wb + DFf - mass * c.axF * CAR.hcg / CAR.wb),
     Fzr = Math.max(300, mass * 9.81 * vload * CAR.a / CAR.wb + DFr + mass * c.axF * CAR.hcg / CAR.wb);
-   const lsF = Math.pow(Fzf / Fz0f, -CAR.kLoad),
-    lsR = Math.pow(Fzr / Fz0r, -CAR.kLoad),
+   /* transferencia lateral de carga: cada eje reparte su carga entre la rueda exterior y la interior según el reparto de
+      rigidez al balanceo (LLTD). Con la sensibilidad a la carga del neumático, dos ruedas desiguales agarran menos que
+      dos iguales: el eje con más transferencia es el que antes se satura (equilibrio subvirador/sobrevirador) */
+   const ayL = c.ayS || 0, lltd = st.lltd ?? CAR.lltd, kL = -CAR.kLoad,
+    dFf = Math.min(Fzf * .47, Math.abs(mass * ayL * CAR.hcg / CAR.tf * lltd)),
+    dFr = Math.min(Fzr * .47, Math.abs(mass * ayL * CAR.hcg / CAR.trr * (1 - lltd))),
+    lsF = (Math.pow((Fzf / 2 + dFf) / (Fz0f / 2), kL) * (Fzf / 2 + dFf) + Math.pow((Fzf / 2 - dFf) / (Fz0f / 2), kL) * (Fzf / 2 - dFf)) / Fzf,
+    lsR = (Math.pow((Fzr / 2 + dFr) / (Fz0r / 2), kL) * (Fzr / 2 + dFr) + Math.pow((Fzr / 2 - dFr) / (Fz0r / 2), kL) * (Fzr / 2 - dFr)) / Fzr,
     capF = muF * CAR.muScale * Fzf * lsF,
     capR = muR * CAR.muScale * Fzr * lsR,
     cxF = capF * CAR.muXr,
@@ -1536,8 +1548,9 @@
     sdl = Math.sin(delta),
     Fx = Fxf * cdl - Fyf * sdl + Fxr - drag * (u >= 0 ? 1 : -1),
     Fy = Fyf * cdl + Fxf * sdl + Fyr + Fbank,
+    ayT = (Fy - Fbank) / mass,
     Mz = CAR.a * (Fyf * cdl + Fxf * sdl) - CAR.b * Fyr;
-   if (u += (Fx / mass + v * r) * sdt, v += (Fy / mass - u * r) * sdt, r += Mz / CAR.Iz * sdt, u < 6) {
+   if (c.ayS = ayT, c.fzAx = [Fzf, Fzr, dFf, dFr], u += (Fx / mass + v * r) * sdt, v += (Fy / mass - u * r) * sdt, r += Mz / CAR.Iz * sdt, u < 6) {
     const wk = clamp((6 - u) / 4, 0, 1),
      rk = u * Math.tan(delta) / CAR.wb;
     r += (rk - r) * wk, v *= 1 - wk * .4
@@ -1550,7 +1563,7 @@
     sr = Math.abs(Math.tan(ar)) * uu;
    ePf += (Math.abs(Fyf) * sl + Math.abs(Fxf) * (lockF ? uu * .5 : uu * .04 * rf)) * sdt, ePr += (Math.abs(Fyr) * sr + Math.abs(Fxr) * (lockR || spinR ? uu * .5 : uu * .04 *
     rr)) * sdt, eBrake += Math.max(0, Fbf + Fbr - harv) * Math.max(u, 0) * sdt, eHarv += harv * Math.max(u, 0) * sdt, util = Math.max(util, Math.hypot(Fxf, Fyf) / capF, Math
-     .hypot(Fxr, Fyr) / capR)
+     .hypot(Fxr, Fyr) / capR), c.utilF = Math.hypot(Fxf, Fyf) / capF, c.utilR = Math.hypot(Fxr, Fyr) / capR
   }
   c.u = u, c.v = v, c.r = r, c.vf = u, c.vl = v, c.fyr0 = fyr0, c.fyf0 = fyf0;
   c.pIceW = Pice * pFrac, c.pBrkW = eBrake / dt, c.pHarvW = eHarv / dt;
@@ -2071,7 +2084,7 @@
      grid: i + 1,
      drv: e.drv || Object.assign({}, DEF_DRV)
     });
-   applySetup(c, e.wing != null ? e.wing : clamp(tr.wingRec + (w.wetLine > .3 ? .15 : 0), 0, 1), e.bias), e.sq && (c.setup.q = e.sq), place(w, c, -14 - i * 8, i % 2 ? -3 : 3,
+   applySetup(c, e.wing != null ? e.wing : clamp(tr.wingRec + (w.wetLine > .3 ? .15 : 0), 0, 1), e.bias), e.lltd != null && (c.setup.lltd = e.lltd), e.sq && (c.setup.q = e.sq), place(w, c, -14 - i * 8, i % 2 ? -3 : 3,
     0), c.prog = -14 - i * 8, c.maxProg = c.prog, c.fuel = Math.min(110, (w.laps + .35) * fpl * (.97 + .06 * w.rngW()) + 1.2);
    let tc = w.wetLine > .7 ? "W" : w.wetLine > .25 ? "I" : c.genome && c.genome.pit > .74 ? "S" : "M";
    return e.tire && (tc = e.tire), c.tire = newTire(tc, 74), c.used[tc] = 1, c.stints = [{
@@ -15496,7 +15509,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
     wh.rotation.z = -o.dist / wh.rd;
     const key = cc + blur;
     wh.stripe.userData.k !== key && (wh.stripe.userData.k = key, wh.stripe.material.map = tyreTex(cc, blur), wh.stripe.material.needsUpdate = !0);
-    const hot = c.brakeT > 650 ? clamp((c.brakeT - 650) / 450, 0, 1) : 0;
+    const bT = c.sys ? k < 2 ? c.sys.TbF : c.sys.TbR : c.brakeT, hot = bT > 650 ? clamp((bT - 650) / 450, 0, 1) : 0;
     wh.disc.material.opacity = hot * .95, hot > 0 && wh.disc.material.color.setRGB(1, .3 + .45 * (1 - hot), .05 + .2 * (1 - hot)), wh.visible = !(c.tire && c.tire.punct === (k <
      2 ? 0 : 1) && k % 2 === 0 && Math.floor(performance.now() / 120) % 2)
    }), o.isNew) {
@@ -18006,6 +18019,7 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
     },
     wing: +$("pWing").value,
     bias: +$("pBias").value,
+    lltd: $("pRoll") ? +$("pRoll").value : null,
     tire: ty === "auto" ? null : ty,
     tc: $("pTc").checked,
     abs: $("pAbs").checked
@@ -18384,6 +18398,9 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
   ["flex", "chasis", "Flexión del alerón delantero", "mm", S => S.flex, 1, S => lin(S.flex, 6, 14), "Crece con la presión dinámica (∝ v²)."],
   ["Vf", "chasis", "Velocidad de flameo del alerón", "km/h", S => S.Vf * 3.6, 0, (S, c) => lin(c.u / S.Vf, .7, 1), "Por encima, la flexión y la fuerza se realimentan y el alerón vibra hasta romperse. Un alerón dañado flamea antes."],
   ["delam", "chasis", "Delaminación del fondo", "%", S => S.delam * 100, 0, S => S.delam, "Golpes repetidos contra pianos altos a mucha velocidad."],
+  ["bal", "chasis", "Equilibrio (− subvira · + sobrevira)", "", (S, c) => (c.utilR || 0) - (c.utilF || 0), 2, (S, c) => lin(Math.abs((c.utilR || 0) - (c.utilF || 0)), .1, .4), "Diferencia entre lo que usa del agarre el eje trasero y el delantero. Negativo: el morro se satura antes (subviraje). Positivo: la trasera (sobreviraje). Lo cambian el reparto de rigidez al balanceo, el alerón y el reparto de frenada."],
+  ["fzo", "chasis", "Carga rueda delantera exterior", "kN", (S, c) => c.fzAx ? (c.fzAx[0] / 2 + c.fzAx[2]) / 1e3 : 0, 2, () => 0, "Peso más carga aerodinámica más la transferencia lateral. La interior se descarga lo mismo."],
+  ["fzi", "chasis", "Carga rueda delantera interior", "kN", (S, c) => c.fzAx ? (c.fzAx[0] / 2 - c.fzAx[2]) / 1e3 : 0, 2, (S, c) => c.fzAx ? lin(c.fzAx[2] / Math.max(1, c.fzAx[0] / 2), .6, .95) : 0, "Si llega a cero la rueda se levanta."],
   ["stop", "chasis", "Tope de suspensión delantero", "", S => S.stop ? 1 : 0, 0, S => S.stop ? .9 : 0, "1 cuando la suspensión llega al tope de goma: la rigidez se dispara y la rueda pierde carga."],
   ["steerTq", "piloto", "Par en el volante", "N·m", S => S.steerTq, 1, S => lin(.6 - S.gripFeel, 0, .6), "Fuerza lateral delantera por el avance neumático, desmultiplicada y con asistencia. Al acercarse al límite el avance cae y el volante se aligera: así nota el piloto que el morro se va."],
   ["pedal", "piloto", "Fuerza en el pedal de freno", "N", S => S.pedal, 0, S => S.vlock ? 1 : lin(S.pedal, 1400, 2000), "Hasta ~150 kg en una frenada fuerte. Con los discos fríos o pasados de temperatura hay que pisar más."],
@@ -18421,12 +18438,14 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
    z("bFL", "frenos", "M50 88 h8 v22 h-8 Z") + z("bFR", "frenos", "M142 88 h8 v22 h-8 Z") + z("bRL", "frenos", "M48 322 h8 v22 h-8 Z") + z("bRR", "frenos", "M144 322 h8 v22 h-8 Z") +
    z("cock", "piloto", "M88 128 Q100 116 112 128 L112 170 Q100 178 88 170 Z") + z("bat", "ers", "M84 178 H116 V200 H84 Z") + z("radL", "fluidos", "M52 176 H78 V262 H58 Z") + z("radR", "fluidos", "M122 176 H148 L142 262 H122 Z") +
    z("eng", "motor", "M82 204 H118 L122 262 H78 Z") + z("turbo", "ers", "M92 206 h16 v10 h-16 Z") + z("mguk", "ers", "M74 222 h8 v22 h-8 Z") + z("gb", "trans", "M88 266 H112 L110 330 H90 Z") + z("exh", "motor", "M95 330 h10 v34 h-10 Z") + z("rw", "chasis", "M56 384 H144 V402 H56 Z") +
+   '<g font-size="10" font-weight="700" fill="#e9eef3" text-anchor="middle" font-family="JetBrains Mono,monospace"><text id="sx_lFL" x="36" y="64"></text><text id="sx_lFR" x="164" y="64"></text><text id="sx_lRL" x="31" y="294"></text><text id="sx_lRR" x="169" y="294"></text></g>' +
    '<g class="sxlbl" font-size="9" fill="#8b97a4" text-anchor="middle"><text x="100" y="11">alerón</text><text x="100" y="234">motor</text><text x="100" y="300">caja</text><text x="65" y="220" transform="rotate(-90 65 220)">radiador</text><text x="135" y="220" transform="rotate(90 135 220)">radiador</text><text x="100" y="415">alerón trasero</text></g>'
  }
  const sxHeat = t => { t = clamp(t, 0, 1); const s = [[61, 139, 255], [47, 209, 108], [255, 210, 63], [255, 107, 26], [255, 59, 59]], x = t * (s.length - 1), i = Math.min(s.length - 2, x | 0), f = x - i; return "rgb(" + [0, 1, 2].map(k => Math.round(s[i][k] + (s[i + 1][k] - s[i][k]) * f)).join(",") + ")" };
  function sxPaintCar(c) {
   const S = c.sys, t = c.tire, top = Sim.COMP[t.c].topt, T = (v, a, b) => (v - a) / (b - a), lifeOf = k => { const x = Sim.COMPS.find(q => q[0] === k); return S.te[k] / x[3] };
   const set = (id, v) => { const e = document.getElementById("sx_" + id); e && e.setAttribute("fill", sxHeat(v)) };
+  if (c.fzAx) { const [F, R, dF, dR] = c.fzAx, sg = (c.ayS || 0) >= 0 ? 1 : -1, L = (id, v) => { const e = document.getElementById("sx_l" + id); e && (e.textContent = (v / 1e3).toFixed(1)) }; L("FL", F / 2 - sg * dF), L("FR", F / 2 + sg * dF), L("RL", R / 2 - sg * dR), L("RR", R / 2 + sg * dR) }
   if (sxColor === "temp") {
    set("tFL", T(t.tf, top - 35, top + 35)), set("tFR", T(t.tf, top - 35, top + 35)), set("tRL", T(t.tr, top - 35, top + 35)), set("tRR", T(t.tr, top - 35, top + 35));
    set("bFL", T(S.TbF, 100, 1100)), set("bFR", T(S.TbF, 100, 1100)), set("bRL", T(S.TbR, 100, 1100)), set("bRR", T(S.TbR, 100, 1100));
@@ -19180,7 +19199,9 @@ registerProcessor('engine-proc',EngineProc);`;
    $("pWingV").textContent = Math.round(e.target.value * 100) + "%"
   }, $("pBias").oninput = e => {
    $("pBiasV").textContent = Math.round(e.target.value * 100) + "% del."
-  }, ["S", "M", "H", "I", "W"].forEach(k => {
+  }, $("pRoll") && ($("pRoll").oninput = e => {
+   $("pRollV").textContent = Math.round(e.target.value * 100) + "% del."
+  }), ["S", "M", "H", "I", "W"].forEach(k => {
    const b = document.createElement("button");
    b.textContent = S.COMP[k].name, b.style.color = TYRE[k], b.setAttribute("aria-pressed", "false"), b.onclick = () => {
     app.pitPick = app.pitPick === k ? null : k, [...$("tyrePick").children].forEach(x => x.setAttribute("aria-pressed", x === b && app.pitPick === k))
