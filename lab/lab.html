@@ -61,6 +61,12 @@ canvas.big{height:420px}
 .loadtbl{display:grid;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 12px}.loadtbl b{font:700 13px var(--display);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
 .loadtbl div{display:grid;grid-template-columns:200px 1fr 170px;gap:8px;align-items:center;font-size:12.5px}.loadtbl i{display:block;height:8px;border-radius:4px}.loadtbl .t i{background:#3d6fd8}.loadtbl .c i{background:#d8423d}.loadtbl em{font:600 12px var(--mono);font-style:normal;text-align:right}
 @media (max-width:560px){.loadtbl div{grid-template-columns:1fr 1fr}.loadtbl i{display:none}}
+.geartbl{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 12px;display:grid;gap:5px}.geartbl>b{font:700 13px var(--display);text-transform:uppercase;letter-spacing:.04em}
+.geartbl .gh,.geartbl .gr{display:grid;grid-template-columns:52px 60px 62px 1fr 1fr 96px;gap:8px;align-items:center;font-size:12.5px}.geartbl .gh{color:var(--mute);font-size:11px}
+.geartbl .gr.warn{color:#ffd23f}.geartbl .gr.bad{color:#ff6b6b}.geartbl .bar{position:relative;height:16px;background:rgba(255,255,255,.05);border-radius:4px;overflow:hidden}
+.geartbl .bar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#3d8bff,#ff6b1a)}.geartbl .bar u{position:absolute;top:0;bottom:0;width:2px;background:#fff}.geartbl .bar em{position:relative;font:600 11px var(--mono);font-style:normal;padding-left:6px;line-height:16px;color:#fff;text-shadow:0 1px 2px #000}
+.geartbl small{color:var(--mute);font-size:11.5px}
+@media (max-width:640px){.geartbl .gh,.geartbl .gr{grid-template-columns:40px 1fr 1fr 70px}.geartbl .gh span:nth-child(2),.geartbl .gh span:nth-child(3),.geartbl .gr span:nth-child(2),.geartbl .gr span:nth-child(3){display:none}}
 .s3info{position:absolute;left:10px;top:8px;z-index:2;font:600 12px var(--body);color:var(--ink);pointer-events:none;text-shadow:0 1px 2px #000}.s3info span{color:var(--mute);font-weight:400}
 .verdict{display:flex;flex-direction:column;gap:8px}
 .vd{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--faint);border-radius:10px;padding:9px 11px}
@@ -138,14 +144,15 @@ h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color
 <header>
   <a class="back" href="./">← Simulador</a>
   <h1>Laboratorio <span>técnico</span></h1>
-  <nav class="tabs"><button data-tab="susp" class="on">Suspensión</button><button data-tab="engine">Motor</button><button data-tab="limits">Límites y averías</button></nav>
+  <nav class="tabs"><button data-tab="susp" class="on">Suspensión</button><button data-tab="engine">Motor</button><button data-tab="limits">Límites y averías</button><button data-tab="drive">Transmisión y ERS</button></nav>
   <div class="modes"><button data-setmode="easy">Modo fácil</button><button data-setmode="pro">Modo ingeniero</button></div>
 </header>
 <main>
   <section id="tab-susp"></section>
   <section id="tab-engine" hidden></section>
   <section id="tab-limits" hidden></section>
-  <p class="note">Modelos físicos simplificados pero completos: cinemática exacta en vista frontal, dinámica de medio eje integrada con Runge-Kutta a 3 kHz, motor en 3D con cinemática exacta pieza a pieza, tren de válvulas con flotación y holgura con el pistón, turbo con compresor y turbina, daño por fatiga acumulado (Basquin y Miner), ciclo de una zona con combustión de Wiebe, transferencia de calor de Woschni, detonación por Livengood-Wu (Douaud-Eyzat), mecánica biela-manivela exacta, fatiga de Goodman, pandeo de Euler y vibración torsional por análisis modal. Límites y averías: diagrama de unión atornillada con fluencia y autoaflojamiento, holgura de segmentos por dilatación diferencial, resonancia de muelles y flotación, ley de Vogel y película de Sommerfeld, curva de ebullición de Nukiyama con CHF de Zuber, cavitación por NPSH, curvas S-N de flexión y picado, frenos con convección, radiación y oxidación, gas ideal en el neumático, altura al suelo con efecto suelo, rebote de rueda y aeroelasticidad. Los valores por defecto son estimaciones razonables de un F1 actual, no datos de ningún equipo.</p>
+  <section id="tab-drive" hidden></section>
+  <p class="note">Modelos físicos simplificados pero completos: cinemática exacta en vista frontal, dinámica de medio eje integrada con Runge-Kutta a 3 kHz, motor en 3D con cinemática exacta pieza a pieza, tren de válvulas con flotación y holgura con el pistón, turbo con compresor y turbina, daño por fatiga acumulado (Basquin y Miner), ciclo de una zona con combustión de Wiebe, transferencia de calor de Woschni, detonación por Livengood-Wu (Douaud-Eyzat), mecánica biela-manivela exacta, fatiga de Goodman, pandeo de Euler y vibración torsional por análisis modal. Transmisión y ERS: vuelta cuasiestacionaria con los límites de potencia y energía de cada reglamento, línea motriz en torsión a 4 kHz con cambio sin interrupción, flexión de Lewis y contacto de Hertz con daño de Miner, y diferencial hidráulico con transferencia lateral de carga. Límites y averías: diagrama de unión atornillada con fluencia y autoaflojamiento, holgura de segmentos por dilatación diferencial, resonancia de muelles y flotación, ley de Vogel y película de Sommerfeld, curva de ebullición de Nukiyama con CHF de Zuber, cavitación por NPSH, curvas S-N de flexión y picado, frenos con convección, radiación y oxidación, gas ideal en el neumático, altura al suelo con efecto suelo, rebote de rueda y aeroelasticidad. Los valores por defecto son estimaciones razonables de un F1 actual, no datos de ningún equipo.</p>
 </main>
 <script src="__THREEJS__"></script>
 <script src="__LABJS__"></script>
@@ -156,12 +163,12 @@ h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color
   const inited = {};
   const show = t => {
     for (const b of document.querySelectorAll("[data-tab]")) b.classList.toggle("on", b.dataset.tab === t);
-    for (const s of ["susp", "engine", "limits"]) document.getElementById("tab-" + s).hidden = s !== t;
+    for (const s of ["susp", "engine", "limits", "drive"]) document.getElementById("tab-" + s).hidden = s !== t;
     if (!inited[t]) inited[t] = 1, LAB[t].init(document.getElementById("tab-" + t));
     try { history.replaceState(null, "", "#" + t) } catch (e) {}
   };
   for (const b of document.querySelectorAll("[data-tab]")) b.onclick = () => show(b.dataset.tab);
-  show(location.hash === "#engine" ? "engine" : location.hash === "#limits" ? "limits" : "susp");
+  show(["#engine", "#limits", "#drive"].includes(location.hash) ? location.hash.slice(1) : "susp");
 })();
 </script>
 </body>
