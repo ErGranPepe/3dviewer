@@ -45,10 +45,42 @@ LAB.chassis = (() => {
   };
   let prm, ro, host, res = null, plots = {}, sel = 0, view = "mode", amp = 1;
   /* ---------- 3D ---------- */
-  let T, R, scene, cam, st, skin = null, labelsEl, comp = null;
+  let T, R, scene, cam, st, labelsEl, comp = null;
   const X3 = (x, y, z) => new T.Vector3(x - 1.8, z, y);
   /* estaciones del forro: nudo de la columna, semiancho, alto, desplazamiento vertical del centro */
-  const STA = [[0, .05, .06, 0], [1, .12, .14, -.05], [2, .2, .32, .02], [3, .22, .4, .03], [4, .26, .44, .04], [5, .34, .5, .06], [6, .52, .5, .02], [7, .7, .56, .04], [8, .68, .62, .1], [9, .5, .6, .12], [10, .34, .5, .1], [11, .16, .36, .06], [12, .14, .32, .04], [13, .1, .26, .04]];
+  /* ---------- carrocería deformable ----------
+     Cada pieza se modela en coordenadas del coche (x adelante, y a la derecha, z arriba) y cada vértice queda atado a la
+     estructura: a la columna (Hermite entre los dos nudos que lo rodean más el giro de torsión) o a un alerón (voladizo
+     cúbico entre el centro y la punta). Así el modo se ve en la carrocería entera, no en un esqueleto. */
+  /* monocasco, morro y tapa motor: x, semiancho, z inferior, z superior */
+  const BODY = [[4.78, .04, .13, .19], [4.55, .08, .14, .3], [4.2, .13, .16, .4], [3.9, .18, .12, .48], [3.55, .23, .08, .54], [3.15, .27, .06, .58], [2.75, .31, .05, .62], [2.4, .37, .05, .64], [2.1, .41, .05, .67], [1.86, .41, .05, .82], [1.7, .38, .06, 1.0], [1.5, .33, .07, .93], [1.2, .27, .09, .8], [.9, .21, .11, .67], [.6, .16, .13, .56], [.3, .12, .15, .46], [0, .1, .17, .4], [-.28, .08, .19, .36], [-.42, .06, .22, .32]];
+  /* pontones (cada lado): x, y interior, y exterior, z inferior, z superior */
+  const POD = [[2.42, .3, .4, .22, .5], [2.25, .3, .58, .12, .56], [1.95, .32, .62, .08, .58], [1.55, .3, .58, .08, .53], [1.15, .24, .47, .09, .46], [.8, .17, .34, .11, .37], [.5, .12, .22, .13, .29]];
+  let parts3d = null;
+  function ringGeo(secs, sub, n, pw) {
+    const S2 = [];
+    for (let k = 0; k < secs.length - 1; k++) for (let q = 0; q < sub; q++) { const f = q / sub; S2.push(secs[k].map((v, i) => v + (secs[k + 1][i] - v) * f)) }
+    S2.push(secs[secs.length - 1]);
+    const base = [], idx = [], nr = S2.length;
+    for (const [x, y0, hw, z0, hh] of S2) for (let j = 0; j < n; j++) { const th = j / n * TAU, cy = Math.cos(th), sy = Math.sin(th); base.push(x, y0 + Math.sign(cy) * Math.abs(cy) ** pw * hw, z0 + Math.sign(sy) * Math.abs(sy) ** pw * hh) }
+    for (let r = 0; r < nr - 1; r++) for (let j = 0; j < n; j++) { const a = r * n + j, b = r * n + (j + 1) % n, c = a + n, d = b + n; idx.push(a, b, c, b, d, c) }
+    /* tapas en los extremos */
+    const cap = (r, flip) => { const c0 = base.length / 3; let cx = 0, cyy = 0, cz = 0; for (let j = 0; j < n; j++) cx += base[(r * n + j) * 3], cyy += base[(r * n + j) * 3 + 1], cz += base[(r * n + j) * 3 + 2]; base.push(cx / n, cyy / n, cz / n); for (let j = 0; j < n; j++) flip ? idx.push(c0, r * n + (j + 1) % n, r * n + j) : idx.push(c0, r * n + j, r * n + (j + 1) % n) };
+    cap(0, !1), cap(nr - 1, !0);
+    return { base: Float32Array.from(base), idx }
+  }
+  function plateGeo(x0, x1, y0, y1, z, nx, ny, wFn) {
+    const base = [], idx = [];
+    for (let i = 0; i <= nx; i++) for (let j = 0; j <= ny; j++) { const x = x0 + (x1 - x0) * i / nx, w = wFn ? wFn(x) : 1; base.push(x, (y0 + (y1 - y0) * j / ny) * w, z) }
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) { const a = i * (ny + 1) + j, b = a + ny + 1; idx.push(a, b, a + 1, a + 1, b, b + 1) }
+    return { base: Float32Array.from(base), idx }
+  }
+  function boxGeo(cx, cy, cz, lx, ly, lz) {
+    const g = new T.BoxGeometry(lx, ly, lz, 2, 2, 2).toNonIndexed(), p = g.attributes.position.array, base = [];
+    for (let i = 0; i < p.length; i += 3) base.push(cx + p[i], cy + p[i + 1], cz + p[i + 2]);
+    const idx = []; for (let i = 0; i < base.length / 3; i++) idx.push(i);
+    return { base: Float32Array.from(base), idx }
+  }
   function init3d(h) {
     T = window.THREE;
     if (!T) return !1;
@@ -78,77 +110,90 @@ LAB.chassis = (() => {
   }
   /* mallas: forro deformable, alerones, ruedas, brazos y la forma sin deformar */
   function buildSkin() {
-    if (skin) for (const o of skin.objs) scene.remove(o);
-    const S = res.S, nd = S.nodes, sub = 5, ringN = 16, rings = [];
-    for (let k = 0; k < STA.length - 1; k++) for (let q = 0; q < sub; q++) rings.push([k, q / sub]);
-    rings.push([STA.length - 2, 1]);
-    const nr = rings.length, pos = new Float32Array(nr * ringN * 3), col = new Float32Array(nr * ringN * 3), idx = [];
-    for (let r = 0; r < nr - 1; r++) for (let j = 0; j < ringN; j++) { const a = r * ringN + j, b = r * ringN + (j + 1) % ringN, c = a + ringN, d = b + ringN; idx.push(a, c, b, b, c, d) }
-    const g = new T.BufferGeometry(); g.setAttribute("position", new T.BufferAttribute(pos, 3)), g.setAttribute("color", new T.BufferAttribute(col, 3)), g.setIndex(idx);
-    const mat = new T.MeshPhysicalMaterial({ vertexColors: !0, metalness: .2, roughness: .38, clearcoat: .8, side: T.DoubleSide }), mesh = new T.Mesh(g, mat);
-    const ghost = new T.LineSegments(new T.BufferGeometry().setAttribute("position", new T.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3)), new T.LineBasicMaterial({ color: "#56616d", transparent: !0, opacity: .5 }));
-    /* alerones: cintas con cuerda, de punta a punta pasando por el nudo central */
-    const wing = (chord, col0) => { const n = 24, p = new Float32Array(n * 2 * 3), ix = []; for (let i = 0; i < n - 1; i++) { const a = i * 2; ix.push(a, a + 2, a + 1, a + 1, a + 2, a + 3) } const gg = new T.BufferGeometry(); gg.setAttribute("position", new T.BufferAttribute(p, 3)), gg.setIndex(ix); const m = new T.Mesh(gg, new T.MeshPhysicalMaterial({ color: col0, metalness: .3, roughness: .35, clearcoat: 1, side: T.DoubleSide, emissive: "#000" })); return { m, n, chord } };
-    const fw = wing(.42, "#2b3036"), rw = wing(.36, "#2b3036");
-    const wheels = S.wheels.map(w => { const m = new T.Mesh(new T.TorusGeometry(.26, .1, 16, 40).scale(1, 1, 2.2), new T.MeshStandardMaterial({ color: "#151618", roughness: .85 })); return { w, m } });
-    const arms = S.wheels.map(() => new T.Mesh(new T.CylinderGeometry(.018, .018, 1, 10), new T.MeshStandardMaterial({ color: "#8e959c", metalness: .9, roughness: .3 })));
+    if (parts3d) for (const o of parts3d.objs) scene.remove(o);
+    const S = res.S, sp = S.sp.slice(0, 14).map(n => S.nodes[n]), objs = [], parts = [];
+    const mk = (G, bind, mat, ghost) => {
+      const n = G.base.length / 3, g = new T.BufferGeometry();
+      g.setAttribute("position", new T.BufferAttribute(new Float32Array(n * 3), 3)), g.setAttribute("color", new T.BufferAttribute(new Float32Array(n * 3), 3)), g.setIndex(G.idx);
+      const m = new T.Mesh(g, mat);
+      /* atadura de cada vértice */
+      const B = new Float32Array(n * 4);
+      for (let v = 0; v < n; v++) {
+        const x = G.base[v * 3], z = G.base[v * 3 + 2];
+        let j = 0; for (; j < sp.length - 2 && x < sp[j + 1].x;) j++;
+        const f = clamp((sp[j].x - x) / (sp[j].x - sp[j + 1].x), 0, 1), zs = sp[j].z + (sp[j + 1].z - sp[j].z) * f;
+        B[v * 4] = j, B[v * 4 + 1] = f, B[v * 4 + 2] = zs, B[v * 4 + 3] = 0
+      }
+      parts.push({ m, g, G, bind, B }), objs.push(m);
+      if (ghost) { const tmp = new T.BufferGeometry(); tmp.setAttribute("position", new T.BufferAttribute(Float32Array.from(G.base, (v, i) => i % 3 === 0 ? v - 1.8 : v), 3)), tmp.setIndex(G.idx); const e = new T.EdgesGeometry(tmp, 28), pa = e.attributes.position.array; for (let i = 0; i < pa.length; i += 3) { const y = pa[i + 1], z = pa[i + 2]; pa[i + 1] = z, pa[i + 2] = y } const l = new T.LineSegments(e, new T.LineBasicMaterial({ color: "#56616d", transparent: !0, opacity: .45 })); objs.push(l) }
+      return m
+    };
+    const paint = () => new T.MeshPhysicalMaterial({ vertexColors: !0, metalness: .25, roughness: .32, clearcoat: 1, clearcoatRoughness: .08, side: T.DoubleSide });
+    mk(ringGeo(BODY.map(([x, hw, zb, zt]) => [x, 0, hw, (zb + zt) / 2, (zt - zb) / 2]), 3, 28, .42), "spine", paint(), !0);
+    for (const sd of [-1, 1]) mk(ringGeo(POD.map(([x, yi, yo, zb, zt]) => [x, sd * (yi + yo) / 2, (yo - yi) / 2, (zb + zt) / 2, (zt - zb) / 2]), 3, 20, .38), "spine", paint(), !0);
+    /* fondo plano con su estrechamiento delante de las ruedas traseras */
+    mk(plateGeo(3.3, -.05, -.82, .82, .035, 30, 12, x => x < .55 ? .62 : x > 2.9 ? .6 : 1), "spine", paint(), !1);
+    /* halo y piloto */
+    const halo = new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3([[2.72, 0, .64], [2.5, 0, .78], [2.25, -.27, .79], [2.02, -.3, .74], [1.92, -.3, .68]].map(p => new T.Vector3(...p)).concat([[1.92, .3, .68], [2.02, .3, .74], [2.25, .27, .79], [2.5, 0, .78]].map(p => new T.Vector3(...p)))), 60, .022, 8, !0), new T.MeshStandardMaterial({ color: "#2a2e33", metalness: .8, roughness: .35 }));
+    mk({ base: Float32Array.from(halo.geometry.attributes.position.array), idx: halo.geometry.index ? Array.from(halo.geometry.index.array) : [...Array(halo.geometry.attributes.position.count).keys()] }, "spine", paint(), !1);
+    const helmet = new T.SphereGeometry(.12, 20, 14), hb = helmet.attributes.position.array, hbase = [];
+    for (let i = 0; i < hb.length; i += 3) hbase.push(2.1 + hb[i], hb[i + 2], .76 + hb[i + 1]);
+    mk({ base: Float32Array.from(hbase), idx: Array.from(helmet.index.array) }, "spine", new T.MeshStandardMaterial({ color: "#f2c21b", metalness: .1, roughness: .3 }), !1).userData.solid = 1;
+    /* alerones con sus planos, flap y placas */
+    mk(plateGeo(5.0, 4.62, -.86, .86, .1, 4, 24), "fw", paint(), !0), mk(plateGeo(4.66, 4.44, -.86, .86, .18, 3, 24), "fw", paint(), !1);
+    for (const sd of [-1, 1]) mk(boxGeo(4.78, sd * .87, .16, .46, .01, .17), "fw", paint(), !1);
+    mk(plateGeo(-.48, -.8, -.5, .5, .9, 4, 20), "rw", paint(), !0), mk(plateGeo(-.62, -.84, -.5, .5, 1.03, 3, 20), "rw", paint(), !1), mk(plateGeo(-.3, -.5, -.42, .42, .46, 3, 14), "spine", paint(), !1);
+    for (const sd of [-1, 1]) mk(boxGeo(-.66, sd * .51, .82, .5, .012, .56), "rw", paint(), !1);
+    const wheels = S.wheels.map(w => { const g = new T.Group(), ty = new T.Mesh(new T.TorusGeometry(.26, .1, 16, 40).scale(1, 1, 2.2), new T.MeshStandardMaterial({ color: "#151618", roughness: .85 })), rim = new T.Mesh(new T.CylinderGeometry(.2, .2, .36, 28, 1, !0).rotateX(Math.PI / 2), new T.MeshStandardMaterial({ color: "#3a3f45", metalness: .85, roughness: .3, side: T.DoubleSide })); g.add(ty, rim), objs.push(g); return { w, m: g } });
+    const armMat = new T.MeshStandardMaterial({ color: "#8e959c", metalness: .9, roughness: .3 }), arms = S.wheels.flatMap(() => [new T.Mesh(new T.CylinderGeometry(.014, .014, 1, 8), armMat), new T.Mesh(new T.CylinderGeometry(.014, .014, 1, 8), armMat), new T.Mesh(new T.CylinderGeometry(.011, .011, 1, 8), armMat)]);
     const pylon = new T.Mesh(new T.CylinderGeometry(.03, .03, 1, 10), new T.MeshStandardMaterial({ color: "#2b3036", metalness: .3, roughness: .35 }));
-    const objs = [mesh, ghost, fw.m, rw.m, pylon, ...wheels.map(q => q.m), ...arms];
+    objs.push(...arms, pylon);
     for (const o of objs) scene.add(o);
-    skin = { mesh, g, rings, ringN, fw, rw, wheels, arms, pylon, objs, ghost };
-    /* forma sin deformar en líneas */
-    deform(null, 0, !0)
+    parts3d = { parts, wheels, arms, pylon, objs };
+    deform(null, 0)
   }
   /* desplazamiento y giro de un nudo (en metros y radianes) escalados */
   function nodeU(u, n, sc) {
     const nd = res.S.nodes[n], g = k => k < nd.dof && u ? u[nd.d0 + k] * sc : 0;
     return [g(0), g(1), g(2), g(3), g(4), g(5)]
   }
-  /* interpolación de Hermite entre dos nudos de la columna */
-  function spineAt(u, k, f, sc) {
-    const S = res.S, A = S.nodes[S.sp[STA[k][0]]], B = S.nodes[S.sp[STA[k + 1][0]]], L = Math.hypot(B.x - A.x, B.z - A.z), ua = nodeU(u, S.sp[STA[k][0]], sc), ub = nodeU(u, S.sp[STA[k + 1][0]], sc);
-    const h1 = 1 - 3 * f * f + 2 * f ** 3, h2 = f - 2 * f * f + f ** 3, h3 = 3 * f * f - 2 * f ** 3, h4 = -f * f + f ** 3;
-    const ux = ua[0] + (ub[0] - ua[0]) * f, uy = h1 * ua[1] + h2 * L * ua[5] + h3 * ub[1] + h4 * L * ub[5], uz = h1 * ua[2] - h2 * L * ua[4] + h3 * ub[2] - h4 * L * ub[4], rx = ua[3] + (ub[3] - ua[3]) * f;
-    return { x: A.x + (B.x - A.x) * f, z: A.z + (B.z - A.z) * f, ux, uy, uz, rx }
-  }
-  function deform(u, sc, ghostOnly) {
-    const S = res.S, sk = skin, pos = sk.g.attributes.position.array, col = sk.g.attributes.color.array, ringN = sk.ringN;
+  function deform(u, sc) {
+    const S = res.S, P3 = parts3d, nsp = 14, U = [], E = [];
+    for (let j = 0; j < nsp; j++) U.push(nodeU(u, S.sp[j], sc));
     let Umax = 1e-30;
     for (const e of S.els) e.U > Umax && (Umax = e.U);
-    const ghostPts = [];
-    sk.rings.forEach(([k, f], r) => {
-      const a = STA[k], b = STA[k + 1], hw = a[1] + (b[1] - a[1]) * f, hh = a[2] + (b[2] - a[2]) * f, dz = a[3] + (b[3] - a[3]) * f, s = spineAt(ghostOnly ? null : u, k, f, sc);
-      /* energía de deformación del elemento de esta estación */
-      const el = S.els.find(e => e.a === S.sp[a[0]] && e.b === S.sp[b[0]]), heat = el && !ghostOnly ? Math.sqrt(el.U / Umax) : 0, c = heatCol(heat);
-      for (let j = 0; j < ringN; j++) {
-        const th = j / ringN * TAU, cy = Math.cos(th), sy = Math.sin(th), ox = Math.sign(cy) * Math.pow(Math.abs(cy), .55) * hw, oz = Math.sign(sy) * Math.pow(Math.abs(sy), .55) * hh / 2 + dz;
-        /* giro pequeño alrededor de x (torsión) */
-        const y = ox * Math.cos(s.rx) - oz * Math.sin(s.rx), z = ox * Math.sin(s.rx) + oz * Math.cos(s.rx), v = X3(s.x + s.ux, y + s.uy, s.z + z + s.uz), i = (r * ringN + j) * 3;
-        pos[i] = v.x, pos[i + 1] = v.y, pos[i + 2] = v.z, col[i] = c.r, col[i + 1] = c.g, col[i + 2] = c.b;
-        ghostOnly && j % 4 === 0 && r > 0 && ghostPts.push(...[pos[i - ringN * 3], pos[i - ringN * 3 + 1], pos[i - ringN * 3 + 2], v.x, v.y, v.z])
+    /* energía por tramo de la columna (con la de las uniones) para colorear la carrocería */
+    for (let j = 0; j < nsp - 1; j++) { const el = S.els.find(e => e.a === S.sp[j] && e.b === S.sp[j + 1]); E.push(el && u ? Math.sqrt(el.U / Umax) : 0) }
+    const wingU = (center, tips) => ({ uc: nodeU(u, center, sc), ut: tips.map(t => nodeU(u, t, sc)), C: S.nodes[center], Tn: tips.map(t => S.nodes[t]), heat: u ? Math.sqrt(Math.max(...S.els.filter(e => e.grp === (center === S.sp[0] ? "fw" : "rw")).map(e => e.U)) / Umax) : 0 });
+    const FW = wingU(S.sp[0], S.fwT), RW = wingU(S.sp[14], S.rwT);
+    for (const pt of P3.parts) {
+      const { G, B, g } = pt, pos = g.attributes.position.array, col = g.attributes.color.array, n = G.base.length / 3, solid = pt.m.userData.solid;
+      for (let v = 0; v < n; v++) {
+        const x = G.base[v * 3], y = G.base[v * 3 + 1], z = G.base[v * 3 + 2];
+        let dx, dy, dz, heat;
+        if (pt.bind === "spine") {
+          const j = B[v * 4], f = B[v * 4 + 1], zs = B[v * 4 + 2], A = S.nodes[S.sp[j]], Bn = S.nodes[S.sp[j + 1]], L = Math.hypot(Bn.x - A.x, Bn.z - A.z), ua = U[j], ub = U[j + 1];
+          const h1 = 1 - 3 * f * f + 2 * f ** 3, h2 = f - 2 * f * f + f ** 3, h3 = 3 * f * f - 2 * f ** 3, h4 = -f * f + f ** 3, rx = ua[3] + (ub[3] - ua[3]) * f, oz = z - zs;
+          dx = ua[0] + (ub[0] - ua[0]) * f, dy = h1 * ua[1] + h2 * L * ua[5] + h3 * ub[1] + h4 * L * ub[5] + (y * Math.cos(rx) - oz * Math.sin(rx) - y), dz = h1 * ua[2] - h2 * L * ua[4] + h3 * ub[2] - h4 * L * ub[4] + (y * Math.sin(rx) + oz * Math.cos(rx) - oz);
+          heat = E[j] + (E[Math.min(E.length - 1, j + 1)] - E[j]) * f * .5
+        } else {
+          const W = pt.bind === "fw" ? FW : RW, side = y < 0 ? 0 : 1, a = clamp(Math.abs(y - W.C.y) / Math.abs(W.Tn[side].y - W.C.y), 0, 1.05), sh = 3 * a * a - 2 * a ** 3, uu = W.ut[side];
+          dx = W.uc[0] + (uu[0] - W.uc[0]) * a, dy = W.uc[1], dz = W.uc[2] + (uu[2] - W.uc[2]) * sh + W.uc[3] * (y - W.C.y) - (x - W.C.x) * (W.uc[4] + (uu[4] - W.uc[4]) * a), heat = W.heat
+        }
+        const i3 = v * 3;
+        pos[i3] = x + dx - 1.8, pos[i3 + 1] = z + dz, pos[i3 + 2] = y + dy;
+        if (solid) col[i3] = col[i3 + 1] = col[i3 + 2] = 1;
+        else { const c = heatCol(heat); col[i3] = c.r, col[i3 + 1] = c.g, col[i3 + 2] = c.b }
       }
-    });
-    sk.g.attributes.position.needsUpdate = !0, sk.g.attributes.color.needsUpdate = !0, sk.g.computeVertexNormals();
-    if (ghostOnly) { const gg = new T.BufferGeometry(); gg.setAttribute("position", new T.Float32BufferAttribute(ghostPts, 3)), sk.ghost.geometry.dispose(), sk.ghost.geometry = gg }
-    /* alerones */
-    const wingSet = (W, center, tips, x0, z0) => {
-      const p = W.m.geometry.attributes.position.array, uc = nodeU(u, center, sc), ut = tips.map(t => nodeU(u, t, sc)), C = S.nodes[center], Tn = tips.map(t => S.nodes[t]);
-      for (let i = 0; i < W.n; i++) {
-        const f = i / (W.n - 1) * 2 - 1, side = f < 0 ? 0 : 1, a = Math.abs(f), tp = Tn[side], uu = ut[side];
-        /* flexión de voladizo: forma cúbica entre el centro y la punta */
-        const sh = 3 * a * a - 2 * a ** 3, y = C.y + (tp.y - C.y) * a, z = C.z + (tp.z - C.z) * a, wz = uc[2] + (uu[2] - uc[2]) * sh + uc[3] * (y - C.y), wx = uc[0] + (uu[0] - uc[0]) * a, rot = uc[4] + (uu[4] - uc[4]) * a;
-        for (const q of [0, 1]) { const cx = (q ? -W.chord : 0) + x0, v = X3(C.x + cx + wx, y + uc[1], z + wz - cx * Math.sin(rot) * 0), j = (i * 2 + q) * 3; p[j] = v.x, p[j + 1] = v.y, p[j + 2] = v.z }
-      }
-      W.m.geometry.attributes.position.needsUpdate = !0, W.m.geometry.computeVertexNormals()
-    };
-    wingSet(sk.fw, S.sp[0], S.fwT, .1, 0), wingSet(sk.rw, S.sp[14], S.rwT, .15, 0);
-    /* los alerones y el pilón también se colorean con su energía de deformación */
-    for (const [W, grp] of [[sk.fw, "fw"], [sk.rw, "rw"], [sk.pylon, "pylon"]]) { const Ue = ghostOnly ? 0 : Math.max(...S.els.filter(e => e.grp === grp).map(e => e.U)), c = heatCol(Math.sqrt(Ue / Umax)); W.m ? W.m.material.color.setRGB(c.r, c.g, c.b) : W.material.color.setRGB(c.r, c.g, c.b) }
-    /* pilón, brazos y ruedas */
-    const P = n => { const nd = S.nodes[n], q = nodeU(u, n, sc); return X3(nd.x + q[0], nd.y + q[1], nd.z + q[2]) };
+      g.attributes.position.needsUpdate = !0, g.attributes.color.needsUpdate = !0, g.computeVertexNormals()
+    }
+    const Pn = n => { const nd = S.nodes[n], q = nodeU(u, n, sc); return X3(nd.x + q[0], nd.y + q[1], nd.z + q[2]) };
     const place = (m, a, b) => { const d = b.clone().sub(a), L = d.length(); m.position.copy(a).addScaledVector(d, .5), m.scale.set(1, L, 1), m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()) };
-    place(sk.pylon, P(S.sp[13]), P(S.sp[14]));
-    S.wheels.forEach((w, i) => { place(sk.arms[i], P(w.front ? S.sp[3] : S.sp[12]), P(w.pk)), sk.wheels[i].m.position.copy(P(w.n)) })
+    place(P3.pylon, Pn(S.sp[13]), Pn(S.sp[14]).add(new T.Vector3(0, -.05, 0)));
+    S.wheels.forEach((w, i) => {
+      const c = Pn(w.front ? S.sp[3] : S.sp[12]), wp = Pn(w.n), up = new T.Vector3(0, .12, 0), dn = new T.Vector3(0, -.06, 0);
+      P3.wheels[i].m.position.copy(wp), place(P3.arms[i * 3], c.clone().add(up).add(new T.Vector3(.12, 0, 0)), wp.clone().add(up)), place(P3.arms[i * 3 + 1], c.clone().add(dn).add(new T.Vector3(-.15, 0, 0)), wp.clone().add(dn)), place(P3.arms[i * 3 + 2], wp.clone().add(new T.Vector3(0, -.08, 0)), c.clone().add(new T.Vector3(0, .26, 0)))
+    })
   }
   const heatCol = t => { t = clamp(t, 0, 1); const s = [[.18, .22, .27], [.24, .55, 1], [.18, .82, .42], [1, .82, .25], [1, .42, .1], [1, .23, .23]], x = t * (s.length - 1), i = Math.min(s.length - 2, x | 0), f = x - i; return { r: s[i][0] + (s[i + 1][0] - s[i][0]) * f, g: s[i][1] + (s[i + 1][1] - s[i][1]) * f, b: s[i][2] + (s[i + 1][2] - s[i][2]) * f } };
   /* ---------- cálculo ---------- */
@@ -166,7 +211,7 @@ LAB.chassis = (() => {
     ro.set("fk", fk, 1), ro.set("frfpk", pk, 2), ro.set("frff", pf, 1);
     res.fk = fk;
     modeList(), drawPlots(), twistTable(), verdict();
-    skin && buildSkin()
+    parts3d && buildSkin()
   }
   function modeList() {
     $("chModes").innerHTML = `<button class="btn ${view === "tors" ? "on" : ""}" data-cv="tors">Banco de torsión</button><button class="btn ${view === "bend" ? "on" : ""}" data-cv="bend">Flexión</button>` + res.modes.map((m, i) => `<button class="btn mode ${view === "mode" && sel === i ? "on" : ""} k-${m.kind}" data-mi="${i}"><b>${m.f.toFixed(1)} Hz</b> ${m.name}</button>`).join("");
@@ -200,7 +245,7 @@ LAB.chassis = (() => {
   let t0 = performance.now(), fn = 0;
   function loop(now) {
     requestAnimationFrame(loop);
-    if (!res || !skin || host.hidden) return;
+    if (!res || !parts3d || host.hidden) return;
     const t = (now - t0) / 1e3;
     let u, sc, info;
     if (view === "tors") u = res.tor.u, sc = 120 * amp * (.55 + .45 * Math.sin(t * 2.4)), info = `<b>Banco de torsión</b>: ruedas traseras empotradas, ${(res.tor.T / 1e3).toFixed(1)} kN·m en las delanteras → ${(res.tor.ang / DEG).toFixed(3)}° · ${(res.tor.k / 1e3).toFixed(1)} kN·m/° · deformación ×120`;
@@ -213,7 +258,7 @@ LAB.chassis = (() => {
       info = `<b>Modo ${sel + 1}: ${m.name}</b> · ${m.f.toFixed(1)} Hz · animación ralentizada · color = energía de deformación · gris: forma sin deformar`
     }
     if (u !== loop.u) { for (const e of res.S.els) e.U = 0; if (view === "mode") CM().modes && classifyU(res.modes[sel]); else energyOf(u); loop.u = u }
-    deform(u, sc, !1);
+    deform(u, sc);
     ++fn % 10 === 0 && ($("chInfo").innerHTML = info + `<br><span>Arrastra para girar · rueda para acercar · botón derecho para desplazar</span>`);
     comp ? comp.render() : R.render(scene, cam)
   }

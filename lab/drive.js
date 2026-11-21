@@ -4,7 +4,7 @@ LAB.drive = (() => {
   const DEF = [
     { title: "Reglamento y circuito", open: !0, help: "2026: sin MGU-H, MGU-K de 350 kW que se recorta de 290 a 355 km/h, 8,5 MJ de recuperación por vuelta y aerodinámica activa en recta. 2014-2025: MGU-K de 120 kW, 2 MJ de recuperación y 4 MJ de despliegue por vuelta desde la batería, y MGU-H sin límite en el turbo.", items: [
       { id: "era", label: "Reglamento", v: "2026", opts: [["2026", "2026 (350 kW eléctricos, sin MGU-H)"], ["2025", "2014-2025 (120 kW + MGU-H)"]] },
-      { id: "track", label: "Circuito", v: "monza", opts: [["monza", "Monza"], ["monaco", "Mónaco"], ["silverstone", "Silverstone"]] },
+      { id: "track", label: "Circuito", v: "11", opts: (window.REAL_TRACKS ? Object.keys(window.REAL_TRACKS).map(k => [k, window.REAL_TRACKS[k].name]) : []).concat([["monza", "Monza (simplificado)"], ["monaco", "Mónaco (simplificado)"], ["silverstone", "Silverstone (simplificado)"]]) },
       { id: "strat", label: "Estrategia de energía", v: "att", opts: [["att", "Ataque (todo el despliegue)"], ["bal", "Equilibrada (recorta en recta)"], ["save", "Ahorro"]] },
       { id: "override", label: "Modo adelantamiento (2026)", v: "0", opts: [["0", "No"], ["1", "Sí: 350 kW hasta 337 km/h"]] },
       { id: "activeAero", label: "Aerodinámica activa en recta (2026)", v: "1", opts: [["1", "Sí (−28 % de resistencia)"], ["0", "No"]] }
@@ -24,8 +24,8 @@ LAB.drive = (() => {
     ] },
     { title: "Coche", items: [
       { id: "mass", label: "Masa con piloto", unit: "kg", min: 700, max: 900, step: 1, v: 768 },
-      { id: "cla", label: "Carga aerodinámica (ClA)", unit: "m²", min: 1.5, max: 6, step: .05, v: 3.6 },
-      { id: "cda", label: "Resistencia (CdA)", unit: "m²", min: .6, max: 1.6, step: .01, v: 1.05 },
+      { id: "cla", label: "Carga aerodinámica (ClA)", unit: "m²", min: 1.5, max: 6, step: .05, v: 3.8 },
+      { id: "cda", label: "Resistencia (CdA)", unit: "m²", min: .6, max: 1.6, step: .01, v: 1.13, help: "Con el alerón de cada circuito: en Monza menos, en Mónaco más." },
       { id: "mu", label: "Adherencia lateral", unit: "μ", min: 1, max: 2.4, step: .01, v: 1.75 },
       { id: "mub", label: "Adherencia en frenada", unit: "μ", min: 1, max: 2.4, step: .01, v: 1.85, adv: !0 },
       { id: "mut", label: "Adherencia en tracción", unit: "μ", min: 1, max: 2.4, step: .01, v: 1.7, adv: !0 },
@@ -60,11 +60,11 @@ LAB.drive = (() => {
       { id: "kcoast", label: "Bloqueo en retención", unit: "× par", min: 0, max: 1, step: .01, v: .25 }
     ] }
   ];
-  const ERA = { "2026": { pice: 400, tmax: 440, kmax: 350, rec: 8.5, mass: 768, cla: 3.6, cda: 1.05 }, "2025": { pice: 560, tmax: 520, kmax: 120, rec: 2, mass: 800, cla: 4.2, cda: 1.1 } };
+  const ERA = { "2026": { pice: 400, tmax: 440, kmax: 350, rec: 8.5, mass: 768, cla: 3.8, cda: 1.13 }, "2025": { pice: 560, tmax: 520, kmax: 120, rec: 2, mass: 800, cla: 4.2, cda: 1.25 } };
   const PRESETS = {
-    m26: { name: "2026 en Monza", v: { era: "2026", track: "monza", ...ERA["2026"] } },
-    m25: { name: "2025 en Monza", v: { era: "2025", track: "monza", ...ERA["2025"] } },
-    mc: { name: "2026 en Mónaco", v: { era: "2026", track: "monaco", ...ERA["2026"], cla: 4.4, cda: 1.25 } },
+    m26: { name: "2026 en Monza", v: { era: "2026", track: "11", ...ERA["2026"] } },
+    m25: { name: "2025 en Monza", v: { era: "2025", track: "11", ...ERA["2025"] } },
+    mc: { name: "2026 en Mónaco", v: { era: "2026", track: "16", ...ERA["2026"], cla: 4.4, cda: 1.25 } },
     open: { name: "Diferencial abierto", v: { pre: 0, kpow: 0, kcoast: 0 } },
     locked: { name: "Diferencial muy bloqueado", v: { pre: 500, kpow: .8, kcoast: .7 } },
     rough: { name: "Cambio brusco (sin corte ni golpe de gas)", v: { cut: 0, blip: 0, tshift: 4 } }
@@ -79,6 +79,8 @@ LAB.drive = (() => {
     const worst = D.shifts.reduce((a, s) => s.shock > (a ? a.shock : -1) ? s : a, null), life = G.filter(g => g.time > .2).reduce((a, g) => g.lifeKm < a.lifeKm ? g : a, { lifeKm: 1e9, g: 0 });
     res.worst = worst;
     const lt = L.lapT, mm = Math.floor(lt / 60);
+    const TG = DM().trackGrid(p.track), fl = t => `${Math.floor(t / 60)}:${(t - Math.floor(t / 60) * 60).toFixed(2).padStart(5, "0")}`;
+    ro.set("real", TG.real ? `${fl(TG.real.pole.t)} ${TG.real.pole.drv} ${TG.real.pole.year}` : "—");
     ro.set("lap", `${mm}:${(lt - mm * 60).toFixed(2).padStart(5, "0")}`), ro.set("gain", res.ersGain, 2), ro.set("vmax", L.vmax * 3.6, 0);
     ro.set("recK", (E.recK - E.clip) / 1e6, 2), ro.set("clip", E.clip / 1e6, 2), ro.set("recH", E.recH / 1e6, 2), ro.set("dep", E.dep / 1e6, 2), ro.set("brk", E.brakeE / 1e6, 1);
     ro.set("shifts", E.shifts, 0), ro.set("fuel", E.fuel, 2), ro.set("tpk", D.peak / 1e3, 2, D.peak > 9e3 ? "bad" : D.peak > 6e3 ? "warn" : "ok"), ro.set("shock", worst ? worst.shock / 1e3 : NaN, 2, worst && worst.shock > 4e3 ? "bad" : worst && worst.shock > 2.5e3 ? "warn" : "ok");
@@ -90,7 +92,9 @@ LAB.drive = (() => {
     const L = res.Lp, n = L.n, x = new Float32Array(n), sp = new Float32Array(n), gr = new Float32Array(n), rpm = new Float32Array(n), soc = new Float32Array(n), pk = new Float32Array(n), pi = new Float32Array(n), ph = new Float32Array(n);
     for (let i = 0; i < n; i++) x[i] = i / 1e3, sp[i] = L.v[i] * 3.6, gr[i] = (L.gear[i] + 1) * 40, rpm[i] = L.rpm[i], soc[i] = L.soc[i] / 1e6, pk[i] = L.Pk[i] / 1e3, pi[i] = L.Pice[i] / 1e3, ph[i] = L.Ph[i] / 1e3;
     const cur = play.d != null ? [{ x: play.d / 1e3, col: "rgba(255,255,255,.55)" }] : [];
-    plots.sp.draw([{ x, y: sp, n, col: "#ff6b1a", label: "Velocidad km/h" }, { x, y: gr, n, col: "#3d8bff", label: "Marcha ×40" }], { title: `Vuelta en ${L.name}`, xlabel: "km", vlines: cur });
+    const G = DM().trackGrid(res.p.track), ref = G.real && G.real.ref, ser = [{ x, y: sp, n, col: "#ff6b1a", label: "Simulada km/h" }, { x, y: gr, n, col: "#3d8bff", label: "Marcha ×40" }];
+    if (ref) { const m = ref.f.length, rx = new Float32Array(m), rv = new Float32Array(m); for (let i = 0; i < m; i++) rx[i] = ref.f[i] * n / 1e3, rv[i] = ref.v[i]; ser.splice(1, 0, { x: rx, y: rv, n: m, col: "rgba(255,255,255,.55)", label: `Real ${G.real.pole.year} (${G.real.pole.drv})` }) }
+    plots.sp.draw(ser, { title: `Vuelta en ${L.name}`, xlabel: "km", vlines: cur });
     plots.rpm.draw([{ x, y: rpm, n, col: "#ffd23f", label: "Régimen rpm" }], { title: "Motor", xlabel: "km", vlines: cur });
     plots.ers.draw([{ x, y: pi, n, col: "#8b97a4", label: "Térmico kW" }, { x, y: pk, n, col: "#7fe3ff", label: "MGU-K kW (− carga)" }, ...(res.p.era !== "2026" ? [{ x, y: ph, n, col: "#b45cff", label: "MGU-H kW" }] : [])], { title: "Potencias", xlabel: "km", vlines: cur });
     plots.soc.draw([{ x, y: soc, n, col: "#2fd16c", label: "Batería MJ", fill: "rgba(47,209,108,.12)" }], { title: "Estado de carga", xlabel: "km", vlines: cur, hlines: [{ y: res.p.socwin, col: "rgba(255,255,255,.3)", label: "ventana" }] });
@@ -179,7 +183,7 @@ LAB.drive = (() => {
     const pre = $("drvPre");
     for (const k in PRESETS) pre.appendChild(el("button", { class: "btn", text: PRESETS[k].name, onclick: () => { prm.set(Object.fromEntries(DEF.flatMap(g => g.items.map(i => [i.id, i.v]))), !0), lastEra = PRESETS[k].v.era || "2026", prm.set(PRESETS[k].v) } }));
     ro = new Readouts($("drvRo"), [
-      { id: "lap", label: "Tiempo de vuelta", unit: "min:s" }, { id: "gain", label: "Lo que aporta el ERS", unit: "s/vuelta" }, { id: "vmax", label: "Velocidad punta", unit: "km/h" },
+      { id: "lap", label: "Tiempo de vuelta", unit: "min:s" }, { id: "real", label: "Pole real de referencia", unit: "min:s" }, { id: "gain", label: "Lo que aporta el ERS", unit: "s/vuelta" }, { id: "vmax", label: "Velocidad punta", unit: "km/h" },
       { id: "recK", label: "Recuperado en frenada", unit: "MJ" }, { id: "clip", label: "Recuperado recortando en recta", unit: "MJ" }, { id: "recH", label: "Recuperado por el MGU-H", unit: "MJ", adv: !0 },
       { id: "dep", label: "Desplegado por el MGU-K", unit: "MJ" }, { id: "brk", label: "Energía total de frenada", unit: "MJ", adv: !0 }, { id: "fuel", label: "Combustible", unit: "kg/vuelta", adv: !0 },
       { id: "shifts", label: "Cambios por vuelta", unit: "" }, { id: "tpk", label: "Par máximo en palieres", unit: "kN·m" }, { id: "shock", label: "Golpe del peor cambio", unit: "kN·m" },

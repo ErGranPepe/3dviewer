@@ -9,5 +9,6 @@ P=/home/claude/pages
 rm -f $P/a/lab.*.js
 cp /tmp/lab.min.js $P/a/lab.$H.js
 T=$(cd $P && ls a/three.*.js | head -1)
-sed "s#__LABJS__#a/lab.$H.js#;s#__THREEJS__#$T#" lab.html > $P/lab.html
+D=$(cd $P && ls a/data.*.js | head -1)
+sed "s#__LABJS__#a/lab.$H.js#;s#__THREEJS__#$T#;s#__DATAJS__#$D#" lab.html > $P/lab.html
 echo "lab a/lab.$H.js"

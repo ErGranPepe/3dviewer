@@ -16,8 +16,37 @@ LAB.drivemodel = (() => {
     monaco: { name: "Mónaco", L: 3337, seg: [[180, 0], [60, 40], [400, 0], [120, 180], [100, 60], [150, 0], [60, 18], [80, 0], [40, 9], [100, 0], [40, 22], [60, 30], [650, 0], [40, 25], [40, 30], [300, 0], [60, 45], [150, 0], [40, 40], [40, 40], [60, 0], [30, 30], [30, 30], [150, 0], [40, 18], [60, 0], [40, 20], [220, 0]] },
     silverstone: { name: "Silverstone", L: 5891, seg: [[350, 0], [150, 120], [130, 90], [300, 0], [60, 25], [60, 20], [100, 40], [700, 0], [100, 60], [100, 45], [150, 80], [700, 0], [150, 150], [200, 0], [110, 250], [90, 180], [110, 130], [80, 90], [800, 0], [90, 110], [350, 0], [50, 45], [80, 40], [300, 0]] }
   };
+  /* circuitos reales del juego (línea central del TUM racetrack-database + trazada ideal + vuelta de referencia real):
+     trazada = centro + normal × desplazamiento, remuestreada cada metro; radio con signo por el círculo de tres puntos */
+  const realCache = {};
+  function realTracks() { return (typeof window !== "undefined" && window.REAL_TRACKS) || null }
+  function realGrid(id) {
+    if (realCache[id]) return realCache[id];
+    const t = realTracks()[id], n0 = t.x.length, px = [], py = [];
+    for (let i = 0; i < n0; i++) {
+      const a = (i - 1 + n0) % n0, b = (i + 1) % n0, tx = t.x[b] - t.x[a], ty = t.y[b] - t.y[a], l = Math.hypot(tx, ty) || 1, off = t.rl ? t.rl[i] : 0;
+      px.push(t.x[i] - ty / l * off), py.push(t.y[i] + tx / l * off)
+    }
+    /* longitudes acumuladas y remuestreo a 1 m */
+    const cum = [0];
+    for (let i = 1; i <= n0; i++) cum.push(cum[i - 1] + Math.hypot(px[i % n0] - px[i - 1], py[i % n0] - py[i - 1]));
+    const Lr = cum[n0], n = Math.round(Lr), X = new Float64Array(n), Y = new Float64Array(n);
+    let j = 0;
+    for (let k = 0; k < n; k++) { const s = k * Lr / n; for (; cum[j + 1] < s;) j++; const f = (s - cum[j]) / (cum[j + 1] - cum[j]), a = j % n0, b = (j + 1) % n0; X[k] = px[a] + (px[b] - px[a]) * f, Y[k] = py[a] + (py[b] - py[a]) * f }
+    /* curvatura con puntos a ±9 m y suavizado de ±6 m */
+    const K = new Float64Array(n), h = realCache.h || 12;
+    for (let k = 0; k < n; k++) {
+      const a = (k - h + n) % n, b = (k + h) % n, ax = X[k] - X[a], ay = Y[k] - Y[a], bx = X[b] - X[k], by = Y[b] - Y[k], cr = ax * by - ay * bx, la = Math.hypot(ax, ay), lb = Math.hypot(bx, by), lc = Math.hypot(X[b] - X[a], Y[b] - Y[a]);
+      K[k] = 2 * cr / Math.max(1e-6, la * lb * lc)
+    }
+    const R = new Float32Array(n);
+    const sm = realCache.sm || 8;
+    for (let k = 0; k < n; k++) { let s = 0; for (let q = -sm; q <= sm; q++) s += K[(k + q + n) % n]; const kk = s / (2 * sm + 1); R[k] = Math.abs(kk) < 1 / 2500 ? 0 : 1 / kk }
+    return realCache[id] = { n, R, name: t.name.replace(/^Circuito (Internacional )?(de )?/, ""), real: t, X, Y }
+  }
   /* radio con signo (+ izquierda) alternando sentidos para el diferencial */
   function trackGrid(key) {
+    if (/^\d+$/.test(String(key)) && realTracks() && realTracks()[key]) return realGrid(+key);
     const T = TRACKS[key] || TRACKS.monza, sum = T.seg.reduce((a, s) => a + s[0], 0), k = T.L / sum, n = Math.round(T.L), R = new Float32Array(n);
     let s = 0, dir = 1;
     for (const [l, r] of T.seg) { const m = Math.round(l * k); for (let i = 0; i < m && s < n; i++) R[s++] = r ? r * dir : 0; r && (dir = -dir) }
@@ -41,7 +70,7 @@ LAB.drivemodel = (() => {
   }
   /* ---------- vuelta ---------- */
   function lap(P, opt = {}) {
-    const tg = trackGrid(P.track), n = tg.n, m = P.mass, ClA = P.cla, CdA0 = P.cda, mu = P.mu;
+    const tg = trackGrid(P.track), n = tg.n, m = P.mass, rr = tg.real && tg.real.rho ? tg.real.rho / 1.2 : 1, wf = tg.real && tg.real.cda ? tg.real.cda / 1.58 : 1, ClA = P.cla * rr * (.35 + .65 * wf), CdA0 = P.cda * rr * wf, mu = P.mu;
     const noERS = opt.noERS, laps = 3;
     const vlim = new Float32Array(n);
     for (let i = 0; i < n; i++) {
@@ -228,5 +257,5 @@ LAB.drivemodel = (() => {
     const Lp = lap(P), L0 = lap(P, { noERS: !0 }), D = driveline(P, Lp), Gs = gears(P, Lp, D), Df = diff(P, Lp, D);
     return { Lp, D, Gs, Df, ersGain: L0.lapT - Lp.lapT, lap0: L0.lapT }
   }
-  return { TRACKS, trackGrid, lap, driveline, gears, diff, run, kLimit, ratios, gearFor, lowerIdx, faceOf }
+  return { TRACKS, realTracks, trackGrid, lap, driveline, gears, diff, run, kLimit, ratios, gearFor, lowerIdx, faceOf }
 })();
