@@ -12,9 +12,9 @@
 <meta property="og:url" content="https://ergranpepe.github.io/3dviewer/"><meta property="og:image" content="https://ergranpepe.github.io/3dviewer/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Parrilla Neuronal — Simulador de carreras gratis en el navegador con circuitos reales"><meta name="twitter:description" content="Simulador de carreras de monoplazas gratis y sin descargas: 16 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada."><meta name="twitter:image" content="https://ergranpepe.github.io/3dviewer/og.jpg">
 <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="manifest" href="manifest.webmanifest">
-<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.5b430b39ab.js" as="script"><link rel="preload" href="a/data.af7a7018c4.js" as="script">
+<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.f66c2e33a0.js" as="script"><link rel="preload" href="a/data.af7a7018c4.js" as="script">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "VideoGame", "name": "Parrilla Neuronal", "url": "https://ergranpepe.github.io/3dviewer/", "description": "Simulador de carreras de monoplazas gratis y sin descargas: 16 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada.", "inLanguage": "es", "genre": ["Carreras", "Simulación", "Estrategia"], "gamePlatform": "Navegador web", "applicationCategory": "Game", "operatingSystem": "Cualquiera", "image": "https://ergranpepe.github.io/3dviewer/og.jpg", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}}</script>
-<script>(function(){var B="5b430b39abaf7a";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
+<script>(function(){var B="f66c2e33a0af7a";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
 
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -143,6 +143,11 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .tyinfo span{color:var(--mute)}
 .tyinfo b{font:600 12px var(--mono)}
 .pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.thermo{position:absolute;inset:0;pointer-events:none;z-index:4}.thermo[hidden]{display:none}
+.thleg{position:absolute;left:50%;top:10px;transform:translateX(-50%);pointer-events:auto;cursor:pointer;background:rgba(5,6,8,.72);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:7px 9px;display:grid;grid-template-columns:1fr 1fr;gap:3px 8px;width:210px}
+.thleg b{grid-column:1/-1;font:800 12px var(--display);letter-spacing:.12em;color:#fff}.thleg i{grid-column:1/-1;height:9px;border-radius:2px;background:linear-gradient(90deg,#030008,#290766,#850d8c,#db3330,#ff940a,#ffeb73,#fffff7)}
+.thleg span{font:600 10.5px var(--mono);color:#ddd;white-space:nowrap}.thleg .thhi{text-align:right}.thleg small{grid-column:1/-1;font-size:10px;color:#8b97a4}
+.thl{position:absolute;left:0;top:0;font:700 11px var(--mono);color:#fff;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.25);padding:2px 5px;border-radius:3px;white-space:nowrap}.thl::after{content:'';position:absolute;left:50%;top:100%;width:1px;height:var(--ld,0px);background:rgba(255,255,255,.45)}
 .sxbtn{width:100%;margin:0 0 8px;background:linear-gradient(90deg,rgba(255,107,26,.18),rgba(255,107,26,.04));border-color:rgba(255,107,26,.5);font-weight:700}
 .sxstrip{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 8px}.sxstrip span{font:600 11px/1.2 var(--mono);padding:3px 6px;border-radius:3px;background:var(--panel2);border-left:3px solid var(--yellow)}.sxstrip .bad{border-left-color:var(--red);color:#ffb3b3}.sxstrip .ok{border-left-color:var(--green);color:var(--mute)}
 .sx{position:fixed;inset:0;z-index:60;background:rgba(6,8,10,.72);backdrop-filter:blur(4px);display:grid;place-items:center;padding:14px}.sx[hidden]{display:none}body.sxon{overflow:hidden}
@@ -616,7 +621,7 @@ html.fslock,html.fslock body{overflow:hidden!important}
 <script src="config.js?v=20261121a"></script>
 <script src="a/three.04d0db4a9b.js"></script>
 <script src="a/data.af7a7018c4.js"></script>
-<script src="a/app.5b430b39ab.js"></script>
+<script src="a/app.f66c2e33a0.js"></script>
 <script src="a/site.d8caeb0496.js"></script>
 </body>
 </html>
