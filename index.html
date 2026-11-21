@@ -12,9 +12,9 @@
 <meta property="og:url" content="https://ergranpepe.github.io/3dviewer/"><meta property="og:image" content="https://ergranpepe.github.io/3dviewer/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Parrilla Neuronal — Simulador de carreras gratis en el navegador con circuitos reales"><meta name="twitter:description" content="Simulador de carreras de monoplazas gratis y sin descargas: 16 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada."><meta name="twitter:image" content="https://ergranpepe.github.io/3dviewer/og.jpg">
 <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="manifest" href="manifest.webmanifest">
-<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.55882abb41.js" as="script"><link rel="preload" href="a/data.af7a7018c4.js" as="script">
+<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.8687a7a728.js" as="script"><link rel="preload" href="a/data.af7a7018c4.js" as="script">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "VideoGame", "name": "Parrilla Neuronal", "url": "https://ergranpepe.github.io/3dviewer/", "description": "Simulador de carreras de monoplazas gratis y sin descargas: 16 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada.", "inLanguage": "es", "genre": ["Carreras", "Simulación", "Estrategia"], "gamePlatform": "Navegador web", "applicationCategory": "Game", "operatingSystem": "Cualquiera", "image": "https://ergranpepe.github.io/3dviewer/og.jpg", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}}</script>
-<script>(function(){var B="55882abb41af7a";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
+<script>(function(){var B="8687a7a728af7a";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
 
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -143,6 +143,27 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .tyinfo span{color:var(--mute)}
 .tyinfo b{font:600 12px var(--mono)}
 .pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.sxbtn{width:100%;margin:0 0 8px;background:linear-gradient(90deg,rgba(255,107,26,.18),rgba(255,107,26,.04));border-color:rgba(255,107,26,.5);font-weight:700}
+.sxstrip{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 8px}.sxstrip span{font:600 11px/1.2 var(--mono);padding:3px 6px;border-radius:3px;background:var(--panel2);border-left:3px solid var(--yellow)}.sxstrip .bad{border-left-color:var(--red);color:#ffb3b3}.sxstrip .ok{border-left-color:var(--green);color:var(--mute)}
+.sx{position:fixed;inset:0;z-index:60;background:rgba(6,8,10,.72);backdrop-filter:blur(4px);display:grid;place-items:center;padding:14px}.sx[hidden]{display:none}body.sxon{overflow:hidden}
+.sxp{width:min(1560px,100%);height:min(940px,100%);background:var(--bg);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.sxh{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}.sxh b{display:block;font:800 20px/1 var(--display);letter-spacing:.06em;text-transform:uppercase}.sxh small{display:block;color:var(--mute);font:500 12px/1.4 var(--mono);margin-top:4px}
+.sxtabs{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}.sxtabs button{flex:none;font:700 12px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:7px 10px;cursor:pointer}.sxtabs button.on{background:var(--accent);color:#111;border-color:var(--accent)}
+.sxb{flex:1;display:grid;grid-template-columns:330px 1fr;min-height:0}.sxl{border-right:1px solid var(--line);padding:12px;overflow:auto;display:flex;flex-direction:column;gap:8px}.sxr{overflow:auto;padding:12px}
+.sxl h4,.sxfi h4{margin:8px 0 2px;font:700 12px var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.sxcar{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:start}.sxcar svg{width:150px;height:auto}.sxcar svg [data-g]{cursor:pointer;stroke:#0c0f12;stroke-width:1.2;transition:fill .3s}.sxcar svg [data-g]:hover{stroke:#fff}.sxcm{flex-direction:column}
+.sxsel{font-size:12.5px;color:var(--mute)}.sxsel b{color:var(--ink);font:700 14px var(--display);text-transform:uppercase;letter-spacing:.04em}.sxsel p{margin:4px 0 0}
+#sxLat{height:110px}
+.sxlog{display:flex;flex-direction:column;gap:4px}.sxe{font-size:12px;line-height:1.35;padding:5px 7px;border-radius:4px;background:var(--panel2);border-left:3px solid var(--faint)}.sxe span{font:700 10px var(--mono);color:var(--faint);margin-right:6px}.sxe.warn{border-left-color:var(--yellow)}.sxe.bad{border-left-color:var(--red)}
+.sxgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.sxt{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:8px 9px 6px;cursor:pointer;min-width:0}.sxt:hover{border-color:#3a4553}.sxt[data-state=warn]{border-color:rgba(255,210,63,.55)}.sxt[data-state=bad]{border-color:var(--red);box-shadow:0 0 0 1px rgba(255,59,59,.35) inset}
+.sxn{display:block;color:var(--mute);font-size:11.5px;line-height:1.2;min-height:28px}.sxt b{display:block;font:700 22px/1.1 var(--display)}.sxt b small{font:500 11px var(--mono);color:var(--faint);margin-left:4px}
+.sxbar{height:4px;background:var(--panel2);border-radius:2px;overflow:hidden;margin:5px 0}.sxbar i{display:block;height:100%;width:0;transition:width .25s}
+.sxsp{display:block;width:100%;height:30px;background:none;border:0;border-radius:0}
+.sxhelp{grid-column:1/-1;background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:9px 11px;font-size:13px;color:var(--ink)}
+.sxfi table{width:100%;border-collapse:collapse;font-size:12.5px}.sxfi th{text-align:left;color:var(--faint);font:600 11px var(--mono);padding:4px;border-bottom:1px solid var(--line)}.sxfi td{padding:5px 4px;border-bottom:1px solid var(--line)}.sxfi td .sxbar{width:120px;display:inline-block;vertical-align:middle;margin:0 6px 0 0}.sxfi tr.bad td{color:var(--red)}
+.sxgears{display:flex;gap:6px;align-items:flex-end;height:120px;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:7px}.sxgears div{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px}.sxgears i{display:block;width:70%;border-radius:3px 3px 0 0}.sxgears b{font:700 11px var(--mono);color:var(--mute)}
+@media (max-width:900px){.sx{padding:0}.sxp{border-radius:0;height:100%}.sxh{padding:9px 12px}.sxh b{font-size:16px}.sxh small{font-size:11px}.sxb{grid-template-columns:1fr;overflow:auto}.sxl{order:2;border-right:0;border-top:1px solid var(--line);overflow:visible}.sxr{overflow:visible}.sxgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.sxt b{font-size:19px}.sxcar{grid-template-columns:120px 1fr}.sxcar svg{width:120px}}
 .pill{font:700 11px/1 var(--display);letter-spacing:.08em;text-transform:uppercase;padding:4px 6px;border-radius:3px;background:var(--panel2);color:var(--faint)}
 .pill.on{background:var(--green);color:#03140a}.pill.warn{background:var(--yellow);color:#1a1400}.pill.bad{background:var(--red);color:#fff}.pill.ers{background:var(--blue);color:#fff}
 .ratings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px 10px;margin-top:10px}
@@ -594,7 +615,7 @@ html.fslock,html.fslock body{overflow:hidden!important}
 <script src="config.js?v=20261121a"></script>
 <script src="a/three.04d0db4a9b.js"></script>
 <script src="a/data.af7a7018c4.js"></script>
-<script src="a/app.55882abb41.js"></script>
+<script src="a/app.8687a7a728.js"></script>
 <script src="a/site.d8caeb0496.js"></script>
 </body>
 </html>
