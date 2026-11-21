@@ -1475,7 +1475,7 @@
   c.clip = 0;
   if (CAR.reg === "2026" && !noErs && !c.ersOn && thr > .9 && c.hLeft > 0 && w.vsc <= 0) {
    const M = c.mgr && c.mgr.ers, top = M === "harv" ? .98 : .9;
-   (M === "harv" ? u0 > 40 : u0 * 3.6 > Math.max(282, c.vDep + 45) && c.batt < (c.socT != null ? c.socT : .5) + .05) && c.batt < top && (c.clip = Math.min(25e4, Pice * .62) * clamp((top - c.batt) * 6, .3, 1), Pice -= c.clip)
+   (M === "harv" ? u0 > 40 : u0 * 3.6 > 265 && c.batt < (c.socT != null ? c.socT : .5) - .06) && c.batt < top && (c.clip = Math.min(25e4, Pice * .62) * clamp((top - c.batt) * 6, .3, 1), Pice -= c.clip)
   }
   /* 2026: a gas parcial el térmico trabaja más de lo que pide el piloto y el MGU-K se queda la diferencia */
   c.partH = 0;
@@ -1628,10 +1628,10 @@
     8,5 MJ de recuperación por vuelta, sin MGU-H, aerodinámica activa en recta para todos y modo adelantamiento) ===== */
  function regsTable() {
   return {
-   "2025": { mass: 798, cla: 5.5, cda: 1.6, drsCd: .75, LD: 3.93, pIce: 431e3, pK: 12e4, pH: 6e4, bat: 4e6, dLap: 4e6, hLap: 2e6, gripF: .98, gripR: 1.05 },
+   "2025": { a: 1.98, b: 1.62, wb: 3.6, Iz: 1050, tf: 1.6, trr: 1.55, mass: 798, cla: 5.5, cda: 1.6, drsCd: .75, LD: 3.93, pIce: 431e3, pK: 12e4, pH: 6e4, bat: 4e6, dLap: 4e6, hLap: 2e6, gripF: .98, gripR: 1.05 },
    /* 2026: térmico ~400 kW (−28 %), 350 kW eléctricos, ~30 % menos carga, menos resistencia y aún menos en modo recta,
       neumáticos más estrechos (−25/−30 mm) y 30 kg menos */
-   "2026": { mass: 768, cla: 5.5 * .84, cda: 1.6 * .9, drsCd: .7, LD: 3.93 * .93, pIce: 322e3, pK: 35e4, pH: 0, bat: 4e6, dLap: 1e12, hLap: 8.5e6, gripF: .98 * .99, gripR: 1.05 * .99 }
+   "2026": { a: 1.87, b: 1.53, wb: 3.4, Iz: 960, tf: 1.55, trr: 1.5, mass: 768, cla: 5.5 * .8, cda: 1.6 * .9, drsCd: .55, LD: 3.93 * .93, pIce: 322e3, pK: 35e4, pH: 0, bat: 4e6, dLap: 1e12, hLap: 8.5e6, gripF: .98 * .99, gripR: 1.05 * .99 }
   }
  }
 
@@ -1645,14 +1645,16 @@
     equilibrar la batería (cada julio rinde más a baja velocidad: a = P / (m·v)) y recarga por encima; el piloto pide
     más con el botón de ERS (ataque), el modo adelantamiento sube el umbral y el ingeniero puede forzar carga o ataque */
  function ecu2026(w, c, u0, dt) {
-  const M = c.mgr && c.mgr.ers, kmh = u0 * 3.6, q = !w.started, L = w.track.L;
-  c.vDep == null && (c.vDep = (q ? w.track.vDepQ : w.track.vDepR) || 230);
-  /* objetivo de carga: en carrera, constante; en una vuelta lanzada, de llena en la línea a vacía al final */
-  const lapF = clamp((c.prog || 0) / L - Math.floor(Math.max(0, c.prog || 0) / L), 0, 1),
-   tgt = q ? 1 - .97 * lapF : .5 - .15 * ((c.attack != null ? c.attack : .5) - .5);
-  c.socT = tgt;
-  M !== "harv" && (c.vDep = clamp(c.vDep + (c.batt - tgt) * (q ? 140 : 30) * dt, 90, 350));
-  let want = kmh < c.vDep + (c.ers && c.player ? 30 : 0) + (c.mom ? 35 : 0);
+  /* seguimiento de una curva de carga: en carrera, mantener ~50 % (más o menos según la agresividad); en una vuelta
+     lanzada, de llena en la línea a vacía al final. Se despliega cuando la batería va por encima de la curva, con un
+     margen que favorece las velocidades bajas (cada julio vale más cuanto más despacio vas: a = P / (m·v)) */
+  const M = c.mgr && c.mgr.ers, kmh = u0 * 3.6, q = !w.started, L = w.track.L,
+   lapF = clamp((c.prog || 0) / L - Math.floor(Math.max(0, c.prog || 0) / L), 0, 1),
+   tgt = q ? .97 - .95 * lapF : .5 - .15 * ((c.attack != null ? c.attack : .5) - .5),
+   bias = (c.ers && c.player ? .06 : 0) + (c.mom ? .1 : 0),
+   thr = tgt - .04 + .07 * (kmh - 200) / 150 - bias;
+  c.socT = tgt, c.vDep = clamp(200 + (c.batt - tgt + .04 + bias) / .07 * 150, 80, 360);
+  let want = c.batt > thr;
   return q && (c.prog || 0) < 0 && (want = !1), M === "harv" && (want = !1), M === "dep" && (want = !0), c.batt < .02 && (want = !1), want
  }
 
@@ -2164,7 +2166,7 @@
      c: tc,
      from: 0,
      to: null
-    }], c.batt = 1, c.hold = !0, c.brakeT = 280, c.engT = 88, c.muEst = 1.35, c.cpT = [], c.cp = -1, c.trace = new Float32Array(Math.ceil(L / 20) + 1), c.push = pushBase(w, c),
+    }], c.batt = 1, c.hold = !0, c.brakeT = 280, c.engT = 88, c.muEst = 1.35, c.cpT = [], c.cp = -1, c.trace = new Float32Array(Math.ceil(L / 20) + 1), c.tr2 = null, c.push = pushBase(w, c),
     c.attack = clamp(.35 + (c.drv.craft - 80) / 40, .2, .9), c.tc = e.player ? !!e.tc : !0, c.abs = e.player ? !!e.abs : !0, e.puAge != null && (c.puAge = e.puAge), newSys(w, c), c
   }), w.order = w.cars.slice(), w.all = w.cars.slice()
  }
@@ -2209,7 +2211,7 @@
       .ctrl(w, c) : think(w, c), catchSlide(c), mistakes(w, c, dt)), director(w, c, dt), !c.player && w.reflex !== !1 && reflex(w, c), !w.started || c.react && w.t < c.react ? c
      .hold = !0 : c.hold = !1, c.badStart && w.t < c.badStart && (c.thr = Math.min(c.thr, .45)), c.finished && (c.thr = Math.min(c.thr, .35), c.ers = !1), drsLogic(w, c), physics(
       w, c, dt), locate(tr, c), walls(w, c), timing(w, c), trackLimits(w, c), c.justPit && w.t - c.justPitT > 12 && (c.justPit = !1), c.prog > c.maxProg && (c.maxProg = c.prog), c
-     .trace && c.prog >= 0 && (c.trace[Math.floor(c.s / 20)] = c.u), w.started && !c.finished && !c.hold) {
+     .trace && c.prog >= 0 && (c.trace[Math.floor(c.s / 20)] = c.u, traceMore(c)), w.started && !c.finished && !c.hold) {
      const lost = c.maxProg - c.prog > 60;
      c.u < 3 || lost ? c.stuckT = (c.stuckT || 0) + dt : c.stuckT = 0, c.stuckT > 6 && (c.resets = (c.resets || 0) + 1, c.stuckT = 0, c.resets >= 5 ? retire(w, c,
       "Atascado fuera de pista", "crash") : (place(w, c, c.maxProg, clamp(c.lat, -(HW - 2), HW - 2), 6), c.dmg.susp = Math.min(1, c.dmg.susp + .05), evt(w, c.code +
@@ -2782,6 +2784,22 @@
     .02 * dt) : (w.wetLine = Math.max(0, w.wetLine - .012 * dt), w.wetOff = Math.max(0, w.wetOff - .0055 * dt)), w.wet = w.wetLine
  }
 
+ /* telemetría de cada 20 m de la vuelta: marcha, batería, acelerador, freno, recorte, potencia del MGU-K y g lateral
+    (para compararla con la vuelta real de referencia y pasarla al laboratorio) */
+ function traceMore(c) {
+  const n = c.trace.length;
+  c.tr2 || (c.tr2 = { g: new Uint8Array(n), e: new Float32Array(n), t: new Float32Array(n), k: new Float32Array(n), x: new Float32Array(n), p: new Float32Array(n), ay: new Float32Array(n) });
+  const b = Math.floor(c.s / 20), T = c.tr2;
+  T.g[b] = c.gear + 1, T.e[b] = c.batt, T.t[b] = c.thr, T.k[b] = c.brk, T.x[b] = (c.clip || 0) / 1e3, T.p[b] = ((c.ersOn ? c.pKW || 0 : 0) - (c.pHarvW || 0) - (c.clip || 0) - (c.partH || 0)) / 1e3, T.ay[b] = c.u * (c.r || 0) / 9.81
+ }
+
+ /* en clasificación (hasta 2025) el DRS se abre libremente en sus zonas, sin necesidad de ir a menos de 1 s */
+ function quaDRS(tr, c) {
+  let z = !1;
+  for (const d of tr.drs) (d.a < d.b ? c.s >= d.a && c.s <= d.b : c.s >= d.a || c.s <= d.b) && (z = !0);
+  c.drs = z && c.thr > .85 && c.brk < .05
+ }
+
  function drsLogic(w, c) {
   if (CAR.reg === "2026") return activeAero(w, c);
   const tr = w.track,
@@ -3081,7 +3099,7 @@
      const lt = w.t - c.lapT0;
      c.lastLap = lt, c.lapT0 = w.t, c.laps = lapIdx, c.curSec[2] = w.t - c.secT0, c.sectors = c.curSec.slice(), c.secT0 = w.t;
      for (let q = 0; q < 3; q++) c.sectors[q] > 0 && c.sectors[q] < c.bestSec[q] && (c.bestSec[q] = c.sectors[q]);
-     lt < c.bestLap && !c.inPitLap && (c.bestLap = lt, c.trace && (c.bestTrace = Float32Array.from(c.trace))), c.trace && (c.lastTrace = Float32Array.from(c.trace)), lt < w
+     lt < c.bestLap && !c.inPitLap && (c.bestLap = lt, c.trace && (c.bestTrace = Float32Array.from(c.trace), c.bestTr2 = c.tr2 && { g: Uint8Array.from(c.tr2.g), e: Float32Array.from(c.tr2.e), t: Float32Array.from(c.tr2.t), k: Float32Array.from(c.tr2.k), x: Float32Array.from(c.tr2.x), p: Float32Array.from(c.tr2.p), ay: Float32Array.from(c.tr2.ay) })), c.trace && (c.lastTrace = Float32Array.from(c.trace)), lt < w
       .fastest.t && !c.inPitLap && (w.fastest = {
        t: lt,
        car: c
@@ -3371,7 +3389,7 @@
     const vt = targetSpeed(w, c, .86 + .12 * c.push + .07);
     c.u > vt && (c.thr = 0, c.brk = Math.max(c.brk, clamp((c.u - vt) / 8, .3, 1)))
    }
-   if (CAR.reg === "2026" && (w.order || (w.order = [c]), activeAero(w, c)), physics(w, c, DT), c.sys && sysStep(w, c, DT), locate(track, c), o.trace && steps % 6 === 0 && o.trace.push([Math.round(c.s), +(c.u * 3.6).toFixed(1), +c.batt.toFixed(3), Math.round((c.clip || 0) / 1e3), c.ersOn ? 1 : 0, c.drs ? 1 : 0, c.gear, +c.thr.toFixed(2)]), Math.abs(c.lat) > WALL || Math.abs(c.beta) > 1) {
+   if (CAR.reg === "2026" ? (w.order || (w.order = [c]), activeAero(w, c)) : quaDRS(track, c), physics(w, c, DT), c.sys && sysStep(w, c, DT), locate(track, c), o.trace && steps % 6 === 0 && o.trace.push([Math.round(c.s), +(c.u * 3.6).toFixed(1), +c.batt.toFixed(3), Math.round((c.clip || 0) / 1e3), c.ersOn ? 1 : 0, c.drs ? 1 : 0, c.gear, +c.thr.toFixed(2)]), Math.abs(c.lat) > WALL || Math.abs(c.beta) > 1) {
     time = 1 / 0;
     break
    }
@@ -15671,6 +15689,14 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
   THERM.el.hidden = !on, thermLegend()
  };
  function thermLegend() { if (!THERM.el) return; THERM.el.querySelector(".thlo").textContent = "ambiente", THERM.el.querySelector(".thhi").textContent = THERM.log ? "1 000 °C (log.)" : "140 °C" }
+ /* coches de 2026: batalla de 3,4 m (antes 3,6), 1,9 m de ancho (antes 2,0) y neumáticos más estrechos */
+ function regScale(o) {
+  const r26 = root.Sim && root.Sim.CAR && root.Sim.CAR.reg === "2026", k = r26 ? 1 : 0;
+  if (o.regK === k || !o.lod) return;
+  o.regK = k, o.lod.scale.set(r26 ? 3.4 / 3.6 : 1, 1, r26 ? .95 : 1);
+  for (const wh of o.wheels || []) wh.scale.z = r26 ? .93 : 1
+ }
+
  function updateCar(o, c, dt, w) {
   const hgt = zCar(c);
   o.root.position.set(c.x, hgt, c.y);
@@ -15734,7 +15760,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
     const bT = c.sys ? k < 2 ? c.sys.TbF : c.sys.TbR : c.brakeT, hot = bT > 650 ? clamp((bT - 650) / 450, 0, 1) : 0;
     wh.disc.material.opacity = hot * .95, hot > 0 && wh.disc.material.color.setRGB(1, .3 + .45 * (1 - hot), .05 + .2 * (1 - hot)), wh.visible = !(c.tire && c.tire.punct === (k <
      2 ? 0 : 1) && k % 2 === 0 && Math.floor(performance.now() / 120) % 2)
-   }), THERM.on && thermCar(o, c, w), o.isNew) {
+   }), THERM.on && thermCar(o, c, w), regScale(o), o.isNew) {
    for (const f of o.flaps) f.rotation.z = c.drs ? .52 : 0;
    for (const f of o.fwflaps) f.rotation.z = c.drs ? .3 : 0;
    const hide = (cam.eff === "helmet" || cam.eff === "onboard") && cam.focusId === c.id;
@@ -18896,8 +18922,42 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
    }
    g.stroke()
   };
+  /* vuelta real de referencia (telemetría de la pole) en blanco discontinuo */
+  const ref = tr.ref;
+  if (ref && ref.f) {
+   g.strokeStyle = "rgba(255,255,255,.72)", g.lineWidth = 1.2 * dpr, g.setLineDash([4 * dpr, 3 * dpr]), g.beginPath();
+   for (let i = 0; i < ref.f.length; i++) { const x = X(ref.f[i] * L), y = Y(ref.v[i] / 3.6); i ? g.lineTo(x, y) : g.moveTo(x, y) }
+   g.stroke(), g.setLineDash([])
+  }
   line(c.bestTrace, "#b45cff"), line(c.trace, "#ff6b1a", c.s), g.fillStyle = "#fff", g.beginPath(), g.arc(X(c.s), Y(c.u), 3 * dpr, 0, 6.2832), g.fill(), $("traceSub")
-   .textContent = (c.code || "") + " · " + Math.round(c.u * 3.6) + " km/h"
+   .textContent = (c.code || "") + " · " + Math.round(c.u * 3.6) + " km/h";
+  traceCorners(w, c)
+ }
+
+ /* curva a curva: velocidad mínima real de la pole frente a la mejor vuelta del coche enfocado, y paso al laboratorio */
+ let tcKey = "";
+ function traceCorners(w, c) {
+  const el = $("traceCorners"), tr = w.track, ref = tr.ref, src = c.bestTrace || c.lastTrace;
+  if (!el) return;
+  const key = c.code + "|" + (c.bestLap || 0) + "|" + (src ? 1 : 0) + "|" + tr.key;
+  if (key === tcKey) return;
+  if (tcKey = key, !ref || !ref.f || !tr.corners || !src) return void(el.innerHTML = ref ? '<span class="note">Las velocidades por curva frente a la pole real salen al completar una vuelta.</span>' : "");
+  const L = tr.L, nb = src.length, win = .012, rows = [];
+  for (const [num, fr] of tr.corners) {
+   let rv = 1e9, sv = 1e9;
+   for (let i = 0; i < ref.f.length; i++) { let d = Math.abs(ref.f[i] - fr); d = Math.min(d, 1 - d), d < win && (rv = Math.min(rv, ref.v[i])) }
+   const b0 = Math.floor((fr - win) * L / 20), b1 = Math.ceil((fr + win) * L / 20);
+   for (let b = b0; b <= b1; b++) { const v = src[(b % nb + nb) % nb]; v > 0 && (sv = Math.min(sv, v * 3.6)) }
+   rv < 1e9 && sv < 1e9 && rows.push([num, sv, rv])
+  }
+  let top = 0; for (const v of src) top = Math.max(top, v * 3.6);
+  const rtop = Math.max(...ref.v), dl = c.bestLap && tr.pole ? (c.bestLap / tr.pole.t - 1) * 100 : null;
+  el.innerHTML = '<div class="tch"><b>Frente a la referencia real</b> ' + (tr.pole ? esc(tr.pole.drv) + " " + tr.pole.year + " " + S.fmtLap(tr.pole.t) : "") + (dl != null ? ' · mejor vuelta <b class="' + (dl > 0 ? "neg" : "pos") + '">' + (dl > 0 ? "+" : "") + dl.toFixed(1) + " %</b>" : "") + ' · punta <b>' + Math.round(top) + "</b>/" + Math.round(rtop) + " km/h" + (S.CAR.reg === "2026" ? ' <span class="note">(reglamento 2026: se espera un 3–6 % más lento)</span>' : "") + "</div>" + rows.map(([n, sv, rv]) => { const d = sv - rv; return '<span class="tc ' + (d < -8 ? "neg" : d > 8 ? "pos" : "") + '" title="Curva ' + n + ": mínimo " + Math.round(sv) + " km/h en el simulador, " + Math.round(rv) + ' km/h en la vuelta real">T' + n + " <b>" + Math.round(sv) + "</b><i>" + Math.round(rv) + "</i></span>" }).join("");
+  /* la mejor vuelta viaja al laboratorio (pestaña Transmisión y ERS) */
+  if (c.bestTrace && c.bestTr2) try {
+   const r = a => Array.from(a, v => Math.round(v * 100) / 100);
+   localStorage.setItem("pn3-simlap", JSON.stringify({ key: tr.key, reg: S.CAR.reg, code: c.code, name: c.name || c.code, lap: c.bestLap, d: 20, v: r(Array.from(c.bestTrace, v => v * 3.6)), g: Array.from(c.bestTr2.g), e: r(c.bestTr2.e), t: r(c.bestTr2.t), k: r(c.bestTr2.k), x: r(c.bestTr2.x), p: r(c.bestTr2.p), ay: r(c.bestTr2.ay), when: Date.now() }))
+  } catch (e) {}
  }
  const IN_LBL = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "Vel", "Deriva", "Giro", "C25", "C60", "C110", "C170", "Lat", "Traz20", "Traz60", "Vref1", "Vref2", "Vref3",
    "Agarre", "Del d", "Del lat", "Del Δv", "Lado I", "Lado D", "Det d", "Det lat", "Bat", "DRS", "Ritmo", "Ataque", "Intención", "Límite"

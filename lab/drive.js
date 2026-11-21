@@ -81,6 +81,8 @@ LAB.drive = (() => {
     const lt = L.lapT, mm = Math.floor(lt / 60);
     const TG = DM().trackGrid(p.track), fl = t => `${Math.floor(t / 60)}:${(t - Math.floor(t / 60) * 60).toFixed(2).padStart(5, "0")}`;
     ro.set("real", TG.real ? `${fl(TG.real.pole.t)} ${TG.real.pole.drv} ${TG.real.pole.year}` : "—");
+    const SL = simLap();
+    ro.set("simlap", SL && TG.real && SL.key === TG.real.key ? `${fl(SL.lap)} ${SL.code} (${SL.reg})` : "corre aquí en el simulador");
     ro.set("lap", `${mm}:${(lt - mm * 60).toFixed(2).padStart(5, "0")}`), ro.set("gain", res.ersGain, 2), ro.set("vmax", L.vmax * 3.6, 0);
     ro.set("recK", (E.recK - E.clip) / 1e6, 2), ro.set("clip", E.clip / 1e6, 2), ro.set("recH", E.recH / 1e6, 2), ro.set("dep", E.dep / 1e6, 2), ro.set("brk", E.brakeE / 1e6, 1);
     ro.set("shifts", E.shifts, 0), ro.set("fuel", E.fuel, 2), ro.set("tpk", D.peak / 1e3, 2, D.peak > 9e3 ? "bad" : D.peak > 6e3 ? "warn" : "ok"), ro.set("shock", worst ? worst.shock / 1e3 : NaN, 2, worst && worst.shock > 4e3 ? "bad" : worst && worst.shock > 2.5e3 ? "warn" : "ok");
@@ -92,12 +94,16 @@ LAB.drive = (() => {
     const L = res.Lp, n = L.n, x = new Float32Array(n), sp = new Float32Array(n), gr = new Float32Array(n), rpm = new Float32Array(n), soc = new Float32Array(n), pk = new Float32Array(n), pi = new Float32Array(n), ph = new Float32Array(n);
     for (let i = 0; i < n; i++) x[i] = i / 1e3, sp[i] = L.v[i] * 3.6, gr[i] = (L.gear[i] + 1) * 40, rpm[i] = L.rpm[i], soc[i] = L.soc[i] / 1e6, pk[i] = L.Pk[i] / 1e3, pi[i] = L.Pice[i] / 1e3, ph[i] = L.Ph[i] / 1e3;
     const cur = play.d != null ? [{ x: play.d / 1e3, col: "rgba(255,255,255,.55)" }] : [];
-    const G = DM().trackGrid(res.p.track), ref = G.real && G.real.ref, ser = [{ x, y: sp, n, col: "#ff6b1a", label: "Simulada km/h" }, { x, y: gr, n, col: "#3d8bff", label: "Marcha ×40" }];
+    const G = DM().trackGrid(res.p.track), ref = G.real && G.real.ref, ser = [{ x, y: sp, n, col: "#ff6b1a", label: "Modelo km/h" }, { x, y: gr, n, col: "#3d8bff", label: "Marcha ×40" }];
     if (ref) { const m = ref.f.length, rx = new Float32Array(m), rv = new Float32Array(m); for (let i = 0; i < m; i++) rx[i] = ref.f[i] * n / 1e3, rv[i] = ref.v[i]; ser.splice(1, 0, { x: rx, y: rv, n: m, col: "rgba(255,255,255,.55)", label: `Real ${G.real.pole.year} (${G.real.pole.drv})` }) }
+    /* la mejor vuelta hecha en el simulador en este mismo circuito (se guarda al terminar cada vuelta rápida) */
+    const SL = simLap();
+    if (SL && G.real && SL.key === G.real.key) { const m = SL.v.length, sx = Float32Array.from(SL.v, (_, i) => i * SL.d / 1e3), sv = Float32Array.from(SL.v); ser.push({ x: sx, y: sv, n: m, col: "#b45cff", label: `Simulador ${SL.code} ${SL.reg}` }) }
     plots.sp.draw(ser, { title: `Vuelta en ${L.name}`, xlabel: "km", vlines: cur });
     plots.rpm.draw([{ x, y: rpm, n, col: "#ffd23f", label: "Régimen rpm" }], { title: "Motor", xlabel: "km", vlines: cur });
     plots.ers.draw([{ x, y: pi, n, col: "#8b97a4", label: "Térmico kW" }, { x, y: pk, n, col: "#7fe3ff", label: "MGU-K kW (− carga)" }, ...(res.p.era !== "2026" ? [{ x, y: ph, n, col: "#b45cff", label: "MGU-H kW" }] : [])], { title: "Potencias", xlabel: "km", vlines: cur });
-    plots.soc.draw([{ x, y: soc, n, col: "#2fd16c", label: "Batería MJ", fill: "rgba(47,209,108,.12)" }], { title: "Estado de carga", xlabel: "km", vlines: cur, hlines: [{ y: res.p.socwin, col: "rgba(255,255,255,.3)", label: "ventana" }] });
+    const SL2 = simLap(), simOk = SL2 && G.real && SL2.key === G.real.key, socS = simOk ? [{ x: Float32Array.from(SL2.e, (_, i) => i * SL2.d / 1e3), y: Float32Array.from(SL2.e, e => e * 4), n: SL2.e.length, col: "#b45cff", label: "Simulador MJ" }] : [];
+    plots.soc.draw([{ x, y: soc, n, col: "#2fd16c", label: "Batería MJ", fill: "rgba(47,209,108,.12)" }, ...socS], { title: "Estado de carga", xlabel: "km", vlines: cur, hlines: [{ y: res.p.socwin, col: "rgba(255,255,255,.3)", label: "ventana" }] });
     const D = res.D, m = D.n, tt = new Float32Array(m), tq = new Float32Array(m);
     for (let q = 0; q < m; q++) tt[q] = q * D.dt, tq[q] = D.Tds[q] / 1e3;
     plots.tds.draw([{ x: tt, y: tq, n: m, col: "#ff3b3b", label: "Par en palieres kN·m" }], { title: "Línea motriz en la vuelta", xlabel: "s", vlines: play.t != null ? [{ x: play.t, col: "rgba(255,255,255,.55)" }] : [] });
@@ -113,6 +119,7 @@ LAB.drive = (() => {
     plots.diff.draw([{ x, y: tl, n, col: "#ffd23f", label: "Rueda izq. kN·m" }, { x, y: tr, n, col: "#3d8bff", label: "Rueda dcha. kN·m" }], { title: "Reparto del diferencial", xlabel: "km", vlines: cur });
     plots.mz.draw([{ x, y: mz, n, col: "#b45cff", label: "Momento de guiñada kN·m (+ izq.)" }], { title: "Guiñada del diferencial", xlabel: "km", vlines: cur })
   }
+  function simLap() { try { return JSON.parse(localStorage.getItem("pn3-simlap") || "null") } catch (e) { return null } }
   function gearTable() {
     const G = res.Gs, mxB = Math.max(res.p.sbLim * 1.6, ...G.map(g => g.sb)), mxH = Math.max(res.p.shLim * 1.6, ...G.map(g => g.sh));
     $("drvGears").innerHTML = `<b>Engranajes: tensión máxima en la vuelta y vida estimada</b><div class="gh"><span>Marcha</span><span>Dientes</span><span>Tiempo</span><span>Flexión en la raíz (Lewis)</span><span>Contacto (Hertz)</span><span>Vida</span></div>` + G.map(g => {
@@ -183,7 +190,7 @@ LAB.drive = (() => {
     const pre = $("drvPre");
     for (const k in PRESETS) pre.appendChild(el("button", { class: "btn", text: PRESETS[k].name, onclick: () => { prm.set(Object.fromEntries(DEF.flatMap(g => g.items.map(i => [i.id, i.v]))), !0), lastEra = PRESETS[k].v.era || "2026", prm.set(PRESETS[k].v) } }));
     ro = new Readouts($("drvRo"), [
-      { id: "lap", label: "Tiempo de vuelta", unit: "min:s" }, { id: "real", label: "Pole real de referencia", unit: "min:s" }, { id: "gain", label: "Lo que aporta el ERS", unit: "s/vuelta" }, { id: "vmax", label: "Velocidad punta", unit: "km/h" },
+      { id: "lap", label: "Tiempo de vuelta", unit: "min:s" }, { id: "real", label: "Pole real de referencia", unit: "min:s" }, { id: "simlap", label: "Tu vuelta en el simulador", unit: "" }, { id: "gain", label: "Lo que aporta el ERS", unit: "s/vuelta" }, { id: "vmax", label: "Velocidad punta", unit: "km/h" },
       { id: "recK", label: "Recuperado en frenada", unit: "MJ" }, { id: "clip", label: "Recuperado recortando en recta", unit: "MJ" }, { id: "recH", label: "Recuperado por el MGU-H", unit: "MJ", adv: !0 },
       { id: "dep", label: "Desplegado por el MGU-K", unit: "MJ" }, { id: "brk", label: "Energía total de frenada", unit: "MJ", adv: !0 }, { id: "fuel", label: "Combustible", unit: "kg/vuelta", adv: !0 },
       { id: "shifts", label: "Cambios por vuelta", unit: "" }, { id: "tpk", label: "Par máximo en palieres", unit: "kN·m" }, { id: "shock", label: "Golpe del peor cambio", unit: "kN·m" },
@@ -202,6 +209,8 @@ LAB.drive = (() => {
     };
     document.querySelectorAll("[data-dv]").forEach(b => b.onclick = () => $("drv3d").view && $("drv3d").view(b.dataset.dv));
     window.addEventListener("labmode", () => setTimeout(() => { for (const p of Object.values(plots)) p.fit(); res && drawPlots() }, 50));
+    /* si en otra pestaña terminas una vuelta rápida en el simulador, aparece aquí al momento */
+    window.addEventListener("storage", e => { e.key === "pn3-simlap" && res && compute() });
     compute();
     use3d = !!(LAB.drive3d && LAB.drive3d.init($("drv3d"), geo()));
     requestAnimationFrame(loop)
