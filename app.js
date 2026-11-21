@@ -1458,6 +1458,7 @@
   const noErs = c.fail && c.fail.ers;
   c.mgr && c.mgr.ers && (c.mgr.ers === "harv" ? c.ers = !1 : c.mgr.ers === "dep" && thr > .6 && u0 > 25 && (c.ers = !0)), c.ers && !noErs && c.batt > .003 && c.dLeft > 0 && thr >
    .5 && w.vsc <= 0 && !(w.sc && w.sc.on) && (Pk = CAR.pK * thr, c.ersOn = !0);
+  c.sys && (Pice *= c.sys.pMul, Pk *= c.sys.kMul);
   const windF = w.windX * Math.cos(c.h) + w.windY * Math.sin(c.h),
    bk = tr.bank ? tr.bank[c.idx] : 0,
    slope = tr.slope[c.idx];
@@ -1552,6 +1553,7 @@
      .hypot(Fxr, Fyr) / capR)
   }
   c.u = u, c.v = v, c.r = r, c.vf = u, c.vl = v, c.fyr0 = fyr0, c.fyf0 = fyf0;
+  c.pIceW = Pice * pFrac, c.pBrkW = eBrake / dt, c.pHarvW = eHarv / dt;
   const chh = Math.cos(c.h),
    shh = Math.sin(c.h);
   c.vx = u * chh - v * shh, c.vy = u * shh + v * chh, c.beta = Math.atan2(v, Math.max(u, 1)), c.load = util, c.lockF = lockF, c.lockR = lockR, c.spinR = spinR, u > c.topSpeed && (
@@ -1588,8 +1590,8 @@
   const Tavg = (t.tf + t.tr) / 2,
    slideP = (ePf + ePr) / dt;
   Tavg < cm.topt - 20 && slideP > 25e3 ? t.grain = Math.min(1, t.grain + dt * .025) : Tavg > cm.topt - 10 && (t.grain = Math.max(0, t.grain - dt * .008)), Math.max(t.tf, t.tr) >
-   cm.topt + 28 && (t.blister = Math.min(1, t.blister + dt * .004 * (Math.max(t.tf, t.tr) - cm.topt - 28) / 10)), (lockF || lockR) && u0 > 8 && (t.flat += dt * u0 / 160), c
-   .brakeT += (eBrake - (c.brakeT - air) * (40 + 2.4 * u0) * (1 - .25 * c.dirty) * dt) / 6e3, c.engT += dt * (Pice / CAR.pIce * 1.6 - (c.engT - air) * (.004 + 16e-5 * u0) * (1 +
+   cm.topt + 28 && (t.blister = Math.min(1, t.blister + dt * .004 * (Math.max(t.tf, t.tr) - cm.topt - 28) / 10)), (lockF || lockR) && u0 > 8 && (t.flat += dt * u0 / 160), c.sys || (c
+   .brakeT += (eBrake - (c.brakeT - air) * (40 + 2.4 * u0) * (1 - .25 * c.dirty) * dt) / 6e3), c.engT += dt * (Pice / CAR.pIce * 1.6 - (c.engT - air) * (.004 + 16e-5 * u0) * (1 +
     .4 * wet) * (1 - .3 * Math.min(1, c.dirty * 5)))
  }
 
@@ -1679,8 +1681,10 @@
   }), w.events.length > 80 && w.events.pop()
  }
 
- function radio(w, c, txt) {
-  c && (c.player || c.mgr) && evt(w, "Radio: " + txt, "radio", c)
+ function radio(w, c, txt, urgent) {
+  if (!c || !(c.player || c.mgr)) return;
+  /* el ingeniero no habla en frenadas ni en curvas rápidas: lo no urgente espera a la siguiente recta */
+  c.sys && !urgent && !/box|pinchazo|abandon|parar el coche|bandera|safety|seguridad/i.test(txt) ? c.sys.radioQ.length < 4 && c.sys.radioQ.push(txt) : evt(w, "Radio: " + txt, "radio", c)
  }
 
  function leaderLap(w) {
@@ -2045,6 +2049,7 @@
     .seed || Math.random() * 1e9 | 0), setWeather(w, o.weather, w.rngW), tr.real && o.weather === "seco" && (w.airT = tr.airT, w.trackT = tr.trackT), w.marbles = 0;
   const raceDur = w.laps * tr.ideal * 1.08;
   w.failRate = o.failures === !1 ? 0 : (o.failMul || 1) * .6 / (20 * raceDur);
+  w.failMul = o.failures === !1 ? 0 : o.failMul || 1;
   const fpl = fuelPerLap(tr);
   w.cars = entries.map((e, i) => {
    const t = TEAMS[e.team],
@@ -2074,7 +2079,7 @@
      from: 0,
      to: null
     }], c.batt = 1, c.hold = !0, c.brakeT = 280, c.engT = 88, c.muEst = 1.35, c.cpT = [], c.cp = -1, c.trace = new Float32Array(Math.ceil(L / 20) + 1), c.push = pushBase(w, c),
-    c.attack = clamp(.35 + (c.drv.craft - 80) / 40, .2, .9), c.tc = e.player ? !!e.tc : !0, c.abs = e.player ? !!e.abs : !0, c
+    c.attack = clamp(.35 + (c.drv.craft - 80) / 40, .2, .9), c.tc = e.player ? !!e.tc : !0, c.abs = e.player ? !!e.abs : !0, e.puAge != null && (c.puAge = e.puAge), newSys(w, c), c
   }), w.order = w.cars.slice(), w.all = w.cars.slice()
  }
 
@@ -2107,7 +2112,7 @@
   for (const c of w.cars)
    if (!(c.gone || c.retired && c.parked)) {
     if (c.inPit) {
-     pitTick(w, c, dt);
+     pitTick(w, c, dt), c.sys && sysStep(w, c, dt);
      continue
     }
     if (c.retired) {
@@ -2164,7 +2169,7 @@
   const d = c.drv,
    cold = c.tire.tf < COMP[c.tire.c].topt - 25 ? 1.6 : 1,
    rate = (STREET_ON ? .5 : 1) * 45e-5 * (1.3 - d.cons / 100) * 4 * (1 + 2.5 * c.wetL * (1.25 - d.wet / 100)) * (c.aheadD < 25 || c.behindD < 20 ? 1.5 : 1) * cold * (1 + c.spray *
-    1.5) * (c.push > .75 ? 1.4 : 1);
+    1.5) * (c.push > .75 ? 1.4 : 1) * (c.sys ? 1 + .6 * c.sys.fat : 1);
   if (w.rngW() > rate * dt) return;
   const k = Math.abs(w.track.k[(c.idx + 8) % w.track.N]);
   let type = null;
@@ -2301,6 +2306,273 @@
    vt = Math.min(targetSpeed(w, sc, .8), d < 260 ? 52 : 30);
   speedTo(sc, vt), sc.ers = !1, physics(w, sc, dt), locate(tr, sc), walls(w, sc)
  }
+ /* ===================== SISTEMAS DEL COCHE =====================
+    Estado físico de cada componente de cada coche, integrado en tiempo real a 20 Hz durante la carrera.
+    Referencias de los modelos: viscosidad del aceite por la ecuación de Vogel; presión de vapor del agua por Antoine;
+    película mínima en cojinetes con la tendencia de Sommerfeld/Raimondi-Boyd (∝ √(μN/P)); holgura de segmentos por
+    dilatación diferencial acero/aluminio; detonación como índice tipo Livengood-Wu dependiente de la temperatura de
+    admisión y de la corona; ebullición nucleada frente a crítica (CHF) en la culata; cavitación por NPSH disponible;
+    relajación de tornillos por fluencia (Arrhenius) y autoaflojamiento por vibración (Junker); envejecimiento de retenes
+    por deformación remanente (Arrhenius); fatiga de dientes por Basquin (flexión, con límite) y picado (contacto, sin
+    límite) por marcha; frenos por eje con convección, radiación de Stefan-Boltzmann y oxidación del carbono; presión
+    del neumático por gas ideal; altura al suelo por rigidez de heave con carga aerodinámica, cabeceo y compresiones;
+    rebote de rueda como oscilador de masa no suspendida; flameo del alerón con velocidad crítica; latencia de
+    telemetría por antenas en pista y fibra hasta la fábrica. La fiabilidad usa vidas de Weibull con factores de
+    aceleración (Arrhenius para temperatura, ley de potencia inversa para carga): cuanto más se exige una pieza, más
+    deprisa consume su vida, y la avería aparece cuando la vida consumida supera la que le tocó a esa pieza. */
+ const TAU = 2 * Math.PI,
+  LOC = { Austin: [30.133, -97.641], Budapest: [47.579, 19.248], Catalunya: [41.57, 2.261], Melbourne: [-37.85, 144.968], MexicoCity: [19.404, -99.091], Monaco: [43.735, 7.421], Montreal: [45.5, -73.522], Monza: [45.616, 9.281], Sakhir: [26.032, 50.511], SaoPaulo: [-23.704, -46.699], Shanghai: [31.339, 121.22], Silverstone: [52.072, -1.017], Spa: [50.437, 5.971], Spielberg: [47.22, 14.765], Suzuka: [34.843, 136.541], YasMarina: [24.467, 54.603], Zandvoort: [52.389, 4.541] },
+  FACTORY = [52.04, -.76],
+  BUMPY = { Austin: 1.9, SaoPaulo: 1.5, Monza: 1.25, MexicoCity: 1.3, Montreal: 1.3, Monaco: 1.6, Melbourne: 1.1, Budapest: 1.1, Silverstone: 1.15, Spa: 1.1 },
+  /* componentes con vida de Weibull: clave, nombre, grupo, η (horas a esfuerzo nominal), β (forma) */
+  COMPS = [
+   ["pis", "Pistones", "motor", 190, 2.5], ["ring", "Segmentos", "motor", 220, 2.2], ["rod", "Bielas y cigüeñal", "motor", 320, 3], ["brg", "Cojinetes", "motor", 230, 2.5],
+   ["valve", "Válvulas y PVRS", "motor", 200, 2.2], ["head", "Culata y junta", "motor", 260, 2], ["exh", "Escape", "motor", 240, 2], ["cool", "Refrigeración", "fluidos", 170, 1.8],
+   ["oil", "Lubricación", "fluidos", 190, 1.8], ["fuel", "Combustible", "fluidos", 330, 1.5], ["turbo", "Turbo y MGU-H", "ers", 110, 2], ["mguk", "MGU-K", "ers", 140, 2],
+   ["es", "Batería y electrónica", "ers", 120, 1.8], ["gb", "Caja de cambios", "trans", 150, 2.2], ["hyd", "Hidráulica", "trans", 140, 1.6], ["brk", "Frenos", "frenos", 300, 2],
+   ["susp", "Suspensión y estructura", "chasis", 380, 1.8]
+  ],
+  GEAR_SF = [1.45, 1.3, 1.18, 1.08, 1, .94, .88, .84],
+  GEAR_HZ = [4.2, 5.8, 7.4, 9, 10.5, 12, 13.4, 14.6],
+  vapW = T => Math.pow(10, 8.14019 - 1810.94 / (244.485 + T)) * 133.322 / 1e5,
+  tsatW = p => 1810.94 / (8.14019 - Math.log10(p * 1e5 / 133.322)) - 244.485,
+  viscO = T => .242 * Math.exp(626 / (T + 95)),
+  gcKm = (a, b) => { const t = Math.PI / 180, h = Math.sin((b[0] - a[0]) * t / 2) ** 2 + Math.cos(a[0] * t) * Math.cos(b[0] * t) * Math.sin((b[1] - a[1]) * t / 2) ** 2; return 12742 * Math.asin(Math.sqrt(h)) },
+  hash1 = x => { const s = Math.sin(x * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s) },
+  vnoise = x => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hash1(i) * (1 - u) + hash1(i + 1) * u };
+
+ /* perfil de latencia de telemetría a lo largo de la vuelta: antenas repartidas, túneles sin señal, calles con rebotes */
+ function teleProfile(tr) {
+  if (tr._tele) return tr._tele;
+  const n = Math.max(8, Math.ceil(tr.L / 20)), lat = new Float32Array(n), loss = new Float32Array(n), ant = [0, .22, .45, .68, .86].map(f => Math.floor(f * tr.N) % tr.N);
+  const fac = LOC[tr.key] ? gcKm(LOC[tr.key], FACTORY) * 1.45 / 200 + 9 : 18, tun = TUNNEL[tr.key] || [];
+  for (let i = 0; i < n; i++) {
+   const s = i * 20, k = Math.min(tr.N - 1, Math.round(s / tr.ds)), x = tr.x[k], y = tr.y[k];
+   let best = 1e9, hop = 0;
+   ant.forEach((a, j) => { const d = Math.hypot(tr.x[a] - x, tr.y[a] - y); d < best && (best = d, hop = Math.min(j, ant.length - j)) });
+   lat[i] = 3.2 + 1.6 * hop + best / 3e5 * 1e3 + 5 + (tr.street ? 2.5 * vnoise(s / 90) : 0);
+   loss[i] = tun.some(([a, b]) => s >= a && s <= b) ? 100 : tr.street ? 1.5 + 6 * Math.max(0, vnoise(s / 140 + 7) - .55) * 2 : .1 + .4 * Math.max(0, best - 900) / 900
+  }
+  return tr._tele = { lat, loss, fac, n }
+ }
+
+ function newSys(w, c) {
+  const r = w.rngW, air = w.airT, age = c.puAge != null ? c.puAge : Math.floor(r() * 6), mul = w.failMul || 0;
+  const S = {
+   acc: 0, age, load: 0, Toil: air + 55, Tpis: 180, Tring: 140, Tlin: 105, Tint: air + 10, Tfuel: Math.max(12, air - 6), T3: 450, oilL: 6.2, aer: 2, stT: 0, starving: 0, film: 1.2, pOil: 4, visc: 6,
+   pSys: 2, Tsat: 128, hot: 110, cavM: 1, cavE: 0, ki: .2, retard: 0, kI: 0, kEv: 0, gap: .1, butt: 0, scuff: 0, slap: 0, tors: 0,
+   pvrsB: 212 - age * 5 - r() * 5, pvrsLeak: r() < .04 ? 6 + r() * 10 : 1, pvrsC: 15, floatRpm: 15600, bolt: 1 - age * .004, seal: age * .05 + r() * .05, coolLeak: 0, oilLeak: 0, hydLeak: 0,
+   Tbat: air + 15, Tmgk: 75, Tmgh: 85, Tinv: 55, kMul: 1, pMul: 1, Nt: 30e3,
+   Tgb: air + 45, Tcl: air + 40, gearD: new Float32Array(8), gearP: new Float32Array(8), gbRate: 0, shiftN: 0, lastGear: c.gear, hyd: 205, shunt: 0, shuntHz: 8, dsPk: 0, prevThr: 0, wasSpin: 0, Tin: 0,
+   TbF: c.brakeT || 300, TbR: c.brakeT || 300, TflF: 70, TflR: 70, wearF: 0, wearR: 0, judder: 0, vlock: 0, bp: 315,
+   TcF: c.tire.tf, TcR: c.tire.tr, pF: 1.59, pR: 1.41, fFlat: 0, areaF: 150, areaR: 180,
+   rhF: 32, rhR: 52, rhP: 40, rh0: (hash1((c.team || 0) * 7.3 + 1) - .5) * 3, plank: 10, contact: 0, bottomN: 0, hop: 0, hopR: 0, porp: 0, flex: 0, Vf: 108, delam: 0, kerbE: 0, bump: 0, bumpK: BUMPY[w.track.key] || 1, stop: 0,
+   neck: 0, vib: .3, vibHz: 0, fat: 0, hr: 105, steerTq: 0, gripFeel: 1, pedal: 0, pedalTr: 0, mesh: 0,
+   lat: 20, loss: 0, buf: 0, radioQ: [], cool: {},
+   te: {}, Hth: {}, AF: {}, haz: {}, log: [], hist: null
+  };
+  for (const [k, , , eta, beta] of COMPS) {
+   const a = age * 4 * (.7 + .6 * r()), u = Math.max(1e-12, r());
+   S.te[k] = a, S.Hth[k] = Math.pow(a / eta, beta) - Math.log(u), S.AF[k] = 1, S.haz[k] = 0
+  }
+  S.etaMul = mul > 0 ? 1 / mul : 0, c.sys = S
+ }
+
+ function sysLog(w, c, lvl, txt, key) {
+  const S = c.sys;
+  if (key) { if (S.cool[key] > w.t) return; S.cool[key] = w.t + 40 }
+  S.log.unshift({ t: w.t, lvl, txt, lap: Math.max(1, Math.floor(c.prog / w.track.L) + 1) }), S.log.length > 30 && S.log.pop();
+  key && (c.player || c.mgr) && radio(w, c, txt)
+ }
+
+ function sysFail(w, c, k) {
+  const S = c.sys, why = {
+   pis: "Pistón roto", ring: "Pérdida de compresión (segmentos)", rod: "Rotura de biela", brg: "Cojinete gripado", valve: "Válvula rota", head: "Fuga de agua por la junta de culata",
+   exh: "Escape agrietado", cool: "Fuga en el circuito de refrigeración", oil: "Fuga de aceite", fuel: "Presión de combustible", turbo: "Avería del turbo (MGU-H)", mguk: "Avería del MGU-K",
+   es: "Fallo de la batería", gb: "Caja de cambios", hyd: "Pérdida de presión hidráulica", brk: "Fallo de frenos", susp: "Rotura de suspensión"
+  }[k];
+  S.failed = S.failed || {}, S.failed[k] = w.t;
+  sysLog(w, c, "bad", "Avería: " + why.toLowerCase() + " (" + COMPS.find(x => x[0] === k)[1].toLowerCase() + " al " + Math.round(Math.pow(S.te[k] / COMPS.find(x => x[0] === k)[3], 1) * 100) + " % de su vida característica)");
+  if (k === "pis" || k === "rod" || k === "brg" || k === "valve") c.smoke = w.t, retire(w, c, why, "mech");
+  else if (k === "ring") S.pMulFail = .9, S.scuff = 1, sysLog(w, c, "bad", "Baja compresión: el motor pierde potencia y gasta aceite", "ringF");
+  else if (k === "head" || k === "cool") S.coolLeak = k === "head" ? 1.4 : .8, sysLog(w, c, "bad", "Perdemos agua: la temperatura va a subir. Levanta en las rectas", "leakW");
+  else if (k === "oil") S.oilLeak = .02, sysLog(w, c, "bad", "Fuga de aceite: el nivel baja; cuidado con la presión en las curvas rápidas", "leakO");
+  else if (k === "hyd") S.hydLeak = 4, sysLog(w, c, "bad", "Pérdida de presión hidráulica: los cambios se van a quedar sin presión", "leakH");
+  else if (k === "turbo") S.pMulFail = .64, c.fail = c.fail || { type: "turbo" }, evt(w, c.code + " pierde potencia: avería en el turbo o el MGU-H", "fail", c);
+  else if (k === "mguk" || k === "es") c.fail || (c.fail = { ers: !0, type: "ers" }), evt(w, c.code + " pierde la potencia eléctrica (" + (k === "es" ? "batería" : "MGU-K") + ")", "fail", c), k === "es" && w.rngW() < .3 && retire(w, c, why, "mech");
+  else if (k === "gb") c.fail || (c.fail = { gear: Math.min(c.gear, 5), type: "gearbox" }, evt(w, c.code + ": dientes dañados en la caja, se queda sin las marchas largas", "fail", c));
+  else if (k === "fuel") retire(w, c, why, "mech");
+  else if (k === "exh") S.pMulFail = .97, evt(w, c.code + ": escape agrietado, pierde algo de potencia", "fail", c);
+  else if (k === "brk") c.fail = c.fail || { brakes: !0, type: "brakes" }, evt(w, c.code + " tiene problemas de frenos", "fail", c), w.rngW() < .4 && retire(w, c, why, "mech");
+  else if (k === "susp") c.dmg.susp = Math.min(1, c.dmg.susp + .55), evt(w, c.code + ": daños en la suspensión", "fail", c)
+ }
+
+ function sysStep(w, c, dt) {
+  const S = c.sys;
+  if (!S || c.gone || c.retired && c.parked) return;
+  if (S.acc += dt, S.acc < .05) return;
+  const h = S.acc, tr = w.track, air = w.airT, u = Math.max(0, c.u), rpm = c.rpm || 4e3, thr = c.thr, g = clamp(c.gear, 0, 7), st = c.setup;
+  S.acc = 0;
+  const pI = c.pIceW || 0, pK = c.ersOn ? CAR.pK * thr * S.kMul : 0, pH = c.pHarvW || 0, load = clamp(pI / CAR.pIce, 0, 1.1), ay = u * c.r, ax = c.axF || 0, G = Math.hypot(ax, ay) / 9.81;
+  const dirty = Math.min(1, (c.dirty || 0) * 5), wet = c.wetL || 0, running = !c.retired && !c.inPit && !c.hold, idx = c.idx || 0, ex = (a, b) => Math.exp((a - b));
+  S.load += (load - S.load) * Math.min(1, h / 1.2);
+  /* ---- motor: aceite, pistón, segmentos, cojinetes ---- */
+  S.Toil += h * (.82 * (rpm / 12e3) ** 2 * (.35 + .65 * S.load) - (S.Toil - air) * (.0026 + 5e-5 * u) * (1 - .3 * dirty)), S.visc = viscO(S.Toil);
+  S.aer = 1.5 + 5 * (rpm / 12e3) ** 3 + 2.5 * Math.max(0, G - 2.5) + Math.max(0, 6.2 - S.oilL) * 1.2;
+  const Gcrit = 4.2 + .45 * S.oilL;
+  S.stT = G > Gcrit && running ? S.stT + h : Math.max(0, S.stT - 2 * h), S.starving = clamp((S.stT - .6) / .8, 0, 1);
+  S.pOil = Math.min(6.5, 5.2 * (rpm / 11e3) * Math.sqrt(S.visc / 4.5)) * (1 - .6 * S.starving) * (1 - .01 * S.aer);
+  S.oilL = Math.max(0, S.oilL - (3e-6 * u * h * (1 + 6 * S.scuff + (S.seal > 1 ? 15 : 0)) + S.oilLeak * h));
+  const P = .45 * S.load + .55 * (rpm / 10500) ** 2;
+  S.film = 1.15 * Math.sqrt(S.visc / 4.2 * (rpm / 10500) / Math.max(.2, P)) * (1 - .6 * S.starving) * (1 - .012 * S.aer) * (S.oilL < 1.5 ? S.oilL / 1.5 : 1);
+  S.Tpis += (S.Toil + 285 * Math.pow(S.load, .85) * (1 + .15 * S.kI) - 4 * S.retard - S.Tpis) * Math.min(1, h / 2.5);
+  S.Tlin += (c.engT + 55 * S.load + 10 - S.Tlin) * Math.min(1, h / 4);
+  S.Tring += (S.Toil + .5 * (S.Tpis - S.Toil) + 15 - S.Tring) * Math.min(1, h / 6);
+  S.gap = .3 - Math.PI * 80 * (12e-6 * (S.Tring - 20) - 17e-6 * (S.Tlin - 20));
+  S.butt = S.gap < 0 && S.load > .4 ? S.butt + h : Math.max(0, S.butt - h);
+  S.butt > 2.5 && (S.scuff = Math.min(1, S.scuff + h * .04), sysLog(w, c, "bad", "Los segmentos se tocan por dilatación (holgura " + (S.gap * 1e3).toFixed(0) + " µm): rayan la camisa. Baja el modo motor", "butt"));
+  /* admisión, detonación y control de picado */
+  const eps = .85 * (1 - .55 * Math.exp(-u / 25)) * (1 - .35 * dirty);
+  S.Tint += (air + 175 * Math.pow(S.load, .7) * (1 - eps) - S.Tint) * Math.min(1, h / 8);
+  S.Tfuel += (air + 18 + 25 * (1 - c.fuel / 110) - S.Tfuel) * h / 300;
+  S.ki = .45 * Math.exp((S.Tint - 60) / 40) * Math.exp((S.Tpis - 400) / 150) * Math.pow(S.load, 1.5) * (c.mode === 2 ? 1.35 : c.mode === 0 ? .75 : 1) * Math.exp((S.Tfuel - 40) / 60);
+  S.retard += (clamp((S.ki - .85) * 15, 0, 8) - S.retard) * Math.min(1, h / .3), S.kI = clamp((S.ki - 1.25) / .5, 0, 1), S.kEv += S.kI * rpm / 120 * h * .02, S.kT = S.kI > .5 ? (S.kT || 0) + h : 0;
+  S.kT > 3 && sysLog(w, c, "warn", "Detonación que el control ya no corrige (índice " + S.ki.toFixed(2) + "): erosiona los pistones", "knock");
+  S.T3 += (650 + 330 * S.load + 6 * S.retard + .3 * (S.Tint - 50) - S.T3) * Math.min(1, h / .8);
+  S.Nt += (Math.min(125e3, 3e4 + 92e3 * Math.pow(S.load, .8)) - S.Nt) * Math.min(1, h / .6);
+  /* PVRS: botella de nitrógeno que repone la cámara del muelle neumático; si cae, las válvulas flotan antes */
+  S.pvrsB = Math.max(0, S.pvrsB - 11e-4 * (rpm / 12e3) * S.pvrsLeak * (1 + S.seal) * h), S.pvrsC = Math.min(15, S.pvrsB * .08), S.floatRpm = 15600 * Math.sqrt(S.pvrsC / 15);
+  S.pvrsB < 175 && sysLog(w, c, "warn", "Botella del aire de válvulas a " + S.pvrsB.toFixed(0) + " bar: el límite de flotación baja a " + Math.round(S.floatRpm) + " rpm", "pvrs");
+  /* cigüeñal: amplitud torsional por órdenes del V6 con el primer modo a 385 Hz */
+  let ta = 0;
+  for (const [o, a] of [[1.5, .15], [3, 1], [4.5, .35], [6, .2]]) { const rr = o * rpm / 60 / 385; ta += a / Math.sqrt((1 - rr * rr) ** 2 + (.08 * rr) ** 2) }
+  S.tors = .06 * ta * (.3 + .7 * S.load), S.slap = S.load * (1 + 2 * Math.max(0, 1 - (S.Tlin - 60) / 80)) * rpm / 12e3;
+  /* refrigeración: presión del circuito, saturación, punto caliente de la culata, cavitación en la bomba */
+  c.engT += S.coolLeak * h * (.4 + S.load), S.pSys = Math.max(1, 2 + 1.75 * clamp((c.engT - 40) / 85, 0, 1) - S.coolLeak * 1.2), S.Tsat = tsatW(S.pSys) + 7;
+  S.hot = c.engT + 42 * S.load * (1 + .3 * S.kI) + 6, S.cavM = S.pSys - vapW(c.engT) - 1.2 * (rpm / 12e3) ** 2, S.cavE = Math.max(0, -S.cavM);
+  S.hot - S.Tsat > 29 && sysLog(w, c, "warn", "La culata pasa de ebullición nucleada a película de vapor (" + Math.round(S.hot - S.Tsat) + " °C sobre saturación)", "boil");
+  S.bolt = Math.max(0, S.bolt - h * (2.5e-7 * Math.exp((c.engT - 115) / 12) * S.bolt + 1.5e-6 * Math.max(0, S.vib - 2.5) ** 2));
+  S.bolt < .72 && !S.coolLeak && (S.coolLeak = .5, sysLog(w, c, "bad", "Los tornillos de culata han perdido apriete (" + Math.round(S.bolt * 100) + " %): fuga de agua", "boltL"));
+  S.seal = S.seal + h * 1.2e-5 * Math.exp((S.Toil - 120) / 14);
+  /* ---- híbrido ---- */
+  S.Tbat += h * (.03 * (pK + pH) - 60 * (1 + u / 60) * (1 - .3 * dirty) * (S.Tbat - 45)) / 2e4;
+  S.Tmgk += h * (.04 * (pK + pH) - 70 * (1 + u / 60) * (S.Tmgk - c.engT)) / 8e3;
+  S.Tmgh += (S.Toil + 20 + 40 * S.load - S.Tmgh) * Math.min(1, h / 8), S.Tinv += (c.engT - 50 + 35 * ((pK + pH) / 12e4) ** 2 - S.Tinv) * Math.min(1, h / 5);
+  S.kMul = S.Tbat > 68 ? clamp(1 - (S.Tbat - 68) / 10, .35, 1) : 1;
+  S.kMul < .95 && sysLog(w, c, "warn", "Batería a " + S.Tbat.toFixed(0) + " °C: limitamos el despliegue al " + Math.round(S.kMul * 100) + " %", "bat");
+  /* ---- transmisión ---- */
+  const wE = Math.max(60, rpm * TAU / 60);
+  S.Tin = (pI + pK) / wE;
+  const sr = S.Tin / 650 * GEAR_SF[g], cyc = rpm / 60 * h;
+  let gr = 0;
+  sr > .6 && (gr = cyc * (sr > 1.15 ? 1e-7 * Math.pow(sr / 1.15, 9) : 0), S.gearD[g] += gr, S.gearP[g] += cyc * Math.pow(sr, 6) / 4e9 * (S.Tgb > 120 ? 1 + (S.Tgb - 120) / 15 : 1));
+  S.gbRate += (gr / h * 3600 - S.gbRate) * Math.min(1, h / 10);
+  S.Tgb += h * (.018 * (pI + pK) - (25 + u) * (S.Tgb - air)) / 9e3;
+  const pslip = !c.hold && u < 14 && thr > .1 ? (pI + pK) * clamp(1 - u / 14, 0, 1) * .7 : 0;
+  S.Tcl += h * (pslip - (S.Tcl - air) * (4 + .5 * u)) / 1200;
+  c.gear !== S.lastGear && (S.shiftN++, S.hyd -= 1.4, S.lastGear = c.gear);
+  S.hyd = clamp(S.hyd + (210 - S.hyd) * (rpm / 12e3) * .25 * h - (S.seal > 1 ? .8 : .02) * h - S.hydLeak * h, 0, 210);
+  S.hyd < 110 && running && w.mode === "race" && retire(w, c, "Pérdida de presión hidráulica", "mech");
+  const dThr = Math.abs(thr - S.prevThr) / h;
+  S.prevThr = thr, dThr > 8 && g <= 3 && u > 8 && (S.shunt = Math.max(S.shunt, S.Tin / 650 * (4 - g) * .6)), S.shuntHz = GEAR_HZ[g], S.shunt *= Math.exp(-h * .25 * TAU * S.shuntHz);
+  S.wasSpin && !c.spinR && u > 5 && (S.dsPk = S.Tin * 1.6 * (8 - g) / 4), S.dsPk *= Math.exp(-h * 3), S.wasSpin = c.spinR;
+  /* ---- frenos por eje: convección, radiación, oxidación del carbono, líquido ---- */
+  const Pb = c.pBrkW || 0, PF = Pb * clamp(st.bias * 1.08, .3, .9), PR = Pb - PF, Ta = air + 273, rad = (T, A) => .85 * 5.67e-8 * A * ((T + 273) ** 4 - Ta ** 4);
+  S.TbF += h * (PF - (15 + 4.5 * u) * (S.TbF - air) - rad(S.TbF, .45)) / 1500, S.TbR += h * (PR - (12 + 3.5 * u) * (S.TbR - air) - rad(S.TbR, .38)) / 1150;
+  c.brakeT = .6 * S.TbF + .4 * S.TbR;
+  S.wearF += h * 1e-3 * Math.exp((S.TbF - 750) / 85), S.wearR += h * 8e-4 * Math.exp((S.TbR - 750) / 85);
+  S.TflF += h * ((S.TbF - S.TflF) * .0025 - (S.TflF - air) * (.002 + 2e-5 * u)), S.TflR += h * ((S.TbR - S.TflR) * .002 - (S.TflR - air) * (.002 + 2e-5 * u));
+  if (Math.max(S.TflF, S.TflR) > S.bp) S.vlock || (S.vlock = 1, c.fail = c.fail || { brakes: !0, type: "vlock" }, sysLog(w, c, "bad", "El líquido de frenos hierve (" + Math.round(Math.max(S.TflF, S.TflR)) + " °C): pedal largo", "vlock"));
+  else S.vlock && Math.max(S.TflF, S.TflR) < S.bp - 40 && (S.vlock = 0, c.fail && c.fail.type === "vlock" && (c.fail = null));
+  u < 1.5 && S.TbF > 450 && (S.judder = Math.min(1, S.judder + h * .04));
+  Math.max(S.wearF, S.wearR) > 4.5 && running && !(S.failed && S.failed.brk) && sysFail(w, c, "brk");
+  S.wearF > 2.5 && sysLog(w, c, "warn", "Discos delanteros gastados " + S.wearF.toFixed(1) + " mm por oxidación: refrigéralos en las rectas", "discW");
+  /* ---- neumáticos: carcasa, presión por gas ideal, huella, plano ---- */
+  const t = c.tire, q = .5 * RHO * u * u, DF = q * CAR.cla * st.cl * c.perf.cl, mass = CAR.mass + c.fuel;
+  S.TcF += ((t.tf + 6 - S.TcF) / 30 + DF * u * 6e-8) * h, S.TcR += ((t.tr + 6 - S.TcR) / 30 + DF * u * 7e-8) * h;
+  S.pF = 2.603 * (S.TcF + 273) / 343 - 1.013, S.pR = 2.423 * (S.TcR + 273) / 343 - 1.013, S.fFlat = u / (TAU * .36);
+  const FzF = (mass * 9.81 * CAR.b / CAR.wb + DF * CAR.aeroF) / 2, FzR = (mass * 9.81 * CAR.a / CAR.wb + DF * (1 - CAR.aeroF)) / 2;
+  S.areaF = FzF / (S.pF * 1e5) * 1e4 * .82, S.areaR = FzR / (S.pR * 1e5) * 1e4 * .82;
+  Math.max(S.TcF, S.TcR) > 140 && t.punct < 0 && running && w.rngW() < h * .01 && (t.punct = S.TcF > S.TcR ? 0 : 1, sysLog(w, c, "bad", "La carcasa del neumático pasa de 140 °C y se separa: pinchazo"), evt(w, "Pinchazo para " + c.code + " por sobretemperatura", "fail", c));
+  /* ---- chasis: altura al suelo, tablón, porpoising, rebote de rueda, vibración ---- */
+  const kerb = c.surf === 1 && tr._kerb && tr._kerb[idx], vl = c.vload || 1, pitch = mass * ax * CAR.hcg / CAR.wb;
+  S.bump = 2.2 * S.bumpK * (vnoise(c.s / 6.5) - .5) + 1.1 * S.bumpK * (vnoise(c.s / 2.1 + 31) - .5);
+  S.rhF = 32 + S.rh0 - (DF * CAR.aeroF + (vl - 1) * mass * 9.81 * CAR.b / CAR.wb) / 410 + pitch / 410 - (kerb ? 9 : 0) + S.bump;
+  S.rhR = 52 + S.rh0 - (DF * (1 - CAR.aeroF) + (vl - 1) * mass * 9.81 * CAR.a / CAR.wb) / 360 - pitch / 360 - (kerb ? 6 : 0) + S.bump * .8;
+  S.porp += ((S.rhR < 18 && u > 65 ? 6 * clamp((u - 65) / 20, 0, 1) * clamp((18 - S.rhR) / 8, 0, 1) : 0) - S.porp) * Math.min(1, h / .6);
+  S.rhP = .8 * S.rhF + .2 * S.rhR - 6 - S.porp * .5;
+  if (S.rhP < .5 && u > 15) {
+   const dw = (.5 - S.rhP) * 2.2e-5 * u * h;
+   S.plank -= dw, S.contact = 1, S.bottomN += h * 20
+  } else S.contact = 0;
+  S.plank < 9.35 && sysLog(w, c, "warn", "Tablón a " + S.plank.toFixed(2) + " mm (mínimo 9,00): evita pianos y compresiones", "plank");
+  S.stop = S.rhF < 3 ? 1 : 0;
+  const fh = 17, rr = S.fFlat / fh, Hh = 1 / Math.sqrt((1 - rr * rr) ** 2 + (.24 * rr) ** 2);
+  S.hopR = rr, S.hop = (kerb ? .9 : 0) + Math.min(1, t.flat) * .6 * Hh + Math.abs(S.bump) * .05;
+  S.kerbE += kerb && u > 50 && vl > 1.05 ? h : 0, S.kerbE > 25 && (S.delam = Math.min(1, S.delam + h * .003)), S.delam > .25 && (c.dmg.floor = Math.max(c.dmg.floor, (S.delam - .25) * .4));
+  S.flex = 7.5 * (u / 83) ** 2 * (1 + 1.5 * c.dmg.fw), S.Vf = 108 * Math.sqrt(Math.max(.05, 1 - .6 * c.dmg.fw));
+  u > S.Vf && running && c.dmg.fw < 1 && (c.dmg.fw = 1, sysLog(w, c, "bad", "El alerón dañado entra en flameo a " + Math.round(u * 3.6) + " km/h y se rompe"), evt(w, c.code + " pierde el alerón delantero por flameo", "fail", c));
+  const vibs = [[.25 + .15 * rpm / 12e3, 7], [kerb ? 1.4 : 0, 26], [S.porp / 3.5, 5.2], [S.hop * .6, fh], [Math.abs(S.bump) * .12, 12], [S.judder * .5, S.fFlat]];
+  S.vib = Math.sqrt(vibs.reduce((a, v) => a + v[0] * v[0], 0)), S.vibHz = vibs.reduce((a, v) => v[0] > a[0] ? v : a, [0, 0])[1];
+  /* ---- lo que siente el piloto: par en el volante (cae al acercarse al límite del tren delantero) y pedal ---- */
+  const util = clamp(c.load || 0, 0, 1.3), trail = .015 + .035 * Math.max(0, 1 - util * util);
+  S.steerTq += (Math.abs(c.fyf0 || 0) * trail / 11 * .32 - S.steerTq) * Math.min(1, h / .1), S.gripFeel = Math.max(0, 1 - util * util);
+  S.pedal = c.brk * 1500 / Math.max(.5, brakeF(c.brakeT)) * (S.vlock ? .45 : 1), S.pedalTr = c.brk * (S.vlock ? 95 : 38) * (1 + S.wearF * .03);
+  S.mesh = [30, 33, 35, 37, 39, 41, 43, 45][g] * rpm / 60;
+  S.bolt = Math.max(0, S.bolt - h * wet * 4e-7);
+  /* ---- piloto ---- */
+  S.neck += G * G * h, S.fat = clamp(S.neck / 6e4 + S.vib * w.t / 9e4, 0, 1), S.hr += (112 + 13 * G + 28 * S.fat + (c.aheadD < 20 || c.behindD < 15 ? 9 : 0) + 6 * wet - S.hr) * Math.min(1, h / 4);
+  /* ---- telemetría ---- */
+  const TP = teleProfile(tr), ti = Math.min(TP.n - 1, Math.floor((c.s || 0) / 20));
+  S.lat = TP.lat[ti], S.loss = TP.loss[ti], S.fac = TP.fac, S.buf = S.loss >= 100 ? S.buf + h : 0;
+  /* ---- efectos en el rendimiento ---- */
+  S.pMul = (1 - .012 * S.retard) * (1 - .03 * S.scuff) * (S.pMulFail || 1) * (S.Tint > 70 ? 1 - .0012 * (S.Tint - 70) : 1);
+  /* ---- radio del ingeniero: sólo en zona tranquila (recta, sin frenar) salvo urgencias ---- */
+  if (S.radioQ.length) {
+   let calm = Math.abs(ay) < 12 && c.brk < .05;
+   for (let j = 1; calm && j < 12; j++) Math.abs(tr.k[(idx + j * 4) % tr.N]) > 1 / 400 && (calm = !1);
+   calm && evt(w, "Radio: " + S.radioQ.shift(), "radio", c)
+  }
+  /* ---- fiabilidad: vida consumida con factores de aceleración ---- */
+  const AF = S.AF;
+  /* factores de aceleración centrados en una carrera normal (=1): Arrhenius para temperaturas, potencia inversa para carga */
+  AF.pis = Math.exp((S.Tpis - 350) / 30) * (1 + 4 * S.kI), AF.ring = Math.exp((S.Tring - 240) / 22) * (S.butt > 0 ? 25 : 1) * (1 + 3 * S.scuff), AF.rod = Math.pow(rpm / 10500, 10) * (1 + 3 * Math.max(0, S.tors - .3));
+  AF.brg = Math.exp((1.2 - S.film) / .15) * (1 + 25 * S.starving), AF.valve = Math.exp((S.T3 - 910) / 45) * (1 + 60 * Math.max(0, rpm / S.floatRpm - 1)), AF.head = Math.exp((S.hot - S.Tsat - 6) / 8) * (S.bolt < .8 ? 1 + (.8 - S.bolt) * 40 : 1);
+  AF.exh = Math.exp((S.T3 - 910) / 50), AF.cool = Math.exp((c.engT - 114) / 6) * (1 + 40 * S.cavE), AF.oil = Math.exp((S.Toil - 122) / 10) * (1 + S.aer / 8), AF.fuel = Math.exp((S.Tfuel - 52) / 10);
+  AF.turbo = Math.exp((S.T3 - 900) / 60) * Math.pow(S.Nt / 1.1e5, 3), AF.mguk = Math.exp((S.Tmgk - 125) / 10), AF.es = Math.exp((S.Tbat - 56) / 6), AF.gb = Math.exp((S.Tgb - 96) / 10) * (1 + S.gbRate * 50);
+  AF.hyd = Math.exp((S.Tgb - 100) / 12) * (1 + 3 * Math.min(1, S.seal)), AF.brk = Math.exp((S.TbF - 450) / 120) * (1 + Math.max(0, S.wearF - 2) * .8), AF.susp = 1 + 8 * (kerb && u > 40 ? 1 : 0) + 20 * S.contact;
+  const live = running && w.started && !c.finished && w.mode === "race";
+  for (const [k, , , eta, beta] of COMPS) {
+   const af = clamp(AF[k] || 1, .02, 1e3);
+   AF[k] = af;
+   if (!live) continue;
+   S.te[k] += af * h / 3600;
+   const e = S.etaMul ? eta * Math.pow(S.etaMul, 1 / beta) : 0;
+   S.haz[k] = e ? beta / e * Math.pow(S.te[k] / e, beta - 1) * af : 0;
+   e && Math.pow(S.te[k] / e, beta) >= S.Hth[k] && !(S.failed && S.failed[k]) && sysFail(w, c, k)
+  }
+  live && rpm > S.floatRpm * 1.04 && !(S.failed && S.failed.valve) && (sysLog(w, c, "bad", "A " + Math.round(rpm) + " rpm las válvulas flotan (límite " + Math.round(S.floatRpm) + "): golpean el pistón"), sysFail(w, c, "valve"));
+  live && S.starving > .95 && S.stT > 2.6 && !(S.failed && S.failed.brg) && (sysLog(w, c, "bad", "Descebe de aceite " + S.stT.toFixed(1) + " s a " + G.toFixed(1) + " g con " + S.oilL.toFixed(1) + " L: se rompe la película del cojinete"), sysFail(w, c, "brg"));
+  S.hotT = c.engT > 150 ? (S.hotT || 0) + h : 0, live && S.hotT > 10 && retire(w, c, "Sobrecalentamiento del motor", "mech");
+  /* avisos del muro (con datos, tendencia y acción) */
+  if (c.player || c.mgr) {
+   S.TbF > 1080 && sysLog(w, c, "warn", "Frenos delanteros a " + Math.round(S.TbF) + " °C: mueve el reparto atrás o refresca en la recta", "brkT");
+   S.Toil > 138 && sysLog(w, c, "warn", "Aceite a " + Math.round(S.Toil) + " °C y subiendo: levanta antes de frenar", "oilT");
+   S.retard > 3 && sysLog(w, c, "warn", "El control de picado retrasa el encendido " + S.retard.toFixed(1) + "°: pierdes un " + (S.retard * 1.2).toFixed(0) + " % de potencia. Aire de admisión a " + Math.round(S.Tint) + " °C", "retard");
+   S.Tfuel > 70 && sysLog(w, c, "warn", "Combustible a " + Math.round(S.Tfuel) + " °C: margen de vapor bajo", "fuelT")
+  }
+  /* historial para el panel (sólo el coche que se mira) */
+  c === sysFocus && (S.recK = ((S.recK || 0) + 1) % 5) === 0 && sysRecord(c)
+ }
+ let sysFocus = null;
+ const SYS_REC = ["steerTq", "pedal", "mesh", "Toil", "Tpis", "Tring", "gap", "film", "pOil", "aer", "oilL", "ki", "retard", "Tint", "T3", "Nt", "pvrsB", "floatRpm", "tors", "hot", "Tsat", "cavM", "Tbat", "Tmgk", "Tgb", "Tcl", "hyd", "shunt", "TbF", "TbR", "TflF", "wearF", "TcF", "TcR", "pF", "pR", "rhF", "rhR", "rhP", "plank", "porp", "hop", "flex", "vib", "hr", "fat", "lat", "loss", "Tfuel", "load", "Tlin", "bolt", "seal", "Tmgh", "dsPk", "areaF", "areaR"];
+ function sysRecord(c) {
+  const S = c.sys, H = S.hist || (S.hist = { n: 0, i: 0, len: 480, d: {} });
+  for (const k of SYS_REC) (H.d[k] || (H.d[k] = new Float32Array(H.len)))[H.i] = k === "Tcool" ? c.engT : S[k];
+  (H.d.engT || (H.d.engT = new Float32Array(H.len)))[H.i] = c.engT, (H.d.u || (H.d.u = new Float32Array(H.len)))[H.i] = c.u * 3.6, (H.d.rpm || (H.d.rpm = new Float32Array(H.len)))[H.i] = c.rpm;
+  (H.d.tf || (H.d.tf = new Float32Array(H.len)))[H.i] = c.tire.tf, (H.d.tr || (H.d.tr = new Float32Array(H.len)))[H.i] = c.tire.tr;
+  H.i = (H.i + 1) % H.len, H.n = Math.min(H.len, H.n + 1)
+ }
  const FAILS = [
   ["engine", .32, "Fallo de motor"],
   ["gearbox", .18, "Problemas de caja de cambios"],
@@ -2311,6 +2583,7 @@
  ];
 
  function failures(w, c, dt) {
+  if (c.sys && (sysStep(w, c, dt), !w.failRate || !w.started || c.finished || c.retired || c.inPit || (c.fail && c.fail.gear && w.rngW() < w.failRate * dt * 6 && retire(w, c, "Caja de cambios", "mech"), w.rngW() < w.failRate * .14 * dt && c.tire.punct < 0 && (c.tire.punct = w.rngW() < .5 ? 0 : 1, evt(w, "Pinchazo lento para " + c.code, "fail", c), radio(w, c, "Pinchazo. Box, box", 1)), !0))) return;
   if (!w.failRate || !w.started || c.finished || c.retired || c.inPit) return;
   const heat = c.engT > 125 ? 1 + (c.engT - 125) / 4 : 1,
    mode = c.mode === 2 ? 1.5 : c.mode === 0 ? .7 : 1;
@@ -2937,7 +3210,9 @@
    const ta = (a.finished ? a.finishT : w.t + (L - a.s) / 30) + a.pen,
     tb = (b.finished ? b.finishT : w.t + (L - b.s) / 30) + b.pen;
    return ta - tb
-  }), dnf.sort((a, b) => b.prog - a.prog), w.final = fin.concat(dnf)
+  });
+  for (const c of fin.slice()) c.sys && c.sys.plank < 9 && (c.dsq = !0, c.retired = !0, c.dnfReason = "Descalificado: tablón a " + c.sys.plank.toFixed(2) + " mm (mínimo 9)", fin.splice(fin.indexOf(c), 1), dnf.unshift(c), evt(w, c.name + " descalificado: el tablón mide " + c.sys.plank.toFixed(2) + " mm", "dnf", c));
+  dnf.sort((a, b) => (b.dsq ? 1e9 : 0) + b.prog - (a.dsq ? 1e9 : 0) - a.prog), w.final = fin.concat(dnf)
  }
 
  function qualifyOne(track, e, o) {
@@ -2964,7 +3239,7 @@
    .3 ? (c.drv.wet - 85) / 40 : 0), .2, .95), c.attack = .5;
   const s0 = -450,
    i0 = idxAt(track, (s0 % track.L + track.L) % track.L);
-  place(w, c, s0, track.rl[i0], Math.min(70, track.vref[i0] * .85)), w.cars = [c], w.all = w.cars;
+  place(w, c, s0, track.rl[i0], Math.min(70, track.vref[i0] * .85)), w.cars = [c], w.all = w.cars, o.sys && (w.rngW = rng(11), w.failMul = 0, newSys(w, c), c.sys.TbF = c.sys.TbR = 500, c.sys.Toil = 115, c.sys.Tpis = 330);
   let t0 = null,
    time = 1 / 0,
    steps = 0;
@@ -2973,7 +3248,7 @@
     const vt = targetSpeed(w, c, .86 + .12 * c.push + .07);
     c.u > vt && (c.thr = 0, c.brk = Math.max(c.brk, clamp((c.u - vt) / 8, .3, 1)))
    }
-   if (physics(w, c, DT), locate(track, c), Math.abs(c.lat) > WALL || Math.abs(c.beta) > 1) {
+   if (physics(w, c, DT), c.sys && sysStep(w, c, DT), locate(track, c), Math.abs(c.lat) > WALL || Math.abs(c.beta) > 1) {
     time = 1 / 0;
     break
    }
@@ -3031,6 +3306,14 @@
  }
  const api = {
   __speedProfile: speedProfile,
+  COMPS,
+  SYS_REC,
+  teleProfile,
+  sysSetFocus: c => { sysFocus = c },
+  newSys,
+  sysStep,
+  sysVap: vapW,
+  sysVisc: viscO,
   stintTest,
   makeTrackReal,
   useTrack,
@@ -15294,8 +15577,10 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
    c.smoke && w.t - c.smoke < 25 && Math.random() < .7 && R.pBlack.add(rx, y + .8, rz, c.vx * .2, 2, c.vy * .2, 2.2, 1.3, .7);
    const kv = tr.kv[c.idx] || 0,
     comp = c.u * c.u * kv;
-   if (c.u > 50 && (comp > 2.2 && Math.random() < .8 || Math.random() < .01)) {
-    const nS = comp > 2.2 ? 14 + Math.floor(Math.random() * 18) : 5;
+   /* chispas cuando el tablón toca el asfalto según la altura al suelo calculada (sin modelo: compresiones) */
+   const touch = c.sys ? c.sys.contact && c.u > 20 && Math.random() < .85 : c.u > 50 && (comp > 2.2 && Math.random() < .8 || Math.random() < .01);
+   if (touch) {
+    const nS = c.sys ? 6 + Math.floor(Math.min(26, (.5 - c.sys.rhP) * 9) * Math.random()) : comp > 2.2 ? 14 + Math.floor(Math.random() * 18) : 5;
     for (let k = 0; k < nS; k++) {
      const ax = -1.5 + Math.random() * 2.2,
       lt = (Math.random() - .5) * .5,
@@ -18022,6 +18307,211 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
   return d < -.6 ? "#2350a8" : d < -.3 ? "#2f7fc6" : d < .35 ? "#1f9d55" : d < .7 ? "#d89a1c" : "#c8322f"
  }
 
+ /* ===================== INGENIERÍA EN VIVO =====================
+    Panel a pantalla completa con el estado físico de cada sistema del coche que se mira: esquema del coche coloreado
+    por temperatura o por salud, decenas de canales con su margen al límite y su gráfica de los últimos 2 minutos,
+    fiabilidad de cada componente (vida consumida, factor de aceleración, probabilidad de avería), picado de dientes por
+    marcha, latencia de la telemetría en cada punto de la vuelta y el registro de avisos. */
+ const SXG = [["all", "Todo"], ["motor", "Motor"], ["fluidos", "Aceite, agua y gasolina"], ["ers", "Híbrido"], ["trans", "Transmisión"], ["frenos", "Frenos"], ["neum", "Neumáticos"], ["chasis", "Chasis y aero"], ["piloto", "Piloto y datos"], ["fiab", "Fiabilidad"]];
+ const lin = (v, a, b) => clamp((v - a) / (b - a), 0, 1);
+ /* canal: [clave de historial, grupo, nombre, unidad, valor, decimales, margen 0..1 (1 = en el límite), explicación] */
+ const SXC = [
+  ["Tpis", "motor", "Corona del pistón", "°C", S => S.Tpis, 0, S => lin(S.Tpis, 280, 480), "Temperatura de la cara del pistón que mira a la combustión. El acero aguanta unos 480 °C; el aluminio de antes, 300."],
+  ["Tring", "motor", "Primer segmento", "°C", S => S.Tring, 0, S => lin(S.Tring, 220, 320), "Por encima de ~230-250 °C el aceite se carboniza en la ranura y el segmento se pega."],
+  ["gap", "motor", "Holgura entre puntas del segmento", "µm", S => S.gap * 1e3, 0, S => lin(.25 - S.gap, 0, .25), "El segmento de acero se dilata menos que la camisa de aluminio. Si el pistón se calienta mucho más que la camisa, las puntas se tocan: el segmento se arquea y raya la pared."],
+  ["film", "motor", "Película de aceite en cojinete", "µm", S => S.film, 2, S => lin(1.2 - S.film, 0, .8), "Espesor mínimo del aceite entre la muñequilla y el casquillo (tendencia de Sommerfeld: crece con viscosidad y vueltas, baja con la carga). Por debajo de ~0,4 µm se tocan los metales."],
+  ["ki", "motor", "Índice de detonación", "", S => S.ki, 2, S => lin(S.ki, .5, 1.3), "Cuánto se acerca la mezcla sin quemar a explotar sola antes de que llegue la llama. Sube con el aire de admisión caliente, el pistón caliente, la carga y el modo ataque."],
+  ["retard", "motor", "Retraso de encendido antipicado", "°", S => S.retard, 1, S => lin(S.retard, 0, 8), "El sensor de picado retrasa la combustión para proteger el motor; cada grado cuesta ~1,2 % de potencia."],
+  ["T3", "motor", "Gas de escape (entrada turbina)", "°C", S => S.T3, 0, S => lin(S.T3, 900, 1060), "Temperatura del gas que llega a la turbina. Retrasar el encendido la sube."],
+  ["floatRpm", "motor", "Las válvulas flotan a", "rpm", S => S.floatRpm, 0, (S, c) => lin(c.rpm / S.floatRpm, .8, 1), "Por encima de este régimen la inercia de la válvula supera la fuerza del muelle neumático y deja de seguir a la leva; puede golpear el pistón."],
+  ["pvrsB", "motor", "Botella del aire de válvulas", "bar", S => S.pvrsB, 0, S => lin(210 - S.pvrsB, 20, 90), "Nitrógeno que repone las fugas de los muelles neumáticos. Si baja, baja la presión en las cámaras y con ella el límite de flotación."],
+  ["tors", "motor", "Torsión del cigüeñal", "°", S => S.tors, 2, S => lin(S.tors, .2, .8), "Amplitud de la vibración torsional (órdenes 1,5, 3, 4,5 y 6 del V6 contra el primer modo propio, ~385 Hz). El orden 3 resuena hacia 7 700 rpm."],
+  ["slap", "motor", "Golpeteo del pistón", "", S => S.slap, 2, S => lin(S.slap, .8, 2), "Cabeceo del pistón al invertirse el empuje lateral en los puntos muertos. Más fuerte con el motor frío (más holgura)."],
+  ["Tlin", "motor", "Camisa (parte alta)", "°C", S => S.Tlin, 0, S => lin(S.Tlin, 170, 230), "Pared del cilindro a la altura del primer segmento."],
+  ["bolt", "motor", "Apriete de tornillos de culata", "%", S => S.bolt * 100, 1, S => lin(1 - S.bolt, .05, .28), "Precarga que queda: se pierde por fluencia con la temperatura y por microdeslizamiento con la vibración. Por debajo del 72 % la junta deja pasar agua."],
+  ["kEv", "motor", "Detonaciones acumuladas", "", S => S.kEv, 0, S => lin(S.kEv, 50, 600), "Ciclos con picado que el control no ha corregido: erosionan el borde del pistón."],
+  ["Toil", "fluidos", "Aceite", "°C", S => S.Toil, 0, S => lin(S.Toil, 115, 145), "Temperatura del aceite del cárter seco."],
+  ["visc", "fluidos", "Viscosidad del aceite", "cSt", S => S.visc, 2, S => lin(5 - S.visc, 0, 2.6), "Ecuación de Vogel: el aceite caliente se adelgaza y la película de los cojinetes se estrecha."],
+  ["pOil", "fluidos", "Presión de aceite", "bar", S => S.pOil, 2, S => lin(4.2 - S.pOil, 0, 2.6), "Bomba volumétrica: crece con las vueltas y la viscosidad hasta la válvula de alivio."],
+  ["aer", "fluidos", "Aire en el aceite", "%", S => S.aer, 1, S => lin(S.aer, 5, 15), "El cigüeñal bate el aceite y la fuerza G lo agita; el aire hace la película menos rígida."],
+  ["oilL", "fluidos", "Aceite en el depósito", "L", S => S.oilL, 2, S => lin(6.2 - S.oilL, .5, 4), "Si baja, el depósito aguanta menos G sin descebarse."],
+  ["starving", "fluidos", "Descebe de aceite", "%", S => S.starving * 100, 0, S => S.starving, "Fuerza G sostenida mayor de lo que aguanta el depósito: la bomba aspira aire y cae la presión."],
+  ["engT", "fluidos", "Refrigerante", "°C", (S, c) => c.engT, 0, (S, c) => lin(c.engT, 112, 146), "Temperatura del agua a la salida del motor."],
+  ["boil", "fluidos", "Culata sobre saturación", "°C", S => S.hot - S.Tsat, 0, S => lin(S.hot - S.Tsat, 10, 32), "Punto caliente de la culata respecto a la ebullición del agua a la presión del circuito. Hasta ~25 °C hay ebullición nucleada (enfría mejor); más allá se forma una película de vapor que aísla el metal."],
+  ["cavM", "fluidos", "Margen de cavitación en la bomba", "bar", S => S.cavM, 2, S => lin(1 - S.cavM, 0, 1.2), "Presión disponible a la entrada de la bomba menos la de vapor y la caída por velocidad. Negativo: las burbujas implosionan y pican el metal."],
+  ["Tfuel", "fluidos", "Combustible", "°C", S => S.Tfuel, 0, S => lin(S.Tfuel, 50, 80), "Se calienta con el motor y con menos gasolina en el depósito."],
+  ["fvap", "fluidos", "Presión de vapor del combustible", "kPa", S => 60 * Math.exp(3900 * (1 / 311 - 1 / (S.Tfuel + 273))), 0, S => lin(60 * Math.exp(3900 * (1 / 311 - 1 / (S.Tfuel + 273))), 100, 300), "Si se acerca a la presión de la bomba de alimentación (3 bar), se forman burbujas: bloqueo por vapor."],
+  ["seal", "fluidos", "Envejecimiento de retenes", "%", S => S.seal * 100, 0, S => lin(S.seal, .3, 1), "Deformación remanente del elastómero por temperatura (Arrhenius). Al 100 % empieza a fugar."],
+  ["Tbat", "ers", "Batería", "°C", S => S.Tbat, 0, S => lin(S.Tbat, 55, 72), "Por encima de 68 °C se limita la potencia eléctrica para proteger las celdas."],
+  ["kMul", "ers", "Despliegue disponible", "%", S => S.kMul * 100, 0, S => 1 - S.kMul, "Fracción de los 120 kW del MGU-K que se puede usar ahora."],
+  ["batt", "ers", "Carga de la batería", "%", (S, c) => c.batt * 100, 0, (S, c) => lin(.3 - c.batt, 0, .3), "Estado de carga."],
+  ["Tmgk", "ers", "MGU-K", "°C", S => S.Tmgk, 0, S => lin(S.Tmgk, 120, 165), "Motor-generador del cigüeñal: se calienta con la potencia que mueve."],
+  ["Tmgh", "ers", "MGU-H", "°C", S => S.Tmgh, 0, S => lin(S.Tmgh, 150, 200), "Motor-generador del eje del turbo."],
+  ["Nt", "ers", "Turbo", "rpm", S => S.Nt, 0, S => lin(S.Nt, 1e5, 125e3), "El reglamento limita el turbo a 125 000 rpm."],
+  ["Tint", "ers", "Aire de admisión", "°C", S => S.Tint, 0, S => lin(S.Tint, 55, 95), "Aire tras el intercooler. A poca velocidad o en el rebufo se enfría peor: más detonación y menos potencia."],
+  ["Tinv", "ers", "Electrónica de potencia", "°C", S => S.Tinv, 0, S => lin(S.Tinv, 75, 110), "Inversor del sistema híbrido."],
+  ["Tgb", "trans", "Aceite de la caja", "°C", S => S.Tgb, 0, S => lin(S.Tgb, 110, 140), "Pérdidas de engrane (~2 % de la potencia)."],
+  ["Tcl", "trans", "Embrague", "°C", S => S.Tcl, 0, S => lin(S.Tcl, 250, 550), "Discos de carbono: se calientan al patinar en la salida y al salir de boxes."],
+  ["hyd", "trans", "Presión hidráulica", "bar", S => S.hyd, 0, S => lin(205 - S.hyd, 15, 95), "Acumulador que mueve el cambio, el embrague y la dirección. Cada cambio gasta; la bomba repone."],
+  ["shiftN", "trans", "Cambios de marcha", "", S => S.shiftN, 0, () => 0, "Contador de la carrera."],
+  ["Tin", "trans", "Par a la entrada de la caja", "N·m", S => S.Tin, 0, S => lin(S.Tin, 600, 900), "Potencia del motor térmico y eléctrico entre la velocidad del cigüeñal."],
+  ["shunt", "trans", "Golpe de transmisión", "", S => S.shunt, 2, S => lin(S.shunt, .3, 1.5), "Oscilación torsional de los palieres al dar o cortar gas de golpe en marchas cortas, por holguras y elasticidad."],
+  ["dsPk", "trans", "Pico de par en el palier", "N·m", S => S.dsPk, 0, S => lin(S.dsPk, 1500, 4500), "Cuando la rueda que patinaba agarra de golpe."],
+  ["TbF", "frenos", "Discos delanteros", "°C", S => S.TbF, 0, S => S.TbF < 300 ? lin(300 - S.TbF, 0, 250) * .7 : lin(S.TbF, 900, 1150), "El carbono frena bien entre ~350 y 1 000 °C. Frío agarra poco; muy caliente se oxida y pierde fricción."],
+  ["TbR", "frenos", "Discos traseros", "°C", S => S.TbR, 0, S => S.TbR < 300 ? lin(300 - S.TbR, 0, 250) * .7 : lin(S.TbR, 900, 1150), "El MGU-K frena parte del eje trasero, así que trabajan menos."],
+  ["TflF", "frenos", "Líquido de frenos delantero", "°C", S => S.TflF, 0, S => lin(S.TflF, 200, 315), "Hierve hacia 315 °C: el vapor se comprime y el pedal se va al fondo."],
+  ["TflR", "frenos", "Líquido de frenos trasero", "°C", S => S.TflR, 0, S => lin(S.TflR, 200, 315), ""],
+  ["wearF", "frenos", "Desgaste disco delantero", "mm", S => S.wearF, 2, S => lin(S.wearF, 1, 4.5), "Oxidación del carbono (crece exponencialmente por encima de ~700 °C)."],
+  ["wearR", "frenos", "Desgaste disco trasero", "mm", S => S.wearR, 2, S => lin(S.wearR, 1, 4.5), ""],
+  ["judder", "frenos", "Vibración por depósitos", "%", S => S.judder * 100, 0, S => S.judder, "Material de pastilla pegado al disco al quedarse parado con los frenos calientes: vibra en cada vuelta de rueda."],
+  ["tf", "neum", "Banda delantera", "°C", (S, c) => c.tire.tf, 0, (S, c) => lin(Math.abs(c.tire.tf - Sim.COMP[c.tire.c].topt), 10, 35), "Superficie de rodadura: la ventana de agarre depende del compuesto."],
+  ["tr", "neum", "Banda trasera", "°C", (S, c) => c.tire.tr, 0, (S, c) => lin(Math.abs(c.tire.tr - Sim.COMP[c.tire.c].topt), 10, 35), ""],
+  ["TcF", "neum", "Carcasa delantera", "°C", S => S.TcF, 0, S => lin(S.TcF, 110, 140), "Estructura interna: sigue a la banda más despacio y se calienta al flexionar bajo carga. Por encima de 140 °C se separa."],
+  ["TcR", "neum", "Carcasa trasera", "°C", S => S.TcR, 0, S => lin(S.TcR, 110, 140), ""],
+  ["pF", "neum", "Presión delantera", "bar", S => S.pF, 2, S => lin(Math.abs(S.pF - 1.8), .1, .35), "Gas ideal: sale a 1,59 bar con la manta a 70 °C y sube con la carcasa."],
+  ["pR", "neum", "Presión trasera", "bar", S => S.pR, 2, S => lin(Math.abs(S.pR - 1.6), .1, .35), ""],
+  ["wf", "neum", "Desgaste delantero", "%", (S, c) => c.tire.wf * 100, 0, (S, c) => lin(c.tire.wf, .4, .72), "A partir del ~70 % el agarre se desploma (el acantilado)."],
+  ["wr", "neum", "Desgaste trasero", "%", (S, c) => c.tire.wr * 100, 0, (S, c) => lin(c.tire.wr, .4, .72), ""],
+  ["areaF", "neum", "Huella de una delantera", "cm²", S => S.areaF, 0, () => 0, "Área de contacto ≈ carga / presión: crece con la carga aerodinámica."],
+  ["areaR", "neum", "Huella de una trasera", "cm²", S => S.areaR, 0, () => 0, ""],
+  ["fFlat", "neum", "Frecuencia de giro de la rueda", "Hz", S => S.fFlat, 1, (S, c) => lin(c.tire.flat, .1, 1), "Un plano por bloqueo golpea una vez por vuelta; si coincide con el rebote de la rueda (~17 Hz, unos 140 km/h) resuena."],
+  ["rhF", "chasis", "Altura delantera", "mm", S => S.rhF, 1, S => lin(6 - S.rhF, 0, 6), "Altura de referencia: baja con la carga aerodinámica, al frenar y en las compresiones."],
+  ["rhR", "chasis", "Altura trasera", "mm", S => S.rhR, 1, S => lin(18 - S.rhR, 0, 14), ""],
+  ["rhP", "chasis", "Tablón al suelo", "mm", S => S.rhP, 1, S => lin(3 - S.rhP, 0, 3.5), "Por debajo de cero el tablón de madera toca y se gasta."],
+  ["plank", "chasis", "Grosor del tablón", "mm", S => S.plank, 2, S => lin(10 - S.plank, .2, 1), "Nuevo mide 10 mm; con menos de 9 mm al final de la carrera el coche queda descalificado."],
+  ["porp", "chasis", "Porpoising", "mm", S => S.porp, 1, S => lin(S.porp, 1, 6), "Rebote aerodinámico: el suelo se acerca, entra en pérdida, sube, recupera carga y vuelve a bajar (~5 Hz)."],
+  ["hop", "chasis", "Rebote de rueda", "", S => S.hop, 2, S => lin(S.hop, .4, 1.4), "Vibración de la masa no suspendida (~17 Hz) por pianos, baches y planos."],
+  ["flex", "chasis", "Flexión del alerón delantero", "mm", S => S.flex, 1, S => lin(S.flex, 6, 14), "Crece con la presión dinámica (∝ v²)."],
+  ["Vf", "chasis", "Velocidad de flameo del alerón", "km/h", S => S.Vf * 3.6, 0, (S, c) => lin(c.u / S.Vf, .7, 1), "Por encima, la flexión y la fuerza se realimentan y el alerón vibra hasta romperse. Un alerón dañado flamea antes."],
+  ["delam", "chasis", "Delaminación del fondo", "%", S => S.delam * 100, 0, S => S.delam, "Golpes repetidos contra pianos altos a mucha velocidad."],
+  ["stop", "chasis", "Tope de suspensión delantero", "", S => S.stop ? 1 : 0, 0, S => S.stop ? .9 : 0, "1 cuando la suspensión llega al tope de goma: la rigidez se dispara y la rueda pierde carga."],
+  ["steerTq", "piloto", "Par en el volante", "N·m", S => S.steerTq, 1, S => lin(.6 - S.gripFeel, 0, .6), "Fuerza lateral delantera por el avance neumático, desmultiplicada y con asistencia. Al acercarse al límite el avance cae y el volante se aligera: así nota el piloto que el morro se va."],
+  ["pedal", "piloto", "Fuerza en el pedal de freno", "N", S => S.pedal, 0, S => S.vlock ? 1 : lin(S.pedal, 1400, 2000), "Hasta ~150 kg en una frenada fuerte. Con los discos fríos o pasados de temperatura hay que pisar más."],
+  ["pedalTr", "piloto", "Recorrido del pedal", "mm", S => S.pedalTr, 0, S => lin(S.pedalTr, 45, 90), "Si el líquido hierve, el vapor se comprime y el pedal se va al fondo."],
+  ["mesh", "trans", "Frecuencia de engrane", "Hz", S => S.mesh, 0, () => 0, "Dientes por vuelta del piñón: el silbido de la caja. Con poco par y holgura los dientes golpetean (rattle)."],
+  ["vib", "chasis", "Vibración en el cockpit", "g", S => S.vib, 2, S => lin(S.vib, .8, 2.5), "Suma del motor, pianos, porpoising, rebote de rueda, baches y frenos."],
+  ["hr", "piloto", "Pulso del piloto", "lpm", S => S.hr, 0, S => lin(S.hr, 150, 190), "Estimado con la carga G, la fatiga, la lucha y la lluvia."],
+  ["G", "piloto", "Carga G", "g", (S, c) => Math.hypot(c.axF || 0, c.u * c.r) / 9.81, 1, (S, c) => lin(Math.hypot(c.axF || 0, c.u * c.r) / 9.81, 4, 6.5), "Combinada lateral y longitudinal."],
+  ["fat", "piloto", "Fatiga del piloto", "%", S => S.fat * 100, 0, S => S.fat, "Carga acumulada en el cuello y vibración: aumenta los errores."],
+  ["lat", "piloto", "Telemetría coche → muro", "ms", S => S.lat, 1, S => lin(S.lat, 10, 25), "Codificación, saltos entre antenas de la pista y búfer. Depende de dónde esté el coche."],
+  ["fac", "piloto", "Telemetría hasta la fábrica", "ms", S => S.lat + S.fac, 0, () => 0, "Fibra hasta la sede del equipo en el Reino Unido (unos 200 000 km/s con el rodeo del trazado)."],
+  ["loss", "piloto", "Paquetes perdidos", "%", S => S.loss, 1, S => lin(S.loss, 1, 100), "En los túneles no hay cobertura: el coche guarda los datos y los envía al salir."],
+  ["buf", "piloto", "Datos en búfer", "s", S => S.buf, 1, S => lin(S.buf, 0, 5), "Tiempo sin señal."],
+  ["radioQ", "piloto", "Mensajes esperando una recta", "", S => S.radioQ.length, 0, S => lin(S.radioQ.length, 0, 4), "El ingeniero no habla en las frenadas ni en las curvas rápidas: guarda lo que no es urgente."]
+ ];
+ let sxOpen = !1, sxTab = "all", sxColor = "temp", sxSel = null, sxT = 0, sxCar = null;
+ function sxEnsure() {
+  if ($("sxOv")) return;
+  const d = document.createElement("div");
+  d.id = "sxOv", d.className = "sx", d.hidden = !0, d.innerHTML = '<div class="sxp"><header class="sxh"><div><b id="sxTitle">Ingeniería en vivo</b><small id="sxSub"></small></div><button class="btn" id="sxClose" aria-label="Cerrar">Cerrar</button></header><nav class="sxtabs" id="sxTabs">' + SXG.map(([k, n]) => '<button data-g="' + k + '"' + (k === sxTab ? ' class="on"' : "") + ">" + n + "</button>").join("") + '</nav><div class="sxb"><aside class="sxl"><div class="sxcar"><svg id="sxSvg" viewBox="0 0 200 420"></svg><div class="seg sxcm"><button data-c="temp" class="on">Temperatura</button><button data-c="health">Salud</button></div></div><div class="sxsel" id="sxSelBox"></div><h4>Latencia de la telemetría en la vuelta</h4><canvas id="sxLat" class="chart"></canvas><h4>Avisos</h4><div id="sxLog" class="sxlog"></div></aside><section class="sxr"><div id="sxGrid" class="sxgrid"></div></section></div></div>', document.body.appendChild(d);
+  $("sxClose").onclick = () => sxShow(!1), d.addEventListener("click", e => { e.target === d && sxShow(!1) });
+  $("sxTabs").addEventListener("click", e => { const b = e.target.closest("button"); b && (sxTab = b.dataset.g, [...$("sxTabs").children].forEach(x => x.classList.toggle("on", x === b)), sxSel = null, sxRender(!0)) });
+  d.querySelector(".sxcm").addEventListener("click", e => { const b = e.target.closest("button"); b && (sxColor = b.dataset.c, [...b.parentNode.children].forEach(x => x.classList.toggle("on", x === b)), sxRender()) });
+  $("sxGrid").addEventListener("click", e => { const t = e.target.closest("[data-k]"); t && (sxSel = sxSel === t.dataset.k ? null : t.dataset.k, sxRender(!0)) });
+  $("sxSvg").addEventListener("click", e => { const t = e.target.closest("[data-g]"); t && (sxTab = t.dataset.g, [...$("sxTabs").children].forEach(x => x.classList.toggle("on", x.dataset.g === sxTab)), sxRender(!0)) });
+  document.addEventListener("keydown", e => { e.key === "Escape" && sxOpen && sxShow(!1) });
+  $("sxSvg").innerHTML = sxCarSvg()
+ }
+ function sxShow(on) { sxEnsure(), sxOpen = on, $("sxOv").hidden = !on, document.body.classList.toggle("sxon", on), on && sxRender(!0) }
+ /* esquema del coche visto desde arriba (morro arriba) con cada sistema como zona coloreable */
+ function sxCarSvg() {
+  const z = (id, g, d, extra) => '<path id="sx_' + id + '" data-g="' + g + '" d="' + d + '" ' + (extra || "") + "/>";
+  return '<g class="sxbody"><path d="M100 18 L112 60 L118 140 L150 165 L156 300 L132 360 L118 400 L82 400 L68 360 L44 300 L50 165 L82 140 L88 60 Z" fill="#1b2128" stroke="#303a45"/></g>' +
+   z("fw", "chasis", "M40 14 H160 V30 H40 Z") + z("plank", "chasis", "M94 150 H106 V370 H94 Z") + z("tFL", "neum", "M22 70 h28 v58 h-28 Z") + z("tFR", "neum", "M150 70 h28 v58 h-28 Z") + z("tRL", "neum", "M14 300 h34 v66 h-34 Z") + z("tRR", "neum", "M152 300 h34 v66 h-34 Z") +
+   z("bFL", "frenos", "M50 88 h8 v22 h-8 Z") + z("bFR", "frenos", "M142 88 h8 v22 h-8 Z") + z("bRL", "frenos", "M48 322 h8 v22 h-8 Z") + z("bRR", "frenos", "M144 322 h8 v22 h-8 Z") +
+   z("cock", "piloto", "M88 128 Q100 116 112 128 L112 170 Q100 178 88 170 Z") + z("bat", "ers", "M84 178 H116 V200 H84 Z") + z("radL", "fluidos", "M52 176 H78 V262 H58 Z") + z("radR", "fluidos", "M122 176 H148 L142 262 H122 Z") +
+   z("eng", "motor", "M82 204 H118 L122 262 H78 Z") + z("turbo", "ers", "M92 206 h16 v10 h-16 Z") + z("mguk", "ers", "M74 222 h8 v22 h-8 Z") + z("gb", "trans", "M88 266 H112 L110 330 H90 Z") + z("exh", "motor", "M95 330 h10 v34 h-10 Z") + z("rw", "chasis", "M56 384 H144 V402 H56 Z") +
+   '<g class="sxlbl" font-size="9" fill="#8b97a4" text-anchor="middle"><text x="100" y="11">alerón</text><text x="100" y="234">motor</text><text x="100" y="300">caja</text><text x="65" y="220" transform="rotate(-90 65 220)">radiador</text><text x="135" y="220" transform="rotate(90 135 220)">radiador</text><text x="100" y="415">alerón trasero</text></g>'
+ }
+ const sxHeat = t => { t = clamp(t, 0, 1); const s = [[61, 139, 255], [47, 209, 108], [255, 210, 63], [255, 107, 26], [255, 59, 59]], x = t * (s.length - 1), i = Math.min(s.length - 2, x | 0), f = x - i; return "rgb(" + [0, 1, 2].map(k => Math.round(s[i][k] + (s[i + 1][k] - s[i][k]) * f)).join(",") + ")" };
+ function sxPaintCar(c) {
+  const S = c.sys, t = c.tire, top = Sim.COMP[t.c].topt, T = (v, a, b) => (v - a) / (b - a), lifeOf = k => { const x = Sim.COMPS.find(q => q[0] === k); return S.te[k] / x[3] };
+  const set = (id, v) => { const e = document.getElementById("sx_" + id); e && e.setAttribute("fill", sxHeat(v)) };
+  if (sxColor === "temp") {
+   set("tFL", T(t.tf, top - 35, top + 35)), set("tFR", T(t.tf, top - 35, top + 35)), set("tRL", T(t.tr, top - 35, top + 35)), set("tRR", T(t.tr, top - 35, top + 35));
+   set("bFL", T(S.TbF, 100, 1100)), set("bFR", T(S.TbF, 100, 1100)), set("bRL", T(S.TbR, 100, 1100)), set("bRR", T(S.TbR, 100, 1100));
+   set("eng", T(S.Tpis, 150, 480)), set("turbo", T(S.T3, 500, 1050)), set("exh", T(S.T3, 500, 1050)), set("bat", T(S.Tbat, 25, 72)), set("mguk", T(S.Tmgk, 60, 165)), set("gb", T(S.Tgb, 50, 140));
+   set("radL", T(c.engT, 60, 146)), set("radR", T(S.Toil, 60, 145)), set("cock", T(S.hr, 90, 190)), set("fw", T(S.flex, 0, 14)), set("rw", T(S.vib, 0, 2.5)), set("plank", T(10 - S.plank, 0, 1))
+  } else {
+   set("tFL", t.wf / .72), set("tFR", t.wf / .72), set("tRL", t.wr / .72), set("tRR", t.wr / .72), set("bFL", Math.max(S.wearF / 4.5, lifeOf("brk"))), set("bFR", S.wearF / 4.5), set("bRL", S.wearR / 4.5), set("bRR", S.wearR / 4.5);
+   set("eng", Math.max(lifeOf("pis"), lifeOf("rod"), lifeOf("brg"), lifeOf("ring"), lifeOf("valve"))), set("turbo", lifeOf("turbo")), set("exh", lifeOf("exh")), set("bat", lifeOf("es")), set("mguk", lifeOf("mguk")), set("gb", Math.max(lifeOf("gb"), lifeOf("hyd")));
+   set("radL", lifeOf("cool")), set("radR", lifeOf("oil")), set("cock", S.fat), set("fw", c.dmg.fw), set("rw", lifeOf("susp")), set("plank", 10 - S.plank)
+  }
+ }
+ function sxSpark(cv, arr, H) {
+  const r = cv.getBoundingClientRect();
+  if (!r.width || !arr) return;
+  const W = Math.round(r.width * dpr), Hh = Math.round(r.height * dpr);
+  (cv.width !== W || cv.height !== Hh) && (cv.width = W, cv.height = Hh);
+  const g = cv.getContext("2d"), n = H.n;
+  g.clearRect(0, 0, W, Hh);
+  if (n < 2) return;
+  let mn = 1e9, mx = -1e9;
+  for (let j = 0; j < n; j++) { const v = arr[(H.i - n + j + H.len) % H.len]; v < mn && (mn = v), v > mx && (mx = v) }
+  mx - mn < 1e-6 && (mx += 1, mn -= 1);
+  g.strokeStyle = "#ff6b1a", g.lineWidth = 1.4 * dpr, g.beginPath();
+  for (let j = 0; j < n; j++) { const v = arr[(H.i - n + j + H.len) % H.len], x = j / (H.len - 1) * W, y = Hh - 2 * dpr - (v - mn) / (mx - mn) * (Hh - 4 * dpr); j ? g.lineTo(x, y) : g.moveTo(x, y) }
+  g.stroke()
+ }
+ function sxLatChart(c) {
+  const P = prepCanvas($("sxLat"));
+  if (!P) return;
+  const { g, W, H } = P, w = app.w, TP = Sim.teleProfile(w.track), n = TP.n, mx = Math.max(...TP.lat) * 1.6;
+  for (let i = 0; i < n; i++) TP.loss[i] > 2 && (g.fillStyle = TP.loss[i] >= 100 ? "rgba(255,59,59,.35)" : "rgba(255,210,63," + Math.min(.35, TP.loss[i] / 20) + ")", g.fillRect(i / n * W, 0, W / n + 1, H));
+  g.strokeStyle = "#3d8bff", g.lineWidth = 1.5 * dpr, g.beginPath();
+  for (let i = 0; i < n; i++) { const x = i / n * W, y = H - 4 * dpr - TP.lat[i] / mx * (H - 16 * dpr); i ? g.lineTo(x, y) : g.moveTo(x, y) }
+  g.stroke();
+  const x = (c.s || 0) / w.track.L * W;
+  g.fillStyle = "#fff", g.fillRect(x - 1 * dpr, 0, 2 * dpr, H), g.fillStyle = "#8b97a4", g.font = 10 * dpr + "px 'JetBrains Mono',monospace", g.fillText(fmt(TP.lat[Math.min(n - 1, Math.floor((c.s || 0) / 20))], 1) + " ms al muro · fábrica +" + Math.round(TP.fac) + " ms · rojo: sin señal", 4 * dpr, 11 * dpr)
+ }
+ function sxFiab(c) {
+  const S = c.sys, w = app.w, lapT = w.track.ideal || 90, mul = w.failMul || 0;
+  let h = '<div class="sxfi" style="grid-column:1/-1;max-width:900px"><p class="note">Cada pieza tiene una vida de Weibull. La barra es la vida característica ya consumida (63 % de probabilidad de haber fallado si llega al 100 %); el factor dice cuántas veces más deprisa la gasta ahora mismo que en condiciones normales; la probabilidad es la de averiarse en las próximas 5 vueltas a este ritmo. ' + (mul ? "" : "<b>Las averías están desactivadas en esta carrera.</b>") + " Esta unidad de potencia lleva " + S.age + " carreras.</p><table><thead><tr><th>Componente</th><th>Vida consumida</th><th>Factor ahora</th><th>Avería en 5 v.</th></tr></thead><tbody>";
+  for (const [k, n, , eta, beta] of Sim.COMPS) {
+   const life = S.te[k] / eta, e = mul ? eta * Math.pow(1 / mul, 1 / beta) : 0, af = S.AF[k] || 1, d = af * lapT * 5 / 3600, p = e ? 1 - Math.exp(-(Math.pow((S.te[k] + d) / e, beta) - Math.pow(S.te[k] / e, beta))) : 0, failed = S.failed && S.failed[k];
+   h += '<tr class="' + (failed ? "bad" : "") + '"><td>' + n + (failed ? " · AVERIADO" : "") + '</td><td><div class="sxbar"><i style="width:' + Math.min(100, life * 100).toFixed(1) + "%;background:" + sxHeat(life) + '"></i></div><small>' + (life * 100).toFixed(1) + ' %</small></td><td style="color:' + (af > 3 ? "var(--red)" : af > 1.5 ? "var(--yellow)" : "var(--ink)") + '">×' + (af < 10 ? af.toFixed(2) : af.toFixed(0)) + "</td><td>" + (p * 100 < .01 ? "<0,01" : fmt(p * 100, 2)) + " %</td></tr>"
+  }
+  h += "</tbody></table>";
+  /* picado y fatiga de dientes por marcha */
+  const gp = Array.from(S.gearP), gd = Array.from(S.gearD), mx = Math.max(1e-9, ...gp);
+  h += '<h4>Caja: picado de los dientes por marcha (contacto de Hertz, sin límite de fatiga)</h4><div class="sxgears">' + gp.map((v, i) => '<div><i style="height:' + Math.max(2, v / mx * 100).toFixed(0) + "%;background:" + sxHeat(Math.min(1, gd[i] * 50 + v / mx * .6)) + '"></i><b>' + (i + 1) + "ª</b></div>").join("") + "</div>";
+  return h + "</div>"
+ }
+ function sxRender(full) {
+  const c = focusCar(), w = app.w;
+  if (!c || !c.sys) { $("sxGrid").innerHTML = '<p class="note">Toca un coche de la carrera para ver sus sistemas.</p>'; return }
+  const S = c.sys, H = S.hist;
+  sxCar !== c && (sxCar = c, full = !0);
+  $("sxTitle").textContent = "Ingeniería en vivo · " + (c.code || "") + " " + (c.name || "");
+  $("sxSub").textContent = "Vuelta " + Math.max(1, Math.floor(c.prog / w.track.L) + 1) + " · " + Math.round(c.u * 3.6) + " km/h · " + Math.round(c.rpm) + " rpm · " + (c.gear + 1) + "ª · unidad de potencia con " + S.age + " carreras · telemetría " + fmt(S.lat, 1) + " ms" + (S.loss >= 100 ? " · SIN SEÑAL" : "");
+  sxPaintCar(c);
+  if (sxTab === "fiab") { (full || (sxT = (sxT + 1) % 3) === 0) && ($("sxGrid").innerHTML = sxFiab(c)) }
+  else {
+   const list = SXC.filter(x => sxTab === "all" || x[1] === sxTab);
+   if (full || $("sxGrid").childElementCount !== list.length + (sxSel ? 1 : 0)) {
+    $("sxGrid").innerHTML = list.map(x => '<div class="sxt" data-k="' + x[0] + '"><span class="sxn">' + x[2] + '</span><b><em></em><small>' + x[3] + '</small></b><div class="sxbar"><i></i></div><canvas class="sxsp"></canvas></div>' + (sxSel === x[0] ? '<div class="sxhelp">' + esc(x[7] || "") + "</div>" : "")).join("")
+   }
+   for (const x of list) {
+    const el = $("sxGrid").querySelector('[data-k="' + x[0] + '"]');
+    if (!el) continue;
+    const v = x[4](S, c), m = clamp(x[6](S, c), 0, 1);
+    el.querySelector("em").textContent = Number.isFinite(v) ? Math.abs(v) >= 1e4 ? Math.round(v).toLocaleString("es") : fmt(v, x[5]) : "—";
+    const bar = el.querySelector(".sxbar i");
+    bar.style.width = (m * 100).toFixed(0) + "%", bar.style.background = sxHeat(m), el.dataset.state = m > .85 ? "bad" : m > .6 ? "warn" : "";
+    const key = x[0] === "boil" ? "hot" : x[0];
+    H && H.d[key] && sxSpark(el.querySelector("canvas"), H.d[key], H)
+   }
+  }
+  const sel = sxSel && SXC.find(x => x[0] === sxSel);
+  $("sxSelBox").innerHTML = sel ? "<b>" + sel[2] + "</b><p>" + esc(sel[7]) + "</p>" : '<p class="note">Toca un canal para ver qué mide y por qué importa. Toca una zona del coche para ir a su sistema.</p>';
+  sxLatChart(c);
+  $("sxLog").innerHTML = S.log.length ? S.log.slice(0, 12).map(e => '<div class="sxe ' + e.lvl + '"><span>V' + e.lap + "</span>" + esc(e.txt) + "</div>").join("") : '<p class="note">Sin avisos.</p>'
+ }
+ function sxStrip(c) {
+  const S = c.sys, top = SXC.map(x => [x, clamp(x[6](S, c), 0, 1)]).filter(q => q[1] > .6).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  return '<div class="sxstrip">' + (top.length ? top.map(([x, m]) => '<span class="' + (m > .85 ? "bad" : "warn") + '">' + x[2] + " " + fmt(x[4](S, c), x[5]) + (x[3] ? " " + x[3] : "") + "</span>").join("") : '<span class="ok">Todos los sistemas dentro de margen</span>') + "</div>"
+ }
+ function sxTick(dt) { sxOpen && (sxTick.t = (sxTick.t || 0) + dt) > .3 && (sxTick.t = 0, sxRender()) }
  function updateTele() {
   const c = focusCar(),
    w = app.w;
@@ -18069,7 +18559,8 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
     ["Salidas", "start"]
    ].map(([l, k]) => '<div class="rt"><span>' + l + "<b>" + c.drv[k] + '</b></span><i><u style="width:' + Math.max(0, (c.drv[k] - 60) / 40 * 100) + '%"></u></i></div>').join("") +
    "</div>";
-  $("teleSub").textContent = pos ? "P" + pos : "", $("tele").innerHTML = '<div class="who"><span class="sw" style="background:' + (c.color || "#ff6b1a") +
+  S.sysSetFocus && S.sysSetFocus(c), $("tele").__sx || ($("tele").__sx = 1, $("tele").addEventListener("pointerdown", e => { e.target.closest(".sxbtn") && (e.preventDefault(), sxShow(!0)) }));
+  $("teleSub").textContent = pos ? "P" + pos : "", $("tele").innerHTML = (c.sys ? '<button class="btn sxbtn">Ingeniería en vivo · todos los sistemas del coche</button>' + sxStrip(c) : "") + '<div class="who"><span class="sw" style="background:' + (c.color || "#ff6b1a") +
    '"></span><div style="min-width:0"><b>' + esc(name) + "</b><small>" + esc(team) +
    '</small></div></div><div class="tele"><div class="gauge" title="Gas, freno y batería"><div class="vbar"><i style="height:' + Math.round(c.thr * 100) +
    '%;background:var(--green)"></i></div><div class="vbar"><i style="height:' + Math.round(c.brk * 100) +
@@ -18809,7 +19300,7 @@ registerProcessor('engine-proc',EngineProc);`;
    }
    drawMini(), overlays3d(dt)
   } else draw();
-  lensTick(dt), soundTick(), uiT += dt, brainT += dt, anaT += dt, uiT > .2 && (uiT = 0, updateHud(), updateTower(), updateFeed(), updateTele(), app.view === "3d" &&
+  lensTick(dt), soundTick(), sxTick(dt), uiT += dt, brainT += dt, anaT += dt, uiT > .2 && (uiT = 0, updateHud(), updateTower(), updateFeed(), updateTele(), app.view === "3d" &&
   updateF1Tower(), updateWall(), chartDirty && isTrain() && (drawChart(), chartDirty = !1)), brainT > .1 && (brainT = 0, drawBrain(), isTrain() || drawTrace()), anaT > 1 && (
    anaT = 0, drawAnalysis()), requestAnimationFrame(frame)
  }

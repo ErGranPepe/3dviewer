@@ -13,7 +13,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--body)}
 a{color:var(--accent)}
-header{display:flex;align-items:center;gap:16px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header{display:flex;align-items:center;gap:16px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:30;flex-wrap:wrap}
 header h1{font:800 22px/1 var(--display);letter-spacing:.02em;margin:0;text-transform:uppercase}
 header h1 span{color:var(--accent)}
 header .back{color:var(--mute);text-decoration:none;font-weight:600}
@@ -107,6 +107,17 @@ canvas.big{height:420px}
 .e3log{display:flex;flex-direction:column;gap:6px}
 .e3log .vd span{color:var(--ink)}
 body[data-mode=pro] .easyonly{display:none}
+.limgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,760px),1fr));gap:14px}
+.lim{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;scroll-margin-top:80px}
+.lim header{display:flex;align-items:center;gap:10px;margin-bottom:4px}.lim h3{margin:0;color:var(--ink);font-size:19px}
+.limg{font:700 11px var(--display);letter-spacing:.08em;text-transform:uppercase;background:var(--accent);color:#111;padding:3px 7px;border-radius:4px}
+.lim .sub{font-size:13px;margin:0 0 10px;max-width:none}
+.limb{display:grid;grid-template-columns:250px minmax(0,1fr);gap:12px}
+.limp .pg{border:0;padding:0}.limp .pg summary{display:none}.limp .prow{padding:3px 0}
+.limplots{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
+canvas.limc{height:210px}
+.limv{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px}
+@media (max-width:700px){.limb{grid-template-columns:1fr}}
 h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color:var(--mute)}
 .note{color:var(--faint);font-size:12px;margin-top:20px;max-width:100ch}
 @media (max-width:1000px){.e3wrap{grid-template-columns:1fr}.e3view{height:58vh;min-height:320px}header{position:static}.views{order:-1}.labgrid{grid-template-columns:1fr}.params{position:static;max-height:none}.vrow{grid-template-columns:1fr}canvas.big{height:340px}.pgrid{grid-template-columns:1fr}}
@@ -117,13 +128,14 @@ h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color
 <header>
   <a class="back" href="./">← Simulador</a>
   <h1>Laboratorio <span>técnico</span></h1>
-  <nav class="tabs"><button data-tab="susp" class="on">Suspensión</button><button data-tab="engine">Motor</button></nav>
+  <nav class="tabs"><button data-tab="susp" class="on">Suspensión</button><button data-tab="engine">Motor</button><button data-tab="limits">Límites y averías</button></nav>
   <div class="modes"><button data-setmode="easy">Modo fácil</button><button data-setmode="pro">Modo ingeniero</button></div>
 </header>
 <main>
   <section id="tab-susp"></section>
   <section id="tab-engine" hidden></section>
-  <p class="note">Modelos físicos simplificados pero completos: cinemática exacta en vista frontal, dinámica de medio eje integrada con Runge-Kutta a 3 kHz, motor en 3D con cinemática exacta pieza a pieza, tren de válvulas con flotación y holgura con el pistón, turbo con compresor y turbina, daño por fatiga acumulado (Basquin y Miner), ciclo de una zona con combustión de Wiebe, transferencia de calor de Woschni, detonación por Livengood-Wu (Douaud-Eyzat), mecánica biela-manivela exacta, fatiga de Goodman, pandeo de Euler y vibración torsional por análisis modal. Los valores por defecto son estimaciones razonables de un F1 actual, no datos de ningún equipo.</p>
+  <section id="tab-limits" hidden></section>
+  <p class="note">Modelos físicos simplificados pero completos: cinemática exacta en vista frontal, dinámica de medio eje integrada con Runge-Kutta a 3 kHz, motor en 3D con cinemática exacta pieza a pieza, tren de válvulas con flotación y holgura con el pistón, turbo con compresor y turbina, daño por fatiga acumulado (Basquin y Miner), ciclo de una zona con combustión de Wiebe, transferencia de calor de Woschni, detonación por Livengood-Wu (Douaud-Eyzat), mecánica biela-manivela exacta, fatiga de Goodman, pandeo de Euler y vibración torsional por análisis modal. Límites y averías: diagrama de unión atornillada con fluencia y autoaflojamiento, holgura de segmentos por dilatación diferencial, resonancia de muelles y flotación, ley de Vogel y película de Sommerfeld, curva de ebullición de Nukiyama con CHF de Zuber, cavitación por NPSH, curvas S-N de flexión y picado, frenos con convección, radiación y oxidación, gas ideal en el neumático, altura al suelo con efecto suelo, rebote de rueda y aeroelasticidad. Los valores por defecto son estimaciones razonables de un F1 actual, no datos de ningún equipo.</p>
 </main>
 <script src="__THREEJS__"></script>
 <script src="__LABJS__"></script>
@@ -134,12 +146,12 @@ h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color
   const inited = {};
   const show = t => {
     for (const b of document.querySelectorAll("[data-tab]")) b.classList.toggle("on", b.dataset.tab === t);
-    for (const s of ["susp", "engine"]) document.getElementById("tab-" + s).hidden = s !== t;
+    for (const s of ["susp", "engine", "limits"]) document.getElementById("tab-" + s).hidden = s !== t;
     if (!inited[t]) inited[t] = 1, LAB[t].init(document.getElementById("tab-" + t));
     try { history.replaceState(null, "", "#" + t) } catch (e) {}
   };
   for (const b of document.querySelectorAll("[data-tab]")) b.onclick = () => show(b.dataset.tab);
-  show(location.hash === "#engine" ? "engine" : "susp");
+  show(location.hash === "#engine" ? "engine" : location.hash === "#limits" ? "limits" : "susp");
 })();
 </script>
 </body>
