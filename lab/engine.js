@@ -105,7 +105,7 @@ LAB.engine = (() => {
     const sPin = maxF * Lp / 8 / Z, tauPin = 2 * maxF / (2 * Apin) * (4 / 3);
     const As = P.rodA / 1e6, sRodC = Math.max(...F.Fr) / As, sRodT = -Math.min(...F.Fr) / As;
     const goodman = (smax, smin, M) => { const sa = (smax - smin) / 2, sm = (smax + smin) / 2; return 1 / (sa / M.Se + Math.max(0, sm) / M.Su) };
-    const sfRod = goodman(sRodC, -sRodT, mr), sfPin = goodman(sPin, Math.min(0, minF) * Lp / 8 / Z, MAT.steel), sfCrown = goodman(sCrown, 0, { Se: mp.Se * .7, Su: mp.Su * .7 });
+    const sfRod = goodman(sRodT, -sRodC, mr), sfPin = goodman(sPin, Math.min(0, minF) * Lp / 8 / Z, MAT.steel), sfCrown = goodman(sCrown, 0, { Se: mp.Se * .7, Su: mp.Su * .7 });
     const I = P.rodI * 1e-12, Le = C.l, Pcr = Math.PI * Math.PI * mr.E * I / (Le * Le), sfBuck = Pcr / Math.max(1, Math.max(...F.Fr));
     let bmax = 0;
     for (let i = 0; i < C.N; i++) bmax = Math.max(bmax, Math.hypot(F.bx[i], F.by[i]));
@@ -255,6 +255,46 @@ LAB.engine = (() => {
     return [x.slice(0, n), x.slice(n)]
   }
 
+  /* ---------- distribución: alzada, dinámica del tren de válvulas y holgura con el pistón ---------- */
+  /* ángulos del ciclo de cada cilindro (0 = PMS de encendido): apertura y duración de cada leva */
+  const VT = P => ({ in: [-360 - P.ivo, P.ivo + 180 + P.ivc], ex: [180 - P.evo, P.evo + 180 + P.evc] });
+  function lift(P, kind, thd, over = 0) {
+    const [o, d0] = VT(P)[kind], d = d0 * (1 + .6 * over), u = ((thd - o) % 720 + 720) % 720;
+    if (u >= d) return 0;
+    const s = Math.sin(Math.PI * u / d);
+    return (kind === "in" ? P.vlin : P.vlex) / 1e3 * (1 + .8 * over) * s * s
+  }
+  /* muelle neumático: gas comprimido (politrópica 1,3); metálico: lineal */
+  const springF = (P, L) => P.vsys === "neum" ? P.vpre * Math.pow(P.vgas / Math.max(.5, P.vgas - L * 1e3), 1.3) : P.vpre + P.vspring * L * 1e3;
+  function valvetrain(P, C, rpm) {
+    const m = P.vtmass / 1e3, T = VT(P);
+    let ratio = 0, aMax = 0, Fneed = 0, Fspr = 0;
+    for (const kind of ["in", "ex"]) {
+      const dur = T[kind][1], L = (kind === "in" ? P.vlin : P.vlex) / 1e3, wx = 6 * rpm / dur; /* dx/dt con x = fracción de la duración */
+      aMax = Math.max(aMax, 2 * Math.PI * Math.PI * L * wx * wx);
+      for (let x = .25; x <= .75; x += .005) {
+        const dec = -2 * Math.PI * Math.PI * L * Math.cos(2 * Math.PI * x) * wx * wx; /* deceleración que debe dar el muelle */
+        if (dec <= 0) continue;
+        const Ls = L * Math.sin(Math.PI * x) ** 2, F = springF(P, Ls), q = m * dec / F;
+        q > ratio && (ratio = q, Fneed = m * dec, Fspr = F)
+      }
+    }
+    const over = Math.max(0, ratio - 1), floatRpm = rpm / Math.sqrt(Math.max(1e-6, ratio));
+    /* holgura: el pistón sube al PMS de solape mientras escape cierra y admisión abre */
+    let minC = 1e9, atTh = 0, atKind = "in";
+    const deck = C.Vc / C.Ap + P.vpocket / 1e3, cv = Math.cos(11 * DEG);
+    for (let t = 290; t <= 430; t += .5) for (const kind of ["in", "ex"]) { const cl = deck + C.xPis(t * DEG) - lift(P, kind, t, over) * cv; cl < minC && (minC = cl, atTh = t - 360, atKind = kind) }
+    return { ratio, over, floatRpm, aMax, Fneed, Fspr, minC, atTh, atKind }
+  }
+  /* turbo: compresor (rendimiento 78 %), velocidad por coeficiente de trabajo, turbina con la entalpía del escape */
+  function turbo(P, C) {
+    const mdot = C.mAir * NC * C.rpm / 120, T1 = 298, PR = P.boost * 1.06 / .98, k = .2857;
+    const T2 = T1 * (1 + (Math.pow(PR, k) - 1) / .78), Wc = mdot * 1005 * (T2 - T1), U = Math.sqrt(1005 * T1 * (Math.pow(PR, k) - 1) / .55), Nt = U / .046 * 60 / TAU;
+    const iE = Math.round((180 - P.evo + 360) / 720 * C.N), T3 = C.T[iE] * Math.pow(Math.min(1, P.pexh * 1e5 / C.p[iE]), .3 / 1.3) * 1.08;
+    const mex = mdot * (1 + 1 / (C.lambda * AFR)), ER = Math.max(1.01, P.pexh / 1.05), Wt = mex * 1150 * T3 * .8 * (1 - Math.pow(1 / ER, .3 / 1.3));
+    return { mdot, PR, T2, Wc, Nt, T3, Wt, Wh: Wt - Wc }
+  }
+
   /* ---------- interfaz ---------- */
   const DEF = [
     { title: "Lo esencial", open: !0, help: "Mueve las revoluciones y el turbo y mira la presión dentro del cilindro, las fuerzas y las temperaturas.", items: [
@@ -319,6 +359,18 @@ LAB.engine = (() => {
       { id: "hoil", label: "Refrigeración del pistón (chorro de aceite)", unit: "W/m²K", min: 500, max: 20000, step: 100, v: 8000 },
       { id: "toil", label: "Temperatura del aceite", unit: "°C", min: 60, max: 160, step: 1, v: 125 }
     ]},
+    { title: "Distribución y válvulas", adv: !0, help: "Si la inercia de la válvula supera la fuerza del muelle, la válvula flota; con mucho solape o poca holgura, toca el pistón.", items: [
+      { id: "vsys", label: "Muelles de válvula", v: "neum", opts: [["neum", "Neumáticos (nitrógeno a presión)"], ["metal", "Metálicos"]] },
+      { id: "ivo", label: "Apertura de admisión (antes del PMS)", unit: "°", min: 0, max: 80, step: 1, v: 20 },
+      { id: "evc", label: "Cierre de escape (tras el PMS)", unit: "°", min: 0, max: 80, step: 1, v: 20 },
+      { id: "vlin", label: "Alzada de admisión", unit: "mm", min: 6, max: 20, step: .1, v: 13.5 },
+      { id: "vlex", label: "Alzada de escape", unit: "mm", min: 6, max: 18, step: .1, v: 12 },
+      { id: "vtmass", label: "Masa móvil por válvula", unit: "g", min: 20, max: 140, step: 1, v: 50, help: "Válvula, platillo, chavetas, taqué y la parte del muelle que se mueve." },
+      { id: "vpre", label: "Precarga del muelle", unit: "N", min: 100, max: 2000, step: 10, v: 900 },
+      { id: "vgas", label: "Columna de gas (muelle neumático)", unit: "mm", min: 16, max: 60, step: .5, v: 25 },
+      { id: "vspring", label: "Rigidez (muelle metálico)", unit: "N/mm", min: 10, max: 150, step: 1, v: 60 },
+      { id: "vpocket", label: "Rebaje de válvulas en el pistón", unit: "mm", min: 0, max: 4, step: .1, v: 1.2 }
+    ]},
     { title: "Cigüeñal (torsional)", adv: !0, items: [
       { id: "jdamp", label: "Inercia de la polea / amortiguador", unit: "kg·cm²", min: 10, max: 800, step: 5, v: 120 },
       { id: "jthrow", label: "Inercia de cada muñequilla", unit: "kg·cm²", min: 20, max: 800, step: 5, v: 160 },
@@ -337,13 +389,16 @@ LAB.engine = (() => {
     lift: { name: "Ahorro (lift & coast)", v: { rpm: 9000, boost: 2.2, fuel: 45, soc: -9 } },
     knock: { name: "Al límite de detonación", v: { rpm: 8000, boost: 4.3, soc: -16, ron: 95 } },
     alu: { name: "Pistón de aluminio (2013)", v: { pmat: "al2618", mpis: 230, crown: 7, hoil: 6000 } },
-    road: { name: "Motor de calle 1.6 turbo", v: { tji: "no", fflim: "no", rpm: 5500, boost: 2.0, fuel: 34, cr: 10.5, rod: 140, stroke: 81.4, bore: 79, ron: 95, mpis: 360, mrod: 470, rmat: "steel", pmat: "al2618", soc: -6, dur: 48, pexh: 1.6, ivc: 50, lthk: 4.5, crown: 8, tcool: 95 } }
+    metal: { name: "Muelles metálicos", v: { vsys: "metal", vpre: 380, vspring: 55, rpm: 13500 } },
+    overlap: { name: "Mucho solape", v: { ivo: 62, evc: 55 } },
+    road: { name: "Motor de calle 1.6 turbo", v: { tji: "no", fflim: "no", rpm: 5500, boost: 2.0, fuel: 34, cr: 10.5, rod: 140, stroke: 81.4, bore: 79, ron: 95, mpis: 360, mrod: 470, rmat: "steel", pmat: "al2618", soc: -6, dur: 48, pexh: 1.6, ivc: 50, lthk: 4.5, crown: 8, tcool: 95, vsys: "metal", vpre: 260, vspring: 32, vlin: 9.5, vlex: 9, vtmass: 75, ivo: 8, evc: 10, vpocket: .8 } }
   };
-  let host, prm, plots = {}, ro, res = null, ang = 0, raf, animSpd = .6, lastT = 0, frame = 0;
+  let host, prm, plots = {}, ro, res = null, e3 = 0, frame = 0;
   function compute() {
     const P = prm.v, C = cycle(P), F = forces(P, C), Sx = stresses(P, C, F), Th = thermal(P, C), V6 = v6(P, C, F), TS = torsion(P, C, F), TR = torsResponse(P, TS, C, F, P.rpm);
-    res = { P, C, F, Sx, Th, V6, TS, TR };
-    drawStatic(), readouts(), sweep()
+    res = { P, C, F, Sx, Th, V6, TS, TR, VT: valvetrain(P, C, P.rpm), TB: turbo(P, C), MK: { ratio: 50000 / 15000 } };
+    drawStatic(), readouts(), sweep();
+    LAB.engine3d && (e3 ? LAB.engine3d.update(res) : (e3 = 1, LAB.engine3d.init($("eng3d"), res)))
   }
   function drawStatic() {
     const { C, F, Th, V6, TS, Sx, P } = res, n = C.N;
@@ -391,75 +446,24 @@ LAB.engine = (() => {
     ro.set("brg", Sx.bearP / 1e6, 0, Sx.bearP > 260e6 ? "bad" : Sx.bearP > 200e6 ? "warn" : "ok");
     ro.set("tl", Math.max(...Th.Twl), 0, Math.max(...Th.Twl) > 250 ? "bad" : Math.max(...Th.Twl) > 210 ? "warn" : "ok"), ro.set("tr", Th.Tring, 0, Th.Tring > 230 ? "bad" : Th.Tring > 200 ? "warn" : "ok"), ro.set("tp", Th.Tpis, 0, Th.Tpis > mp.Tmax ? "bad" : Th.Tpis > mp.Tmax * .88 ? "warn" : "ok");
     ro.set("ff", Math.max(...V6.Fmag), 0), ro.set("fm", Math.max(...V6.Mmag), 0), ro.set("f1", TS.freqs[0] || 0, 0), ro.set("tau", TR.tau / 1e6, 0, TR.tau > 220e6 ? "bad" : TR.tau > 150e6 ? "warn" : "ok"), ro.set("tqr", V6.Tmax - V6.Tmin, 0);
+    const { VT: vt, TB } = res;
+    ro.set("vfl", Math.round(vt.floatRpm), 0, vt.over > 0 ? "bad" : vt.floatRpm < P.rpm * 1.1 ? "warn" : "ok"), ro.set("vcl", vt.minC * 1e3, 2, vt.minC < 0 ? "bad" : vt.minC < .0008 ? "warn" : "ok"), ro.set("vac", vt.aMax / 9.81, 0);
+    ro.set("nt", Math.round(TB.Nt), 0, TB.Nt > 125e3 ? "bad" : TB.Nt > 118e3 ? "warn" : ""), ro.set("mguh", TB.Wh / 1e3, 0), ro.set("t2", TB.T2 - 273, 0), ro.set("egt", TB.T3 - 273, 0, TB.T3 - 273 > 1050 ? "bad" : TB.T3 - 273 > 980 ? "warn" : ""), ro.set("wc", TB.Wc / 1e3, 0);
     const out = [];
     C.knockAt != null ? out.push(["bad", "Detonación", "La mezcla sin quemar explota sola antes de que llegue la llama. Retrasa el encendido, baja el turbo o usa más octanaje."]) : C.ki > .7 ? out.push(["warn", "Detonación", "Estás cerca del límite: poco margen."]) : out.push(["ok", "Combustión", "Limpia, sin detonación."]);
     Sx.sfCrown < 1.2 ? out.push(["bad", "Pistón", "La corona trabaja por encima de su resistencia a fatiga: riesgo de rotura."]) : Th.Tpis > mp.Tmax ? out.push(["bad", "Pistón", "La corona se calienta a " + Th.Tpis.toFixed(0) + " °C, más de lo que aguanta el " + mp.name + "."]) : out.push(["ok", "Pistón", "Temperatura y tensión dentro de margen."]);
     Sx.sfRod < 1.2 || Sx.sfBuck < 2 ? out.push(["bad", "Biela", "Poco margen en la biela (tracción por inercia o pandeo). Menos revoluciones o biela más robusta."]) : out.push(["ok", "Biela", "Seguridad a fatiga " + Sx.sfRod.toFixed(2) + " y a pandeo " + Sx.sfBuck.toFixed(1) + "."]);
     Th.Tring > 230 ? out.push(["bad", "Aceite", "El primer segmento pasa de 230 °C: el aceite se carboniza y los segmentos se pegan."]) : out.push(["ok", "Aceite", "Zona de segmentos a " + Th.Tring.toFixed(0) + " °C."]);
+    vt.minC < 0 ? out.push(["bad", "Válvulas", "Tocan el pistón en el solape (" + (vt.minC * 1e3).toFixed(2) + " mm" + (vt.over > 0 ? ", y además flotan" : "") + "). Reduce el solape, la alzada o las revoluciones."]) : vt.over > 0 ? out.push(["bad", "Válvulas", "Flotan: la inercia supera al muelle por encima de " + Math.round(vt.floatRpm).toLocaleString("es") + " rpm."]) : out.push(["ok", "Válvulas", "Controladas hasta " + Math.round(vt.floatRpm).toLocaleString("es") + " rpm; holgura " + (vt.minC * 1e3).toFixed(1) + " mm."]);
     TR.tau > 220e6 ? out.push(["bad", "Cigüeñal", "A estas rpm hay resonancia torsional fuerte (" + (TR.tau / 1e6).toFixed(0) + " MPa)."]) : out.push(["ok", "Cigüeñal", "Torsional controlada."]);
     $("engVerdict").innerHTML = out.map(([s, t, d]) => `<div class="vd ${s}"><b>${t}</b><span>${d}</span></div>`).join("")
   }
-  /* animación del cilindro en corte */
-  function anim(t) {
-    raf = requestAnimationFrame(anim);
-    if (!res || document.hidden || !host.offsetParent) return;
-    const dt = Math.min(.05, (t - lastT) / 1e3 || 0);
-    lastT = t, ang = (ang + dt * animSpd * 360) % 720;
-    const { C, Th, F, P } = res, c = $("engCv"), g = c.getContext("2d"), r = c.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
-    (c.width !== (r.width * dpr | 0)) && (c.width = r.width * dpr, c.height = r.height * dpr);
-    g.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const W = r.width, H = r.height;
-    g.clearRect(0, 0, W, H);
-    const a = (ang - 360) * DEG, i = clamp(Math.round((ang / 720) * C.N), 0, C.N - 1);
-    /* escala: culata + cámara + carrera + biela + muñequilla caben en el 88 % del alto */
-    const stackM = C.Vc / C.Ap + C.S + C.l + C.r * 2.2 + .03, sc = Math.min(H * .88 / stackM, W * .46 / (C.B * 2.1)), cx = W * .25, top = H * .06;
-    const Bp = C.B * sc, headH = .018 * sc, deck = top + headH, xp = C.xPis(a) * sc, crownY = deck + (C.Vc / C.Ap) * sc + xp;
-    const tcol = (T, al = 1) => { const u = clamp((T - 60) / 260, 0, 1); return `hsla(${(1 - u) * 215},85%,${40 + u * 14}%,${al})` };
-    /* culata con válvulas (admisión azul, escape rojo) y precámara */
-    g.fillStyle = "#2a3038", g.fillRect(cx - Bp / 2 - 14, top - 6, Bp + 28, headH + 6);
-    const lift = (o, c2) => { const d = ((ang - o) % 720 + 720) % 720, L = ((c2 - o) % 720 + 720) % 720; return d < L ? Math.sin(Math.PI * d / L) : 0 };
-    const li = lift(350, 540 + P.ivc + 10), le = lift(540 - P.evo, 730 + 10), vw = Bp * .3, vMax = .009 * sc;
-    for (const [x0, L, col] of [[cx - Bp * .24, li, "#3d8bff"], [cx + Bp * .24, le, "#ff3b3b"]]) { g.fillStyle = col, g.fillRect(x0 - 2, top - 6, 4, headH + 6 + L * vMax), g.fillRect(x0 - vw / 2, deck + L * vMax - 3, vw, 3) }
-    const soc = P.soc, burning = ang - 360 > soc - 2 && ang - 360 < soc + P.dur;
-    g.fillStyle = burning ? "#ffd23f" : "#4a525c", g.beginPath(), g.arc(cx, deck - 3, 4, 0, TAU), g.fill();
-    /* camisa coloreada por temperatura */
-    const lz = z => deck + (C.Vc / C.Ap) * sc + z / 1e3 * sc;
-    for (let k = 0; k < Th.NZ - 1; k++) { const y0 = lz(Th.z[k]), y1 = lz(Th.z[k + 1]); g.fillStyle = tcol(Th.Twl[k]), g.fillRect(cx - Bp / 2 - 10, y0, 9, y1 - y0 + 1), g.fillRect(cx + Bp / 2 + 1, y0, 9, y1 - y0 + 1) }
-    g.fillStyle = "#3a414b", g.fillRect(cx - Bp / 2 - 10, deck, 9, lz(0) - deck), g.fillRect(cx + Bp / 2 + 1, deck, 9, lz(0) - deck);
-    /* gas: color según temperatura y frente de llama */
-    const Tg = C.T[i] - 273, xb = C.xb[i];
-    g.fillStyle = ang - 360 > (180 - P.evo) || ang - 360 < -180 + P.ivc - 180 ? "rgba(61,139,255,.16)" : `hsla(${clamp(40 - Tg / 60, 0, 40)},95%,${clamp(18 + Tg / 60, 18, 60)}%,${clamp(.15 + Tg / 2600, .15, .85)})`;
-    g.fillRect(cx - Bp / 2, deck, Bp, crownY - deck);
-    if (burning && xb < .99) { const R2 = (crownY - deck) * .2 + Bp * .55 * Math.sqrt(xb); g.strokeStyle = "rgba(255,240,180,.8)", g.lineWidth = 2, g.beginPath(), g.arc(cx, deck, R2, 0, Math.PI), g.stroke() }
-    /* pistón */
-    const pH = Bp * .62, pg = g.createLinearGradient(0, crownY, 0, crownY + pH);
-    pg.addColorStop(0, tcol(Th.Tpis)), pg.addColorStop(.35, tcol((Th.Tpis + P.toil) / 2)), pg.addColorStop(1, "#4d5560"), g.fillStyle = pg, g.fillRect(cx - Bp / 2 + 1, crownY, Bp - 2, pH);
-    g.fillStyle = "rgba(0,0,0,.45)";
-    for (let k = 0; k < 3; k++) g.fillRect(cx - Bp / 2 + 1, crownY + P.ringland / 1e3 * sc + k * Bp * .045, Bp - 2, 1.6);
-    const pinY = crownY + pH * .55;
-    /* biela y cigüeñal */
-    const crankY = pinY + C.l * sc * Math.sqrt(1 - (C.lam * Math.sin(a)) ** 2) + C.r * sc * Math.cos(a);
-    const cp = [cx + C.r * sc * Math.sin(a), crankY - C.r * sc * Math.cos(a)];
-    const fr = F.Fr[i];
-    g.save(), g.translate(cx, crankY), g.rotate(a);
-    g.fillStyle = "#5b6672", g.beginPath(), g.arc(0, 0, C.r * sc * 1.9, Math.PI * .2, Math.PI * .8), g.lineTo(0, 0), g.fill();
-    g.fillStyle = "#4a525c", g.beginPath(), g.arc(0, 0, C.r * sc * .55, 0, TAU), g.fill(), g.fillRect(-C.r * sc * .45, -C.r * sc, C.r * sc * .9, C.r * sc), g.restore();
-    g.strokeStyle = fr > 0 ? `rgb(255,${Math.round(200 - clamp(fr / 1e3 * 1.4, 0, 170))},70)` : "#3d8bff", g.lineWidth = Math.max(5, Bp * .12), g.lineCap = "round", g.beginPath(), g.moveTo(cx, pinY), g.lineTo(...cp), g.stroke();
-    g.fillStyle = "#c9d2db", g.beginPath(), g.arc(cp[0], cp[1], Math.max(4, Bp * .1), 0, TAU), g.fill(), g.beginPath(), g.arc(cx, pinY, Math.max(3, Bp * .06), 0, TAU), g.fill();
-    /* escala de colores */
-    const lg = g.createLinearGradient(0, H - 30, 0, 30);
-    for (let k = 0; k <= 10; k++) lg.addColorStop(k / 10, tcol(60 + k * 26));
-    g.fillStyle = lg, g.fillRect(8, 30, 8, H - 60), g.fillStyle = "#8b97a4", g.font = "10px " + css("--mono"), g.textAlign = "left", g.fillText("320 °C", 19, 36), g.fillText("60 °C", 19, H - 32);
-    /* cursor en la gráfica de presión */
-    if ((frame = (frame || 0) + 1) % 3 === 0 && plots.p.last) { const [ser, o] = plots.p.last; plots.p.draw(ser, { ...o, points: [{ x: ang - 360, y: C.p[i] / 1e5, col: "#ffffff", r: 4 }] }) }
-    /* indicadores */
-    g.fillStyle = "#e9eef3", g.font = "600 13px " + css("--body"), g.textAlign = "left";
-    const x0 = W * .54;
-    const lines = [["Ángulo", ((ang - 360)).toFixed(0) + "°"], ["Presión", (C.p[i] / 1e5).toFixed(1) + " bar"], ["Gas", (C.T[i] - 273).toFixed(0) + " °C"], ["Quemado", (xb * 100).toFixed(0) + " %"], ["Fuerza en biela", (fr / 1e3).toFixed(1) + " kN"], ["Empuje lateral", (F.Fn[i] / 1e3).toFixed(2) + " kN"], ["Velocidad pistón", F.vel[i].toFixed(1) + " m/s"], ["Aceleración", (F.acc[i] / 9.81 / 1e3).toFixed(1) + " mil g"]];
-    lines.forEach(([k, v], j) => { g.fillStyle = "#8b97a4", g.fillText(k, x0, 30 + j * 22), g.fillStyle = "#e9eef3", g.fillText(v, x0 + 130, 30 + j * 22) });
-    const stroke = a < -Math.PI ? "Admisión" : a < 0 ? "Compresión" : a < Math.PI ? "Expansión" : "Escape";
-    g.fillStyle = "#ff6b1a", g.font = "700 15px " + css("--display"), g.fillText(stroke.toUpperCase(), x0, 30 + lines.length * 22 + 6);
-    g.fillStyle = "#5b6672", g.font = "11px " + css("--body"), g.fillText(`Cámara lenta: ${P.rpm} rpm mostradas a ${(animSpd * 60 / 2).toFixed(1)} rpm`, x0, H - 12);
+  /* cursor del cilindro 1 sobre la gráfica de presión, sincronizado con el motor 3D */
+  function cursor() {
+    requestAnimationFrame(cursor);
+    if (!res || document.hidden || !host.offsetParent || !LAB.engine3d || (frame = frame + 1) % 4 || !plots.p.last) return;
+    const th = LAB.engine3d.angle(0), i = clamp(Math.round((th + 360) / 720 * res.C.N), 0, res.C.N - 1), [ser, o] = plots.p.last;
+    plots.p.draw(ser, { ...o, points: [{ x: th, y: res.C.p[i] / 1e5, col: "#ffffff", r: 4 }] })
   }
   function init(el0) {
     host = el0;
@@ -468,8 +472,9 @@ LAB.engine = (() => {
     <div class="labgrid">
       <aside class="params" id="engParams"></aside>
       <section class="views">
-        <div class="vrow"><canvas id="engCv" class="big"></canvas><div class="verdict" id="engVerdict"></div></div>
-        <div class="ctrl"><label>Cámara lenta <select id="engSpd"><option value=".15">muy lenta</option><option value=".6" selected>lenta</option><option value="2">media</option></select></label><button id="engCsv" class="btn adv">Exportar CSV del ciclo</button></div>
+        <div id="eng3d" class="e3host"></div>
+        <div class="verdict vgrid" id="engVerdict"></div>
+        <div class="ctrl adv"><button id="engCsv" class="btn">Exportar CSV del ciclo</button></div>
         <div class="readouts" id="engRo"></div>
         <div class="pgrid"><canvas id="engP"></canvas><canvas id="engF"></canvas><canvas id="engTq"></canvas><canvas id="engTh"></canvas></div>
         <h3 class="adv">Ingeniería a fondo</h3>
@@ -487,14 +492,15 @@ LAB.engine = (() => {
       { id: "rodc", label: "Biela: compresión", unit: "MPa", adv: !0 }, { id: "rodt", label: "Biela: tracción", unit: "MPa", adv: !0 }, { id: "sfr", label: "Seguridad biela (fatiga)", unit: "" }, { id: "buck", label: "Seguridad al pandeo", unit: "", adv: !0 },
       { id: "brg", label: "Presión en cojinete de biela", unit: "MPa", adv: !0 }, { id: "tl", label: "Camisa (máx.)", unit: "°C" },
       { id: "ff", label: "Fuerza libre máx.", unit: "N", adv: !0 }, { id: "fm", label: "Momento libre máx.", unit: "N·m", adv: !0 }, { id: "tqr", label: "Rizado de par", unit: "N·m p-p", adv: !0 },
-      { id: "f1", label: "1.er modo torsional", unit: "Hz", adv: !0 }, { id: "tau", label: "Tensión torsional", unit: "MPa" }
+      { id: "f1", label: "1.er modo torsional", unit: "Hz", adv: !0 }, { id: "tau", label: "Tensión torsional", unit: "MPa" },
+      { id: "vfl", label: "Las válvulas flotan a", unit: "rpm" }, { id: "vcl", label: "Holgura válvula-pistón", unit: "mm" }, { id: "vac", label: "Aceleración de válvula", unit: "g", adv: !0 },
+      { id: "nt", label: "Turbo", unit: "rpm" }, { id: "mguh", label: "MGU-H (+ recupera)", unit: "kW" }, { id: "t2", label: "Aire tras el compresor", unit: "°C", adv: !0 }, { id: "egt", label: "Gas a la turbina", unit: "°C", adv: !0 }, { id: "wc", label: "Potencia del compresor", unit: "kW", adv: !0 }
     ]);
     const mk = (k, id) => plots[k] = new Plot($(id));
     mk("p", "engP"), mk("f", "engF"), mk("tq", "engTq"), mk("th", "engTh"), mk("pv", "engPV"), mk("brg", "engBrg"), mk("vib", "engVib"), mk("camp", "engCamp"), mk("sw", "engSw"), mk("pw", "engPw");
-    $("engSpd").onchange = e => animSpd = +e.target.value;
     $("engCsv").onclick = () => { const { C, F } = res, rows = []; for (let i = 0; i < C.N; i += 2) rows.push([C.th[i], C.p[i] / 1e5, C.T[i] - 273.15, C.xb[i], C.vol[i] * 1e6, F.Fg[i], F.Fi[i], F.Fr[i], F.Fn[i], F.Tc[i]]); downloadCSV("ciclo_motor.csv", ["angulo_deg", "presion_bar", "T_gas_C", "fraccion_quemada", "volumen_cm3", "F_gas_N", "F_inercia_N", "F_biela_N", "F_lateral_N", "par_cilindro_Nm"], rows) };
     window.addEventListener("labmode", () => setTimeout(() => { for (const p of Object.values(plots)) p.fit(); res && (drawStatic(), sweep()) }, 50));
-    compute(), requestAnimationFrame(anim)
+    compute(), requestAnimationFrame(cursor)
   }
-  return { init, _test: { cycle, forces, stresses, thermal, v6, torsion, torsResponse } }
+  return { init, VT, lift, _mat: MAT, _test: { cycle, forces, stresses, thermal, v6, torsion, torsResponse, valvetrain, turbo } }
 })();
