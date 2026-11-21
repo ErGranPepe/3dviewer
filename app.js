@@ -1385,6 +1385,26 @@
   u > vt + .8 ? (car.thr = 0, car.brk = clamp((u - vt) / 5, .15, 1)) : (car.thr = clamp((vt - u) / 2.5, 0, 1), car.brk = 0)
  }
 
+ /* pilotaje de la IA: en aire limpio sigue la trazada al ritmo que permite su agarre (como un piloto en su vuelta
+    rápida, con el margen según su talento y su nivel de ataque); con coches cerca, la red neuronal y la táctica deciden
+    adelantar, defender o esperar */
+ function aiMargin(c) {
+  const pace = c.drv ? c.drv.pace : 85, tt = c.tire, hot = tt ? Math.max(tt.tf, tt.tr) - COMP[tt.c].topt : 0;
+  return clamp(.948 + .018 * clamp((pace - 85) / 10, -1.2, 1.2) + .02 * ((c.push != null ? c.push : .7) - .7) - clamp((hot - 10) / 40, 0, .05), .9, .975)
+ }
+
+ function cleanLap(w, car) {
+  const look = Math.max(14, car.u * .5);
+  steerTo(w, car, w.track.rl[(car.idx + Math.round(look / w.track.ds)) % w.track.N], look), speedTo(car, Math.min(targetSpeed(w, car, aiMargin(car)), car.vCap || 200)), car.ers = car.thr > .9 && car.u > 30
+ }
+
+ function aiControl(w, c) {
+  sense(w, c);
+  const busy = !w.started || c.inPit || c.justPit || c.blue || c.atkSide || c.underYellow || w.vsc > 0 || w.sc && w.sc.on || c.ahead && c.aheadD < 95 || c.behind && c.behindD < 45 || c.mgr && c.mgr.yieldTo || c.finished;
+  if (busy) return c.aiMode = 1, think(w, c);
+  c.aiMode = 0, c.vCap = 200, cleanLap(w, c)
+ }
+
  function autopilot(w, car) {
   steerTo(w, car, w.track.rl[(car.idx + Math.round(Math.max(14, car.u * .5) / w.track.ds)) % w.track.N], Math.max(14, car.u * .5)), speedTo(car, targetSpeed(w, car, .95)), car
    .ers = car.thr > .95 && car.batt > .1 && car.u > 30
@@ -1466,7 +1486,8 @@
   c.ersOn = !1;
   const noErs = c.fail && c.fail.ers;
   c.mgr && c.mgr.ers && (c.mgr.ers === "harv" ? c.ers = !1 : c.mgr.ers === "dep" && thr > .6 && u0 > 25 && (c.ers = !0));
-  const ersReq = CAR.reg === "2026" ? ecu2026(w, c, u0, dt) : c.ers;
+  /* el despliegue lo decide la centralita con su mapa de energía en los dos reglamentos (el piloto empuja con el botón) */
+  const ersReq = ecu2026(w, c, u0, dt) && (CAR.reg === "2026" || c.dLeft > 0);
   ersReq && !noErs && c.batt > .003 && c.dLeft > 0 && thr >
    .5 && w.vsc <= 0 && !(w.sc && w.sc.on) && (Pk = CAR.pK * thr * kTaper(u0, c.mom), c.ersOn = Pk > 0);
   c.sys && (Pice *= c.sys.pMul, Pk *= c.sys.kMul), c.pKW = Pk;
@@ -1587,6 +1608,8 @@
   c.vx = u * chh - v * shh, c.vy = u * shh + v * chh, c.beta = Math.atan2(v, Math.max(u, 1)), c.load = util, c.lockF = lockF, c.lockR = lockR, c.spinR = spinR, u > c.topSpeed && (
    c.topSpeed = u), u > (c.lapTop || 0) && (c.lapTop = u);
   const pH = thr > .85 && c.rpm > 9500 && !(c.fail && c.fail.ers) ? CAR.pH * thr : 0;
+  /* hasta 2025 el MGU-H, sin límite de energía, carga la batería cuando el MGU-K no la está gastando */
+  !c.ersOn && pH > 0 && c.batt < 1 && (c.batt = Math.min(1, c.batt + pH * .9 * dt / CAR.bat));
   if (c.ersOn) {
    const e = Math.max(0, Pk - pH) * dt * Math.max(.3, pFrac);
    c.batt = Math.max(0, c.batt - e / CAR.bat), c.dLeft -= e
@@ -2208,7 +2231,7 @@
      continue
     }
     if (c.finished && c.coolT == null && (c.coolT = w.t), c.player ? c.auto ? (sense(w, c), autopilot(w, c)) : (sense(w, c), w.input && playerControl(w, c, w.input)) : (w.ctrl ? w
-      .ctrl(w, c) : think(w, c), catchSlide(c), mistakes(w, c, dt)), director(w, c, dt), !c.player && w.reflex !== !1 && reflex(w, c), !w.started || c.react && w.t < c.react ? c
+      .ctrl(w, c) : aiControl(w, c), catchSlide(c), mistakes(w, c, dt)), director(w, c, dt), !c.player && w.reflex !== !1 && reflex(w, c), !w.started || c.react && w.t < c.react ? c
      .hold = !0 : c.hold = !1, c.badStart && w.t < c.badStart && (c.thr = Math.min(c.thr, .45)), c.finished && (c.thr = Math.min(c.thr, .35), c.ers = !1), drsLogic(w, c), physics(
       w, c, dt), locate(tr, c), walls(w, c), timing(w, c), trackLimits(w, c), c.justPit && w.t - c.justPitT > 12 && (c.justPit = !1), c.prog > c.maxProg && (c.maxProg = c.prog), c
      .trace && c.prog >= 0 && (c.trace[Math.floor(c.s / 20)] = c.u, traceMore(c)), w.started && !c.finished && !c.hold) {
@@ -2788,9 +2811,9 @@
     (para compararla con la vuelta real de referencia y pasarla al laboratorio) */
  function traceMore(c) {
   const n = c.trace.length;
-  c.tr2 || (c.tr2 = { g: new Uint8Array(n), e: new Float32Array(n), t: new Float32Array(n), k: new Float32Array(n), x: new Float32Array(n), p: new Float32Array(n), ay: new Float32Array(n) });
+  c.tr2 || (c.tr2 = { g: new Uint8Array(n), e: new Float32Array(n), t: new Float32Array(n), k: new Float32Array(n), x: new Float32Array(n), p: new Float32Array(n), ay: new Float32Array(n), ice: new Float32Array(n), md: new Uint8Array(n), dl: new Float32Array(n) });
   const b = Math.floor(c.s / 20), T = c.tr2;
-  T.g[b] = c.gear + 1, T.e[b] = c.batt, T.t[b] = c.thr, T.k[b] = c.brk, T.x[b] = (c.clip || 0) / 1e3, T.p[b] = ((c.ersOn ? c.pKW || 0 : 0) - (c.pHarvW || 0) - (c.clip || 0) - (c.partH || 0)) / 1e3, T.ay[b] = c.u * (c.r || 0) / 9.81
+  T.g[b] = c.gear + 1, T.e[b] = c.batt, T.t[b] = c.thr, T.k[b] = c.brk, T.x[b] = (c.clip || 0) / 1e3, T.p[b] = ((c.ersOn ? c.pKW || 0 : 0) - (c.pHarvW || 0) - (c.clip || 0) - (c.partH || 0)) / 1e3, T.ay[b] = c.u * (c.r || 0) / 9.81, T.ice[b] = (c.pIceW || 0) / 1e3, T.md[b] = c.mode, T.dl[b] = Math.max(0, Math.min(c.dLeft, 9e6)) / 1e6
  }
 
  /* en clasificación (hasta 2025) el DRS se abre libremente en sus zonas, sin necesidad de ir a menos de 1 s */
@@ -3099,7 +3122,7 @@
      const lt = w.t - c.lapT0;
      c.lastLap = lt, c.lapT0 = w.t, c.laps = lapIdx, c.curSec[2] = w.t - c.secT0, c.sectors = c.curSec.slice(), c.secT0 = w.t;
      for (let q = 0; q < 3; q++) c.sectors[q] > 0 && c.sectors[q] < c.bestSec[q] && (c.bestSec[q] = c.sectors[q]);
-     lt < c.bestLap && !c.inPitLap && (c.bestLap = lt, c.trace && (c.bestTrace = Float32Array.from(c.trace), c.bestTr2 = c.tr2 && { g: Uint8Array.from(c.tr2.g), e: Float32Array.from(c.tr2.e), t: Float32Array.from(c.tr2.t), k: Float32Array.from(c.tr2.k), x: Float32Array.from(c.tr2.x), p: Float32Array.from(c.tr2.p), ay: Float32Array.from(c.tr2.ay) })), c.trace && (c.lastTrace = Float32Array.from(c.trace)), lt < w
+     lt < c.bestLap && !c.inPitLap && (c.bestLap = lt, c.trace && (c.bestTrace = Float32Array.from(c.trace), c.bestTr2 = c.tr2 && { g: Uint8Array.from(c.tr2.g), e: Float32Array.from(c.tr2.e), t: Float32Array.from(c.tr2.t), k: Float32Array.from(c.tr2.k), x: Float32Array.from(c.tr2.x), p: Float32Array.from(c.tr2.p), ay: Float32Array.from(c.tr2.ay), ice: Float32Array.from(c.tr2.ice), md: Uint8Array.from(c.tr2.md), dl: Float32Array.from(c.tr2.dl) })), c.trace && (c.lastTrace = Float32Array.from(c.trace)), lt < w
       .fastest.t && !c.inPitLap && (w.fastest = {
        t: lt,
        car: c
@@ -3166,7 +3189,7 @@
    gapA = ahead ? gapTo(w, c, ahead) : 99,
    behind = w.order[ai + 1],
    gapB = behind ? gapTo(w, behind, c) : 99;
-  c.mode = 1, (gapA < 1.2 || gapB < 1) && c.engT < 122 && (c.mode = 2), (gapA < 1.5 || gapB < 1) && (push += .07), left <= 2 && (push += .08), c.engT > 124 && (c.mode = 0);
+  c.mode = 1, (gapA < 1.2 || gapB < 1) && c.engT < 126 && (c.mode = 2), (gapA < 1.5 || gapB < 1) && (push += .07), left <= 2 && (push += .08), c.engT > 130 && (c.mode = 0);
   const life = c.genome ? c.genome.pit : .72;
   left * (c.wearRate > 0 ? c.wearRate * COMP[t.c].wear : .03 * w.wearMul) > life - wear + .05 && left > 2 && (push -= .12), c.underYellow && (push -= .15), c.push = clamp(push,
    .1, .95), c.attack = clamp(.45 + (c.drv.craft - 80) / 40 + (gapA < 1 ? .15 : 0), .25, .95);
@@ -3377,7 +3400,7 @@
   applySetup(c, e.wing != null ? e.wing : clamp(track.wingRec + (w.wetLine > .3 ? .15 : 0), 0, 1), e.bias), e.sq && (c.setup.q = e.sq);
   const tc = w.wetLine > .7 ? "W" : w.wetLine > .25 ? "I" : "S";
   c.tire = newTire(tc, COMP[tc].topt), c.fuel = 8, c.batt = 1, c.muEst = 1.6, c.brakeT = 500, c.engT = 100, c.mode = 2, c.push = clamp(.62 + (c.drv.pace - 85) / 30 + (w.wetLine >
-   .3 ? (c.drv.wet - 85) / 40 : 0), .2, .95), c.attack = .5;
+   .3 ? (c.drv.wet - 85) / 40 : 0), .2, .95), c.attack = .5, o.fuel != null && (c.fuel = o.fuel), o.mode != null && (c.mode = o.mode), o.batt != null && (c.batt = o.batt), o.tireT != null && (c.tire.tf = c.tire.tr = o.tireT), o.wear != null && (c.tire.wf = c.tire.wr = o.wear), o.push != null && (c.push = o.push);
   const s0 = -450,
    i0 = idxAt(track, (s0 % track.L + track.L) % track.L);
   place(w, c, s0, track.rl[i0], Math.min(70, track.vref[i0] * .85)), w.cars = [c], w.all = w.cars, o.sys && (w.rngW = rng(11), w.failMul = 0, newSys(w, c), c.sys.TbF = c.sys.TbR = 500, c.sys.Toil = 115, c.sys.Tpis = 330);
@@ -3385,7 +3408,7 @@
    time = 1 / 0,
    steps = 0;
   for (; steps < 60 * 260;) {
-   if (steps++, w.t += DT, e.player ? autopilot(w, c) : (think(w, c), catchSlide(c)), !e.player && c.u > 25) {
+   if (steps++, w.t += DT, e.player ? autopilot(w, c) : (o.teacher ? (sense(w, c), teacher(w, c)) : o.nn ? think(w, c) : cleanLap(w, c), catchSlide(c)), !e.player && c.u > 25) {
     const vt = targetSpeed(w, c, .86 + .12 * c.push + .07);
     c.u > vt && (c.thr = 0, c.brk = Math.max(c.brk, clamp((c.u - vt) / 8, .3, 1)))
    }
