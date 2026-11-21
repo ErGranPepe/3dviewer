@@ -116,6 +116,7 @@ body[data-mode=pro] .easyonly{display:none}
 .limp .pg{border:0;padding:0}.limp .pg summary{display:none}.limp .prow{padding:3px 0}
 .limplots{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
 canvas.limc{height:210px}
+canvas.lim3d{height:300px;margin-bottom:8px;cursor:grab;touch-action:none}
 .limv{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:8px}
 @media (max-width:700px){.limb{grid-template-columns:1fr}}
 h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color:var(--mute)}
@@ -138,7 +139,7 @@ h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color
   <p class="note">Modelos físicos simplificados pero completos: cinemática exacta en vista frontal, dinámica de medio eje integrada con Runge-Kutta a 3 kHz, motor en 3D con cinemática exacta pieza a pieza, tren de válvulas con flotación y holgura con el pistón, turbo con compresor y turbina, daño por fatiga acumulado (Basquin y Miner), ciclo de una zona con combustión de Wiebe, transferencia de calor de Woschni, detonación por Livengood-Wu (Douaud-Eyzat), mecánica biela-manivela exacta, fatiga de Goodman, pandeo de Euler y vibración torsional por análisis modal. Límites y averías: diagrama de unión atornillada con fluencia y autoaflojamiento, holgura de segmentos por dilatación diferencial, resonancia de muelles y flotación, ley de Vogel y película de Sommerfeld, curva de ebullición de Nukiyama con CHF de Zuber, cavitación por NPSH, curvas S-N de flexión y picado, frenos con convección, radiación y oxidación, gas ideal en el neumático, altura al suelo con efecto suelo, rebote de rueda y aeroelasticidad. Los valores por defecto son estimaciones razonables de un F1 actual, no datos de ningún equipo.</p>
 </main>
 <script src="a/three.04d0db4a9b.js"></script>
-<script src="a/lab.92a5ad1b05.js"></script>
+<script src="a/lab.e82c5a8a3f.js"></script>
 <script>
 (function(){
   LAB.setMode(LAB.mode);
