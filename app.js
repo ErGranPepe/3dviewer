@@ -354,10 +354,61 @@
    for (let i = 0; i < N; i++) b[i] = (a[(i - 1 + N) % N] + 2 * a[i] + a[(i + 1) % N]) / 4;
    a = b
   }
+  /* horquillas de circuitos reales: el descenso por curvatura mínima se pega al vértice interior (radio de trazada
+     menor que el del eje; el coche real usa todo el ancho y gira con un radio ≈ eje + semiancho). Solo ahí se mezcla
+     la trazada de K1999 (Coulom, curvatura geométrica de tres puntos), que abre la entrada y la salida */
+  if (realStart) {
+   const w = hairpinMask(tr), HWT = typeof window < "u" && window.__hwt != null ? window.__hwt : .7;
+   if (w.some(x => x > 0)) { const k = k1999Line(tr, NX, NY, lim, realStart); for (let i = 0; i < N; i++) a[i] = (1 - HWT * w[i]) * a[i] + HWT * w[i] * k[i] }
+  }
   for (let i = 0; i < N; i++) a[i] = clamp(a[i], -lim, lim);
   return racingLineFinish(tr, a, NX, NY)
  }
-
+ /* máscara de horquillas: giro neto de más de ~100° en ±35 m con radio del eje menor de 25 m, ensanchada ±40 m */
+ function hairpinMask(tr) {
+  const N = tr.N, ds = tr.ds, W = Math.round(35 / ds), R = Math.round(40 / ds), raw = new Float32Array(N), w = new Float32Array(N), K = j => tr.k[(j % N + N) % N];
+  let net = 0;
+  for (let j = -W; j <= W; j++) net += K(j) * ds;
+  for (let i = 0; i < N; i++) {
+   i > 0 && (net += (K(i + W) - K(i - W - 1)) * ds);
+   let kc = 0;
+   for (let q = -3; q <= 3; q++) kc = Math.max(kc, Math.abs(K(i + q)));
+   raw[i] = clamp((Math.abs(net) - 1.4) / .5, 0, 1) * clamp((kc - 1 / 30) / (1 / 22 - 1 / 30), 0, 1)
+  }
+  for (let i = 0; i < N; i++) { let m = 0; for (let q = -R; q <= R; q++) m = Math.max(m, raw[((i + q) % N + N) % N] * (1 - Math.abs(q) / (R + 1))); w[i] = m }
+  return w
+ }
+ /* curvatura (con signo) de la circunferencia que pasa por tres puntos */
+ function k3pt(ax, ay, bx, by, cx, cy) {
+  const x1 = bx - ax, y1 = by - ay, x2 = cx - bx, y2 = cy - by, d = Math.hypot(x1, y1) * Math.hypot(x2, y2) * Math.hypot(cx - ax, cy - ay);
+  return d > 1e-12 ? 2 * (x1 * y2 - y1 * x2) / d : 0
+ }
+ /* K1999: cada punto se mueve por su normal hasta que su curvatura sea la media ponderada de la de sus vecinos, de paso
+    grueso (256 m) a fino (4 m) */
+ function k1999Line(tr, NX, NY, lim, n0) {
+  const N = tr.N, X = tr.x, Y = tr.y, n = new Float64Array(N);
+  for (let i = 0; i < N; i++) n[i] = n0 ? n0(i) : 0;
+  for (const st of [64, 32, 16, 8, 4, 2, 1]) {
+   if (N / st < 12) continue;
+   const M = Math.floor(N / st), sweeps = st === 1 ? 90 : 60;
+   const px = q => { const i = q * st % N; return X[i] + NX[i] * n[i] }, py = q => { const i = q * st % N; return Y[i] + NY[i] * n[i] };
+   for (let sw = 0; sw < sweeps; sw++) for (let q = 0; q < M; q++) {
+    const i = q * st, a2 = (q - 2 + M) % M, a1 = (q - 1 + M) % M, b1 = (q + 1) % M, b2 = (q + 2) % M,
+     ax = px(a2), ay = py(a2), bx = px(a1), by = py(a1), cx = px(q), cy = py(q), dx = px(b1), dy = py(b1), ex = px(b2), ey = py(b2),
+     r0 = k3pt(ax, ay, bx, by, cx, cy), r1 = k3pt(cx, cy, dx, dy, ex, ey), lp = Math.hypot(cx - bx, cy - by), ln = Math.hypot(dx - cx, dy - cy),
+     tgt = (ln * r0 + lp * r1) / (ln + lp), k0 = k3pt(bx, by, cx, cy, dx, dy), e = 1e-3,
+     dk = (k3pt(bx, by, cx + NX[i] * e, cy + NY[i] * e, dx, dy) - k0) / e;
+    Math.abs(dk) > 1e-9 && (n[i] = clamp(n[i] + .7 * (tgt - k0) / dk, -lim, lim))
+   }
+   if (st > 1) for (let q = 0; q < M; q++) {
+    const a = q * st, b = q + 1 < M ? (q + 1) * st : N, na = n[a], nb = n[b % N];
+    for (let i = a + 1; i < b; i++) { const t = (i - a) / (b - a); n[i] = na * (1 - t) + nb * t }
+   }
+  }
+  const o = new Float32Array(N);
+  for (let i = 0; i < N; i++) o[i] = clamp((n[(i - 1 + N) % N] + 2 * n[i] + n[(i + 1) % N]) / 4, -lim, lim);
+  return o
+ }
  function racingLineFinish(tr, a, NX, NY) {
   const N = tr.N;
   tr.rl = a;
@@ -3686,6 +3737,7 @@
   pDust = null,
   lowPosts = [],
   tvPosts = [],
+  OCC = [],
   grid = null,
   quality = "high",
   tod = "day",
@@ -9037,7 +9089,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
    back.position.x = .19, back.rotation.y = Math.PI / 2, G.add(back), G.add(box(1.2, 1.9, 8.6, dk, .6, 7.2, 0));
    G.position.set(p0[0], p0[1], p0[2]), G.rotation.y = -h0, G.traverse(o => {
     o.isMesh && (o.castShadow = !0)
-   }), group.add(G)
+   }), group.add(G), OCC.push(G)
   }
   /* torre de posiciones junto al muro de boxes, pasada la línea */
   if (quality !== "low") {
@@ -11148,7 +11200,10 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
     d != null && (tot++, d + h0 <= .3 && low++)
    }
   if (!tot || low / tot < .04) return 0;
-  const yS = WD.off - h0 + .15;
+  /* el mar nunca por encima de la pista: con el DEM de baja resolución el nivel podía quedar sobre la recta (Yas Marina) */
+  let zMin = 1e9;
+  for (let i = 0; i < tr.N; i++) zMin = Math.min(zMin, tr.z[i]);
+  const yS = Math.min(WD.off - h0 + .15, zMin - 1.6);
   R.__sea = [low / tot, yS];
   const sea = new THREE.Mesh(new THREE.PlaneGeometry(b.x1 - b.x0 + 2 * pad, b.y1 - b.y0 + 2 * pad, 1, 1), waterMat({
    color: "#0b3a50",
@@ -11259,7 +11314,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
  }
 
  function buildTrack() {
-  R.__forceTrees = [], R.__rsm = null;
+  R.__forceTrees = [], R.__rsm = null, OCC = [];
   trackGroup && (scene.remove(trackGroup), trackGroup.traverse(o => {
    o.geometry && o.geometry.dispose()
   })), trackGroup = new THREE.Group, scene.add(trackGroup);
@@ -11535,6 +11590,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    console.warn("túnel", e)
   }
   try {
+   var nBr = trackGroup.children.length;
    buildBridges(trackGroup, new THREE.MeshStandardMaterial({
     color: "#bdbab3",
     map: TEX.cc && TEX.cc("Concrete048_color") || null,
@@ -11544,6 +11600,8 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
     map: TEX.banner,
     side: THREE.DoubleSide
    }))
+   /* puentes: tapan la vista de las cámaras de TV */
+   OCC.push(...trackGroup.children.slice(nBr))
   } catch (e) {
    console.warn("puentes", e)
   }
@@ -12938,6 +12996,8 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
     hgt = Math.max(terrainH(p[0], p[2]), p[1]) + (tr.street ? 7.2 + rp() * 2.6 : (far ? 7.5 : 6.2) + rp() * 3.5 + (rp() < .18 ? 7 : 0));
    /* nada de cámaras dentro del túnel ni bajo los edificios que lo cubren */
    if ((tr.tunnel || []).some(([a, b]) => s > a - 90 && s < b + 40)) continue;
+   /* ni justo detrás del pórtico de salida: el panel taparía medio encuadre */
+   if (s > tr.L - 190 || s < 15) continue;
    tvPosts.push({
     s,
     x: p[0],
@@ -15957,7 +16017,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
   })
  }
  const TH_PALS = ["Hierro", "Blanco caliente", "Negro caliente", "Arcoíris", "Ártico", "Lava"], TH_MODES = ["Temperatura medida (radiométrica)", "Temperatura real de cada superficie", "Emisividad de cada material", "Error de medida (medida − real)"];
- R.__therm = () => ({ THERM, THU, composer, ao, bloom, camera, scene });
+ R.__therm = () => ({ THERM, THU, composer, ao, bloom, camera, scene, OCC, tvPosts, occluded, cam });
  R.setThermal = function(on) {
   THERM.on = on;
   if (THERM.pass && composer) {
@@ -16386,6 +16446,24 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
   return prCur
  };
 
+ /* ¿tapa algo (pórtico de salida, puentes) la línea entre una cámara de TV y el coche? */
+ const occRC = { rc: null };
+ /* todo lo construido junto a la pista (pórtico, puentes, tribunas, edificios, árboles) puede tapar una cámara */
+ const OCC_ALL = () => trackGroup ? [trackGroup, ...OCC] : OCC;
+ function occluded(p, c) {
+  const o3 = cars.get(c.id);
+  if (!o3) return !1;
+  const rc = occRC.rc || (occRC.rc = new THREE.Raycaster), o = new THREE.Vector3(p.x, p.y, p.z), t = o3.root.position.clone();
+  t.y += .8;
+  /* el coche y lo que se ve encima de él en el encuadre (un pórtico a la altura de la cámara tapa media imagen) */
+  for (const up of [0, 2.5, 5]) {
+   const tt = t.clone(); tt.y += up;
+   const d = tt.sub(o), L = d.length();
+   rc.set(o, d.divideScalar(L)), rc.far = L - 2;
+   if (rc.intersectObjects(OCC_ALL(), !0).some(h => h.object.visible && h.distance > 1.5)) return !0
+  }
+  return !1
+ }
  function losOK(p, c, cs) {
   const N = tr.N,
    i0 = S.idxAt(tr, cs),
@@ -16828,7 +16906,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
       const d = sd(p);
       if (d > -10 && d < (lo ? 180 : 260)) {
        const sc = Math.abs(d - (lo ? 70 : 110));
-       sc < bd && (!lo || losOK(p, focus, s)) && (bd = sc, best = p)
+       sc < bd && (lo ? losOK(p, focus, s) : !occluded(p, focus)) && (bd = sc, best = p)
       }
      }
      return best
@@ -16838,7 +16916,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
     const lo = cam.postSet === lowPosts,
      d = sd(cam.post);
     (d < (lo ? -30 : -40) || d > (lo ? 200 : 320)) && (need = !0, cam.passed = !0), !need && lo && (cam.losT = (cam.losT || 0) - dt) <= 0 && (cam.losT = .25, d > 8 && !losOK(cam
-     .post, focus, s) && (need = !0))
+     .post, focus, s) && (need = !0)), !need && !lo && (cam.occT = (cam.occT || 0) - dt) <= 0 && (cam.occT = .3, occluded(cam.post, focus) && (need = !0))
    }
    if (need) {
     let set = wantLow ? lowPosts : tvPosts,
@@ -16846,7 +16924,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
     if (cam.lowFb = !1, !best && wantLow && (set = tvPosts, best = pickPost(tvPosts, !1), cam.lowFb = !0), !best) {
      let bd = 1e9;
      for (const p of tvPosts) {
-      const d = Math.abs(sd(p));
+      const d = Math.abs(sd(p)) + (occluded(p, focus) ? 5e3 : 0);
       d < bd && (bd = d, best = p)
      }
      set = tvPosts
@@ -19755,7 +19833,7 @@ registerProcessor('engine-proc',EngineProc);`;
     e.hidden = !e.dataset.mode.split(" ").includes(m)
    }), $("resultsCard").hidden = !0, $("qualiCard").hidden = !0, $("pad").hidden = m !== "drive", $("keysHelp").hidden = m !== "drive", $("driveOpts").hidden = m !== "drive", $(
     "setupTitle").textContent = m === "drive" ? "Tu carrera" : "Gran Premio", app.cam.rot = !1, pressed("camRot", !1), app.speed = isTrain() ? 16 : 1, buildSpeeds(),
-  buildCamCtl(), hideOverlays(), m === "train" ? (setCam("fit"), startTraining(userPop ? "saved" : "scratch")) : (setCam("fit"), startGP())
+  buildCamCtl(), hideOverlays(), hideMsg(), m === "train" ? (setCam("fit"), startTraining(userPop ? "saved" : "scratch")) : (setCam("fit"), startGP())
  }
  $("tab-train").onclick = () => setMode("train"), $("tab-race").onclick = () => setMode("race"), $("tab-drive").onclick = () => setMode("drive"), $("pauseBtn").onclick = () => {
    app.paused = !app.paused, $("pauseBtn").setAttribute("aria-pressed", app.paused), $("pauseBtn").textContent = app.paused ? "Seguir" : "Pausa"
@@ -20920,7 +20998,7 @@ registerProcessor('engine-proc',EngineProc);`;
    '" title="Cámara girada">GIRO</button><button id="zoomIn" aria-label="Acercar">+</button><button id="zoomOut" aria-label="Alejar">−</button><button id="raysBtn" aria-pressed="' +
    app.rays + '" title="Sensores de la IA">IA</button>' + (has3d ? '<button id="viewBtn" title="Cambiar a 3D">3D</button>' : ""), app.view === "3d" && app.sample && (h +=
     '<button id="aiBtn" title="Análisis en directo generado por Claude (usa tu cuenta)">ANÁLISIS IA</button>'), h += '<button id="suspBtn" aria-pressed="' + !!(window.SUSP_LIVE && SUSP_LIVE.on) + '" title="Conjunto de suspensión y freno delantero del coche seguido, en tiempo real">SUSPENSIÓN</button><button id="vozBtn" aria-pressed="' + ($("rComm").value !==
-    "off") + '" title="Narración">VOZ</button><button id="soundBtn" aria-pressed="' + !!app.sound + '" title="Sonido del motor">SON</button>', el.innerHTML = h, el
+    "off") + '" title="Narración">VOZ</button><button id="soundBtn" aria-pressed="' + !!app.sound + '" title="Sonido del motor">SONIDO</button>', el.innerHTML = h, requestAnimationFrame(() => { const st = $("stage"); st && el.offsetWidth && st.style.setProperty("--camw", el.offsetWidth + 16 + "px") }), el
    .querySelectorAll("[data-c3]").forEach(b => b.onclick = () => {
     const k = b.dataset.c3;
     k === "auto" ? (app.director = !0, app.sel = null, d3.t = 0) : (app.director = !1, R3D.setCam(k)), pressCam()
@@ -21250,7 +21328,7 @@ registerProcessor('engine-proc',EngineProc);`;
    el.innerHTML =
     "<p><b>Reglamento 2026</b> (por defecto, elegible en la carrera): motor térmico de ~400 kW y MGU-K de 350 kW que se recorta de 290 a 355 km/h, sin MGU-H; hasta 8,5 MJ recuperados por vuelta (frenada, recorte en recta y gas parcial) con 4 MJ de ventana de batería; la centralita despliega por debajo de una velocidad umbral que se ajusta sola para que la energía cuadre. Aerodinámica activa: en las rectas todos abren los alerones delantero y trasero (modo recta); a menos de 1 s del de delante en el punto de detección se gana el modo adelantamiento (350 kW hasta 337 km/h y 0,5 MJ más). Calibrado para que la vuelta rápida sea un 3–6 % más lenta que en 2025, como en las primeras carreras de 2026.</p>" +
     "<p><b>Correspondencia con datos reales</b>: cada circuito trae la telemetría de su pole real (velocidad, marcha, gas y freno). La trazada se reoptimiza a curvatura mínima con todo el ancho de la pista partiendo de la del TUM, los codos de los tramos reconstruidos se alisan donde la curvatura sería imposible para la velocidad real medida, y en la carrera la gráfica de velocidad compara cada vuelta con la real curva a curva. La IA rueda en aire limpio al límite de su agarre con un margen según su talento y solo decide con la red neuronal cuando hay coches cerca; así la vuelta rápida de carrera queda a un 3–4 % de la pole, como en la realidad.</p>" +
-    "<p>Los 16 circuitos son reales: línea central y anchura del <b>TUM racetrack-database</b> (Universidad Técnica de Múnich; OpenStreetMap + imágenes de satélite, licencia LGPL-3.0), alineada por ICP con la <b>telemetría oficial de posición de la F1 de 2024</b> (vía FastF1 / TracingInsights). De esa telemetría salen la elevación, la trazada de la vuelta de referencia, las zonas DRS, la numeración de curvas, la temperatura, la presión y la humedad (densidad del aire).</p><p>La física del coche se calibró con esas mismas vueltas: potencia en rueda y resistencia por circuito ajustadas a las aceleraciones en recta, curva de potencia según el caudal de combustible del reglamento, sensibilidad a la carga del neumático, elipse de fricción y eficiencia aerodinámica ajustadas para reproducir las vueltas reales. Error medio del modelo dinámico: <b>" +
+    "<p>Los 17 circuitos son reales: línea central y anchura del <b>TUM racetrack-database</b> (Universidad Técnica de Múnich; OpenStreetMap + imágenes de satélite, licencia LGPL-3.0), alineada por ICP con la <b>telemetría oficial de posición de la F1 de 2024</b> (vía FastF1 / TracingInsights). De esa telemetría salen la elevación, la trazada de la vuelta de referencia, las zonas DRS, la numeración de curvas, la temperatura, la presión y la humedad (densidad del aire).</p><p>La física del coche se calibró con esas mismas vueltas: potencia en rueda y resistencia por circuito ajustadas a las aceleraciones en recta, curva de potencia según el caudal de combustible del reglamento, sensibilidad a la carga del neumático, elipse de fricción y eficiencia aerodinámica ajustadas para reproducir las vueltas reales. Error medio del modelo dinámico: <b>" +
     mean.toFixed(1).replace(".", ",") +
     ' %</b> en tiempo de vuelta.</p><p>Encima de esa dinámica, cada coche lleva un <b>modelo físico de sus sistemas</b> que se integra en tiempo real: aceite (ecuación de Vogel, película de cojinete tipo Sommerfeld, aireación y descebe por G), refrigeración (presión de vapor de Antoine, ebullición nucleada frente a crítica, cavitación por NPSH), pistón y segmentos (dilatación diferencial acero/aluminio), detonación con control de picado, muelles neumáticos de válvula, torsión del cigüeñal por órdenes, tornillería (fluencia de Arrhenius y autoaflojamiento de Junker), retenes, caja (Basquin y picado por marcha), frenos por eje (convección, radiación de Stefan-Boltzmann y oxidación del carbono), presión del neumático (gas ideal), altura al suelo y tablón, rebote de rueda, flameo del alerón, piloto y latencia de la telemetría. La fiabilidad usa vidas de Weibull con factores de aceleración: las averías salen del estado de cada pieza. Se ve en «Ingeniería en vivo» desde la telemetría de cualquier coche.</p><table class="tbl"><thead><tr><th>Circuito</th><th style="text-align:right">Simulado</th><th style="text-align:right">Real 2024</th><th style="text-align:right">Error</th><th style="text-align:right">V. punta</th></tr></thead><tbody>' +
     V.map(v => {

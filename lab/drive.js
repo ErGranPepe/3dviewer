@@ -10,7 +10,7 @@ LAB.drive = (() => {
       { id: "activeAero", label: "Aerodinámica activa en recta (2026)", v: "1", opts: [["1", "Sí (−28 % de resistencia)"], ["0", "No"]] }
     ] },
     { title: "Unidad de potencia y batería", items: [
-      { id: "pice", label: "Potencia del motor térmico", unit: "kW", min: 300, max: 650, step: 5, v: 400, help: "Limitada por el flujo de energía del combustible: casi constante en la zona alta de régimen." },
+      { id: "pice", label: "Potencia del motor térmico", unit: "kW", min: 300, max: 650, step: 5, v: 418, help: "Limitada por el flujo de energía del combustible: casi constante en la zona alta de régimen." },
       { id: "tmax", label: "Par máximo del térmico", unit: "N·m", min: 250, max: 700, step: 5, v: 440, adv: !0 },
       { id: "kmax", label: "Potencia máxima del MGU-K", unit: "kW", min: 0, max: 400, step: 5, v: 350 },
       { id: "rec", label: "Recuperación máxima por vuelta", unit: "MJ", min: 0, max: 12, step: .1, v: 8.5 },
@@ -18,17 +18,17 @@ LAB.drive = (() => {
       { id: "hmax", label: "Potencia del MGU-H (hasta 2025)", unit: "kW", min: 0, max: 150, step: 5, v: 90, adv: !0 },
       { id: "socwin", label: "Ventana de carga de la batería", unit: "MJ", min: 1, max: 8, step: .1, v: 4 },
       { id: "soc0", label: "Carga al salir", unit: "MJ", min: 0, max: 8, step: .1, v: 2, adv: !0 },
-      { id: "clipKmh", label: "Recorte para cargar a partir de", unit: "km/h", min: 200, max: 360, step: 5, v: 300, help: "En 2026, al final de las rectas parte de la potencia del térmico se desvía a cargar la batería (superclipping)." },
-      { id: "clipKw", label: "Potencia desviada al recortar", unit: "kW", min: 0, max: 350, step: 5, v: 120 },
+      { id: "clipKmh", label: "Recorte para cargar a partir de", unit: "km/h", min: 200, max: 360, step: 5, v: 320, help: "En 2026, al final de las rectas parte de la potencia del térmico se desvía a cargar la batería (superclipping)." },
+      { id: "clipKw", label: "Potencia desviada al recortar", unit: "kW", min: 0, max: 350, step: 5, v: 80 },
       { id: "rearB", label: "Parte de la frenada en el eje trasero", unit: "", min: .3, max: .6, step: .01, v: .45, adv: !0 }
     ] },
     { title: "Coche", items: [
       { id: "mass", label: "Masa con piloto", unit: "kg", min: 700, max: 900, step: 1, v: 768 },
       { id: "cla", label: "Carga aerodinámica (ClA)", unit: "m²", min: 1.5, max: 6, step: .05, v: 3.8 },
       { id: "cda", label: "Resistencia (CdA)", unit: "m²", min: .6, max: 1.6, step: .01, v: 1.13, help: "Con el alerón de cada circuito: en Monza menos, en Mónaco más." },
-      { id: "mu", label: "Adherencia lateral", unit: "μ", min: 1, max: 2.4, step: .01, v: 1.75 },
-      { id: "mub", label: "Adherencia en frenada", unit: "μ", min: 1, max: 2.4, step: .01, v: 1.85, adv: !0 },
-      { id: "mut", label: "Adherencia en tracción", unit: "μ", min: 1, max: 2.4, step: .01, v: 1.7, adv: !0 },
+      { id: "mu", label: "Adherencia lateral", unit: "μ", min: 1, max: 2.4, step: .01, v: 1.85, help: "Calibrada para que la vuelta coincida de media con la del simulador en los 17 circuitos." },
+      { id: "mub", label: "Adherencia en frenada", unit: "μ", min: 1, max: 2.4, step: .01, v: 1.95, adv: !0 },
+      { id: "mut", label: "Adherencia en tracción", unit: "μ", min: 1, max: 2.4, step: .01, v: 1.79, adv: !0 },
       { id: "rearW", label: "Peso en el eje trasero", unit: "", min: .4, max: .65, step: .01, v: .55, adv: !0 },
       { id: "hcg", label: "Altura del centro de gravedad", unit: "m", min: .2, max: .4, step: .005, v: .28, adv: !0 },
       { id: "crr", label: "Rodadura", unit: "", min: .005, max: .03, step: .001, v: .012, adv: !0 },
@@ -60,7 +60,7 @@ LAB.drive = (() => {
       { id: "kcoast", label: "Bloqueo en retención", unit: "× par", min: 0, max: 1, step: .01, v: .25 }
     ] }
   ];
-  const ERA = { "2026": { pice: 400, tmax: 440, kmax: 350, rec: 8.5, mass: 768, cla: 3.8, cda: 1.13 }, "2025": { pice: 560, tmax: 520, kmax: 120, rec: 2, mass: 800, cla: 4.2, cda: 1.25 } };
+  const ERA = { "2026": { pice: 418, tmax: 440, kmax: 350, rec: 8.5, mass: 768, cla: 3.8, cda: 1.13 }, "2025": { pice: 560, tmax: 520, kmax: 120, rec: 2, mass: 800, cla: 4.2, cda: 1.25 } };
   const PRESETS = {
     m26: { name: "2026 en Monza", v: { era: "2026", track: "11", ...ERA["2026"] } },
     m25: { name: "2025 en Monza", v: { era: "2025", track: "11", ...ERA["2025"] } },
@@ -230,5 +230,5 @@ LAB.drive = (() => {
     use3d = !!(LAB.drive3d && LAB.drive3d.init($("drv3d"), geo()));
     requestAnimationFrame(loop)
   }
-  return { init }
+  return { init, _test: { DEF, ERA } }
 })();

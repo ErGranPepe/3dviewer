@@ -274,11 +274,17 @@ LAB.susp3d = (() => {
       const meshes = [...C.R.groups.lw.children.filter(o => o.userData.part && /brazo/.test(o.userData.part.name)), ...C.R.groups.uw.children.filter(o => o.userData.part && /brazo/.test(o.userData.part.name))].filter(o => o.material === M.carbon || o.userData.tint);
       const legMeshes = [C.R.groups.lw.children.find(o => o.userData.part && /Trapecio inferior, brazo delantero/.test(o.userData.part.name)), C.R.groups.lw.children.find(o => o.userData.part && /Trapecio inferior, brazo trasero/.test(o.userData.part.name)), C.R.groups.uw.children.find(o => o.userData.part && /Trapecio superior, brazo delantero/.test(o.userData.part.name)), C.R.groups.uw.children.find(o => o.userData.part && /Trapecio superior, brazo trasero/.test(o.userData.part.name)), C.R.pr.tube, C.R.tr.tube];
       const es = labelsEl.children.length === 6 ? labelsEl.children : (labelsEl.innerHTML = "<div></div>".repeat(6), labelsEl.children), rect = R.domElement.getBoundingClientRect(), vv = new T.Vector3();
+      /* rótulos sin solaparse: se colocan en orden y se desplazan en vertical hasta encontrar hueco */
+      const placed = [];
       L.forEach((q, i) => {
         vv.copy(CAD().W(q.c, 1)).lerp(CAD().W(q.p, 1), .5).project(cam);
         const e = es[i], vis = vv.z < 1 && Math.abs(vv.x) < .98 && Math.abs(vv.y) < .98 && !opts.explode;
         e.style.display = vis && opts.show.loads ? "" : "none", e.className = q.f >= 0 ? "t" : "c", e.textContent = (q.f >= 0 ? "+" : "−") + Math.abs(q.f / 1e3).toFixed(1) + " kN";
-        vis && (e.style.transform = `translate(${((vv.x + 1) / 2 * rect.width).toFixed(0)}px,${((1 - vv.y) / 2 * rect.height).toFixed(0)}px) translate(-50%,-50%)`)
+        if (!vis) return;
+        const x = (vv.x + 1) / 2 * rect.width;
+        let y = (1 - vv.y) / 2 * rect.height;
+        for (let k = 0; k < 10 && placed.some(([px, py]) => Math.abs(px - x) < 64 && Math.abs(py - y) < 20); k++) y += k % 2 ? -20 * (k + 1) : 20 * (k + 1);
+        placed.push([x, y]), e.style.transform = `translate(${x.toFixed(0)}px,${y.toFixed(0)}px) translate(-50%,-50%)`
       })
     }
     picked && (frame.n = (frame.n || 0) + 1) % 10 === 0 && showPick();

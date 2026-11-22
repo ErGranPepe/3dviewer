@@ -10,6 +10,11 @@ $E /tmp/cad.all.js --minify --target=es2020 --log-level=error > /tmp/cad.min.js
 HC=$(sha256sum /tmp/cad.min.js | cut -c1-10)
 OLDC=$(grep -o 'a/cad\.[0-9a-f]*\.js' $P/index.html | head -1)
 if [ "$OLDC" != "a/cad.$HC.js" ]; then cp /tmp/cad.min.js $P/a/cad.$HC.js; sed -i "s#$OLDC#a/cad.$HC.js#g" $P/index.html; git -C $P rm -q --cached $OLDC 2>/dev/null || true; rm -f $P/$OLDC; fi
+# apoyo al proyecto (donaciones): mismo archivo en el simulador y el laboratorio
+$E support.js --minify --target=es2020 --log-level=error > /tmp/support.min.js
+HS=$(sha256sum /tmp/support.min.js | cut -c1-10)
+OLDS=$(grep -o 'a/support\.[0-9a-f]*\.js' $P/index.html | head -1)
+if [ "$OLDS" != "a/support.$HS.js" ]; then cp /tmp/support.min.js $P/a/support.$HS.js; if [ -n "$OLDS" ]; then sed -i "s#$OLDS#a/support.$HS.js#g" $P/index.html $P/lab.html; git -C $P rm -q --cached $OLDS 2>/dev/null || true; rm -f $P/$OLDS; else sed -i "s#<script src=\"a/site\.\([0-9a-f]*\)\.js\"></script>#<script src=\"a/site.\1.js\"></script><script src=\"a/support.$HS.js\"></script>#" $P/index.html; fi; fi
 $E app.js --minify-whitespace --minify-syntax --target=es2020 --log-level=error > /tmp/app.min.js
 for f in data; do :; done
 H=$(sha256sum /tmp/app.min.js | cut -c1-10)
