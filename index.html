@@ -12,9 +12,9 @@
 <meta property="og:url" content="https://ergranpepe.github.io/3dviewer/"><meta property="og:image" content="https://ergranpepe.github.io/3dviewer/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Parrilla Neuronal — Simulador de carreras gratis en el navegador con circuitos reales"><meta name="twitter:description" content="Simulador de carreras de monoplazas gratis y sin descargas: 17 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada."><meta name="twitter:image" content="https://ergranpepe.github.io/3dviewer/og.jpg">
 <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="manifest" href="manifest.webmanifest">
-<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.8ba3fc7ec3.js" as="script"><link rel="preload" href="a/data.af7a7018c4.js" as="script">
+<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.d8da2b3c04.js" as="script"><link rel="preload" href="a/data.604c18e29b.js" as="script">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "VideoGame", "name": "Parrilla Neuronal", "url": "https://ergranpepe.github.io/3dviewer/", "description": "Simulador de carreras de monoplazas gratis y sin descargas: 17 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada.", "inLanguage": "es", "genre": ["Carreras", "Simulación", "Estrategia"], "gamePlatform": "Navegador web", "applicationCategory": "Game", "operatingSystem": "Cualquiera", "image": "https://ergranpepe.github.io/3dviewer/og.jpg", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}}</script>
-<script>(function(){var B="8ba3fc7ec3af7a";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
+<script>(function(){var B="d8da2b3c04604c";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
 
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -429,6 +429,49 @@ button:active:not(:disabled),.btn:active,.labLink:active{transform:translateY(1p
   .speedbar .lbl{display:none}.sb-right{margin-left:0}
   .ld-brand{font-size:26px}
 }
+
+/* ===================== MÓVIL: imagen fija arriba, secciones con barra inferior ===================== */
+@media(max-width:700px){
+  body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+  header{display:grid!important;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand act" "tabs tabs";align-items:center;gap:8px 8px}
+  header .brand{grid-area:brand}header .tabs{grid-area:tabs}.brand h1{font-size:19px}
+  header .hdact{grid-area:act;display:flex;gap:6px;align-items:center;position:static}header .kbBtn{display:none}
+  header .labLink,header .supBtn{display:inline-flex;align-items:center;height:30px;padding:0 10px;font-size:11.5px;line-height:1;margin:0;border-radius:7px;position:static}
+  .tabs{margin-top:2px}.tabs button{padding:8px 6px;font-size:13px}
+  html,body{overflow-x:clip!important}.main{display:block!important}.side{margin-top:8px}
+  /* en el móvil lo primero es la carrera que se va a correr; el resultado, en cuanto lo hay, arriba del todo */
+  #setupCard{order:-2}#resultsCard{order:-3}#wallCard{order:-4}
+  select,input[type=number],input[type=password],input[type=text]{padding-top:6px;padding-bottom:6px}
+  .stagewrap{position:sticky!important;top:0;z-index:30;background:var(--bg,#0b0e12);padding-bottom:6px;margin:0 -2px;gap:6px}
+  .stage{aspect-ratio:16/11!important;max-height:46vh;border-radius:8px}
+  .titlecard h3{font-size:21px}.titlecard p{font-size:10px;line-height:1.35}.titlecard div{margin-left:4%;max-width:92%}
+  .speedbar{display:flex;flex-wrap:nowrap;overflow-x:auto;gap:6px;scrollbar-width:none}.speedbar::-webkit-scrollbar{display:none}.speedbar>*{flex:none}
+  .speedbar button{min-height:36px;min-width:40px}
+  .v3 .camctl button{height:32px;font-size:11.5px;padding:0 10px}
+  .card{border-radius:10px}.card h2{font-size:13px;letter-spacing:.1em}
+  select,input[type=number],input[type=password],input[type=text]{min-height:42px;font-size:16px}
+  .btn.primary{min-height:48px;font-size:15px}label.check{min-height:36px}
+  /* una sección cada vez */
+  body[data-mg] .side>.card[data-mg],body[data-mg] .info[data-mg]{display:none!important}
+  body[data-mg="race"] .side>.card[data-mg="race"]:not([hidden]),body[data-mg="times"] .side>.card[data-mg="times"]:not([hidden]),body[data-mg="car"] .side>.card[data-mg="car"]:not([hidden]),body[data-mg="info"] .side>.card[data-mg="info"]:not([hidden]),body[data-mg="info"] .info[data-mg="info"]{display:block!important}
+  header .labLink{font-size:0}header .labLink::after{content:"Laboratorio";font-size:11.5px;line-height:1}
+  .brand h1{font-size:18px}
+  /* rótulo inferior: anclado a la izquierda y compacto (deja libre el botón de pantalla completa) */
+  .v3 .lower{left:8px;right:auto;bottom:8px;transform:scale(.8);transform-origin:0 100%;max-width:calc((100% - 72px)/.8)}
+  .lower .tx{padding:5px 9px}.lower .sp{padding:5px 9px;font-size:19px}
+  /* telemetría a una columna: los valores largos se leen enteros */
+  .kv{grid-template-columns:1fr;gap:5px}.kv div{padding-bottom:4px}.kv b{font-size:12.5px}
+  .info h2{font-size:20px!important}.info p{font-size:14px;line-height:1.55}
+  #mnav{position:fixed;left:0;right:0;bottom:0;z-index:70;display:grid;grid-template-columns:repeat(4,1fr);background:rgba(11,14,18,.96);backdrop-filter:blur(10px);border-top:1px solid #222a33;padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px))}
+  #mnav button{display:grid;justify-items:center;gap:2px;background:none;border:0;color:#8b97a4;font:700 10.5px var(--display,system-ui);letter-spacing:.06em;text-transform:uppercase;padding:6px 2px;border-radius:8px;min-height:52px}
+  #mnav button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  #mnav button[aria-current="true"]{color:var(--accent,#ff6b1a);background:rgba(255,107,26,.1)}
+  #suspLive{left:6px;right:6px;width:auto;bottom:calc(70px + env(safe-area-inset-bottom,0px))}
+  #pnToast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+  .foot{padding-bottom:10px}
+}
+@media(min-width:701px){#mnav{display:none}}
+@media(max-width:700px) and (orientation:landscape){.stage{aspect-ratio:auto!important;height:calc(100vh - 12px);max-height:none}.stagewrap{position:static!important}}
 </style>
 </head>
 <body>
@@ -647,7 +690,7 @@ button:active:not(:disabled),.btn:active,.labLink:active{transform:translateY(1p
       <p>Puedes limitarte a ver la carrera como en la tele, dirigir un equipo desde el muro de boxes, jugar una temporada completa desarrollando el coche, o ponerte tú al volante.</p>
     </div>
     <div class="cols">
-      <div class="box"><h3>Circuitos reales</h3><p>El trazado, la anchura, los desniveles y la trazada ideal de cada circuito proceden de datos públicos y de telemetría de la temporada 2024. Las longitudes coinciden con las reales con menos de un 1 % de diferencia.</p></div>
+      <div class="box"><h3>Circuitos reales</h3><p>El trazado, los desniveles y la trazada ideal de cada circuito proceden de datos públicos y de telemetría de la temporada 2024; las longitudes coinciden con las reales con menos de un 1 % de diferencia. Los muros y las escapatorias siguen las barreras reales cartografiadas en OpenStreetMap (casi completas en 9 circuitos y parciales en otros 3; en el resto se usa una distancia tipo), y los edificios, las tribunas y el relieve son los del lugar.</p></div>
       <div class="box"><h3>Física contrastada</h3><p>Potencia, carga aerodinámica, agarre y frenada están ajustados contra vueltas reales: el tiempo de la vuelta de clasificación se desvía de media menos de un 2 % de la pole real de 2024 y las velocidades punta coinciden.</p></div>
       <div class="box"><h3>Pilotos que aprenden</h3><p>Cada coche lo conduce una red neuronal entrenada por imitación. Adelantan, defienden, cometen errores y gestionan neumáticos, batería y gasolina. Puedes ver su «cerebro» en directo.</p></div>
       <div class="box"><h3>Realización de TV</h3><p>Cámaras de pista, a bordo y helicóptero, repeticiones a cámara lenta, tiempos por sector y un realizador automático que busca la acción.</p></div>
@@ -687,8 +730,8 @@ button:active:not(:disabled),.btn:active,.labLink:active{transform:translateY(1p
 </div>
 <script src="config.js?v=20261122a"></script>
 <script src="a/three.04d0db4a9b.js"></script>
-<script src="a/data.af7a7018c4.js"></script><script>window.CADJS="a/cad.19dbb888ee.js"</script>
-<script src="a/app.8ba3fc7ec3.js"></script>
-<script src="a/site.40a3d4e99f.js"></script><script src="a/support.149b5c55de.js"></script>
+<script src="a/data.604c18e29b.js"></script><script>window.CADJS="a/cad.19dbb888ee.js"</script>
+<script src="a/app.d8da2b3c04.js"></script>
+<script src="a/site.40a3d4e99f.js"></script><script src="a/support.be0ffe210d.js"></script>
 </body>
 </html>
