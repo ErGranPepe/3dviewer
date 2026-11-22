@@ -12,9 +12,9 @@
 <meta property="og:url" content="https://ergranpepe.github.io/3dviewer/"><meta property="og:image" content="https://ergranpepe.github.io/3dviewer/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Parrilla Neuronal — Simulador de carreras gratis en el navegador con circuitos reales"><meta name="twitter:description" content="Simulador de carreras de monoplazas gratis y sin descargas: 16 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada."><meta name="twitter:image" content="https://ergranpepe.github.io/3dviewer/og.jpg">
 <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="manifest" href="manifest.webmanifest">
-<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.77c76b68df.js" as="script"><link rel="preload" href="a/data.af7a7018c4.js" as="script">
+<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.1178ab4f3d.js" as="script"><link rel="preload" href="a/data.af7a7018c4.js" as="script">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "VideoGame", "name": "Parrilla Neuronal", "url": "https://ergranpepe.github.io/3dviewer/", "description": "Simulador de carreras de monoplazas gratis y sin descargas: 16 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada.", "inLanguage": "es", "genre": ["Carreras", "Simulación", "Estrategia"], "gamePlatform": "Navegador web", "applicationCategory": "Game", "operatingSystem": "Cualquiera", "image": "https://ergranpepe.github.io/3dviewer/og.jpg", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}}</script>
-<script>(function(){var B="77c76b68dfaf7a";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
+<script>(function(){var B="1178ab4f3daf7a";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
 
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -342,6 +342,12 @@ html.fslock,html.fslock body{overflow:hidden!important}
 .geo-attr{position:absolute;left:8px;bottom:6px;z-index:25;font:600 10px/1.3 Barlow,Arial,sans-serif;color:#fff;text-shadow:0 1px 2px #000,0 0 6px rgba(0,0,0,.6);pointer-events:none;max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.geo-attr b{font:700 13px Arial,sans-serif;letter-spacing:-.2px;margin-right:4px}
 .labLink{font:700 14px var(--display);letter-spacing:.04em;text-transform:uppercase;color:#111;background:var(--accent);padding:8px 14px;border-radius:8px;text-decoration:none;margin-left:10px;white-space:nowrap}.labLink:hover{filter:brightness(1.1)}
 .tcorn{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;font:600 11px var(--mono)}.tcorn .tch{flex-basis:100%;font:500 12px var(--sans,inherit);color:var(--mute,#9aa4ae);margin-bottom:2px}.tcorn .tch b{color:#fff}.tcorn .tch b.neg,.tcorn .tc.neg b{color:#ff6b6b}.tcorn .tch b.pos,.tcorn .tc.pos b{color:#2fd16c}.tcorn .tc{background:rgba(255,255,255,.05);border-radius:4px;padding:2px 5px;color:#8b97a4}.tcorn .tc b{color:#fff;margin:0 3px}.tcorn .tc i{font-style:normal;color:#c8ced6;opacity:.7}
+#suspLive{position:fixed;left:12px;bottom:12px;width:min(440px,calc(100vw - 24px));z-index:60;background:rgba(12,15,19,.96);border:1px solid #2a323c;border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.5);font:12px/1.35 Inter,system-ui,sans-serif;color:#e9eef3}
+#suspLive[hidden]{display:none}#suspLive .slh{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid #222a33}#suspLive .slh b{font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:11.5px}#suspLive .slh span{color:#8b97a4;flex:1;font-family:ui-monospace,monospace}
+#suspLive .slh button{background:none;border:0;color:#8b97a4;font-size:18px;cursor:pointer;line-height:1}#suspLive .slv{height:250px}#suspLive .slv canvas{display:block;width:100%;height:100%}
+#suspLive .sli{display:flex;flex-wrap:wrap;gap:4px 12px;padding:6px 10px;color:#8b97a4;font-family:ui-monospace,monospace;font-size:11.5px}#suspLive .sli b{color:#e9eef3}#suspLive .sli .lab{color:#ffb27a}
+@media (max-width:600px){#suspLive .slv{height:190px}}
+.labset small{display:block;color:var(--mute,#8b97a4);font-size:11.5px;margin-top:2px}
 </style>
 <style>#loader{position:fixed;inset:0;z-index:100;background:#0c0f12;display:grid;place-items:center;transition:opacity .45s}
 #loader.out{opacity:0;pointer-events:none}
@@ -504,6 +510,7 @@ html.fslock,html.fslock body{overflow:hidden!important}
             <label class="slider">Alerón <b id="pWingV">50%</b><input type="range" id="pWing" min="0" max="1" step="0.05" value="0.5"><small>Más carga: curvas rápidas. Menos: punta en recta.</small></label>
             <label class="slider full">Reparto de frenada <b id="pBiasV">59% del.</b><input type="range" id="pBias" min="0.52" max="0.66" step="0.01" value="0.59"><small>Hacia atrás gira mejor, pero el coche se vuelve nervioso al frenar.</small></label>
             <label class="slider full">Barras estabilizadoras (rigidez al balanceo) <b id="pRollV">52% del.</b><input type="range" id="pRoll" min="0.40" max="0.64" step="0.01" value="0.52"><small>Más rigidez delante reparte más carga en el eje delantero en curva: con la sensibilidad a la carga del neumático, el morro agarra menos (subvira). Más detrás: el coche gira más y la trasera se vuelve viva.</small></label>
+            <label class="check full labset" id="pLabRow" hidden><input type="checkbox" id="pLab" checked><span>Usar el reglaje del Laboratorio <small id="pLabInfo"></small></span></label>
             <label class="check"><input type="checkbox" id="pAssist" checked>Frenada asistida</label>
             <label class="check"><input type="checkbox" id="pSteer" checked>Dirección asistida</label>
             <label class="check"><input type="checkbox" id="pTc" checked>Control de tracción</label>
@@ -623,8 +630,8 @@ html.fslock,html.fslock body{overflow:hidden!important}
 </div>
 <script src="config.js?v=20261121a"></script>
 <script src="a/three.04d0db4a9b.js"></script>
-<script src="a/data.af7a7018c4.js"></script>
-<script src="a/app.77c76b68df.js"></script>
+<script src="a/data.af7a7018c4.js"></script><script>window.CADJS="a/cad.7f3b282135.js"</script>
+<script src="a/app.1178ab4f3d.js"></script>
 <script src="a/site.d8caeb0496.js"></script>
 </body>
 </html>
