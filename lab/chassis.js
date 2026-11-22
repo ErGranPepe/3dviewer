@@ -21,10 +21,10 @@ LAB.chassis = (() => {
       { id: "kwf", label: "Rigidez en rueda delantera", unit: "N/mm", min: 80, max: 800, step: 5, v: 350 },
       { id: "kwr", label: "Rigidez en rueda trasera", unit: "N/mm", min: 60, max: 600, step: 5, v: 220 },
       { id: "kt", label: "Rigidez vertical del neumático", unit: "N/mm", min: 150, max: 500, step: 5, v: 300 },
-      { id: "muf", label: "Masa no suspendida delantera", unit: "kg", min: 20, max: 50, step: .5, v: 32, adv: !0 },
-      { id: "mur", label: "Masa no suspendida trasera", unit: "kg", min: 20, max: 55, step: .5, v: 36, adv: !0 },
-      { id: "trf", label: "Vía delantera", unit: "m", min: 1.4, max: 1.8, step: .01, v: 1.6, adv: !0 },
-      { id: "trr", label: "Vía trasera", unit: "m", min: 1.4, max: 1.8, step: .01, v: 1.55, adv: !0 }
+      { id: "muf", label: "Masa no suspendida delantera (por rueda)", unit: "kg", min: 12, max: 50, step: .5, v: 22, adv: !0, help: "La misma que en la pestaña Suspensión." },
+      { id: "mur", label: "Masa no suspendida trasera (por rueda)", unit: "kg", min: 12, max: 55, step: .5, v: 26, adv: !0 },
+      { id: "trf", label: "Vía delantera", unit: "m", min: 1.4, max: 1.8, step: .01, v: LAB.car.tf, adv: !0 },
+      { id: "trr", label: "Vía trasera", unit: "m", min: 1.4, max: 1.8, step: .01, v: LAB.car.trr, adv: !0 }
     ] },
     { title: "Masas y excitación", items: [
       { id: "driver", label: "Piloto con equipo", unit: "kg", min: 60, max: 100, step: 1, v: 80 },
@@ -46,7 +46,10 @@ LAB.chassis = (() => {
   let prm, ro, host, res = null, plots = {}, sel = 0, view = "mode", amp = 1;
   /* ---------- 3D ---------- */
   let T, R, scene, cam, st, labelsEl, comp = null;
-  const X3 = (x, y, z) => new T.Vector3(x - 1.8, z, y);
+  const X3 = (x, y, z) => new T.Vector3(x - LAB.car.wb / 2, z, y);
+  /* el coche del simulador: se carga una vez y sustituye al forro aproximado */
+  let carData = null;
+  LAB.carmesh && LAB.carmesh.load().then(d => { carData = d, d && res && parts3d && buildSkin() });
   /* estaciones del forro: nudo de la columna, semiancho, alto, desplazamiento vertical del centro */
   /* ---------- carrocería deformable ----------
      Cada pieza se modela en coordenadas del coche (x adelante, y a la derecha, z arriba) y cada vértice queda atado a la
@@ -102,7 +105,7 @@ LAB.chassis = (() => {
     cv.addEventListener("pointerdown", e => { drag = [e.clientX, e.clientY, e.button], cv.setPointerCapture(e.pointerId) });
     cv.addEventListener("pointermove", e => { if (!drag) return; const dx = e.clientX - drag[0], dy = e.clientY - drag[1]; if (drag[2] === 2 || e.shiftKey) { const r = new T.Vector3().setFromMatrixColumn(cam.matrix, 0), u = new T.Vector3().setFromMatrixColumn(cam.matrix, 1); st.t.addScaledVector(r, -dx * st.d * .0012).addScaledVector(u, dy * st.d * .0012) } else st.az += dx * .007, st.el = clamp(st.el + dy * .005, -.2, 1.5); drag[0] = e.clientX, drag[1] = e.clientY, place() });
     cv.addEventListener("pointerup", () => drag = null), cv.addEventListener("contextmenu", e => e.preventDefault()), cv.addEventListener("wheel", e => { e.preventDefault(), st.d = clamp(st.d * Math.exp(e.deltaY * .001), 1.5, 20), place() }, { passive: !1 });
-    try { if (T.EffectComposer) { comp = new T.EffectComposer(R); if (T.N8AOPass) { const ao = new T.N8AOPass(scene, cam, 400, 300), c = ao.configuration; c.gammaCorrection = !1, c.aoRadius = .25, c.distanceFalloff = 1, c.intensity = 2, c.color = new T.Color(0, 0, 0), ao.setQualityMode("Medium"), c.halfRes = !0, comp.addPass(ao) } else comp.addPass(new T.RenderPass(scene, cam)); comp.addPass(new T.OutputPass()), T.SMAAPass && comp.addPass(new T.SMAAPass(400, 300)) } } catch (e) { comp = null }
+    try { if (T.EffectComposer) { comp = new T.EffectComposer(R); if (T.N8AOPass) { const ao = new T.N8AOPass(scene, cam, 400, 300), c = ao.configuration; c.gammaCorrection = !1, c.aoRadius = .06, c.distanceFalloff = .3, c.intensity = 1.1, c.color = new T.Color(0, 0, 0), ao.setQualityMode("Medium"), c.halfRes = !0, comp.addPass(ao) } else comp.addPass(new T.RenderPass(scene, cam)); comp.addPass(new T.OutputPass()), T.SMAAPass && comp.addPass(new T.SMAAPass(400, 300)) } } catch (e) { comp = null }
     const fit = () => { const r = h.getBoundingClientRect(), w = Math.max(1, r.width), hh = Math.max(1, r.height); R.setSize(w, hh, !1), comp && comp.setSize(w, hh), cam.aspect = w / hh, cam.updateProjectionMatrix() };
     new ResizeObserver(fit).observe(h), fit(), place();
     h.view = v => { Object.assign(st, { iso: { az: .8, el: .32, d: 7.2 }, side: { az: Math.PI / 2, el: .05, d: 7 }, top: { az: .001, el: 1.45, d: 7.5 }, front: { az: 0, el: .12, d: 6 } }[v] || {}), place() };
@@ -111,6 +114,7 @@ LAB.chassis = (() => {
   /* mallas: forro deformable, alerones, ruedas, brazos y la forma sin deformar */
   function buildSkin() {
     if (parts3d) for (const o of parts3d.objs) scene.remove(o);
+    if (carData) return buildCarSkin();
     const S = res.S, sp = S.sp.slice(0, 14).map(n => S.nodes[n]), objs = [], parts = [];
     const mk = (G, bind, mat, ghost) => {
       const n = G.base.length / 3, g = new T.BufferGeometry();
@@ -152,6 +156,58 @@ LAB.chassis = (() => {
     parts3d = { parts, wheels, arms, pylon, objs };
     deform(null, 0)
   }
+
+  /* el modelo 3D del simulador atado a la estructura: cada vértice de carrocería a la columna (con el giro de su
+     sección: las secciones giran como sólidos, no se estiran), los alerones a sus voladizos, las ruedas a su nudo y los
+     brazos de suspensión repartidos entre la carrocería y la rueda según lo lejos que estén del eje del coche */
+  function buildCarSkin() {
+    const S = res.S, car = LAB.car, sp = S.sp.slice(0, 14).map(n => S.nodes[n]), objs = [], parts = [];
+    const xF = S.nodes[S.sp[3]].x, xR = S.nodes[S.sp[12]].x, wheelOf = (front, side) => S.wheels.findIndex(w => w.front === front && w.side === side);
+    const SOLID = /tyre|rim|disc|gold|visor|mirror|hot|white|afa8/;
+    for (const m of carData.meshes) {
+      const grp = carData.groups[m.g] || { t: [0, 0, 0] }, src = m.geo.attributes.position.array, n = src.length / 3, base = new Float32Array(n * 3);
+      for (let v = 0; v < n; v++) {
+        const X = (src[v * 3] + grp.t[0]) * car.mx, Y = src[v * 3 + 1] + grp.t[1], Z = (src[v * 3 + 2] + grp.t[2]) * car.mz;
+        base[v * 3] = X + car.wb / 2, base[v * 3 + 1] = Z, base[v * 3 + 2] = Y
+      }
+      const cls = new Uint8Array(n), wi = new Int8Array(n).fill(-1), ww = new Float32Array(n), isW = /^(spin|steer)_/.test(m.g);
+      for (let v = 0; v < n; v++) {
+        const x = base[v * 3], y = base[v * 3 + 1], z = base[v * 3 + 2];
+        if (isW) { cls[v] = 3, wi[v] = wheelOf(grp.t[0] > 0, grp.t[2] > 0 ? 1 : -1), ww[v] = 1; continue }
+        /* alerón delantero: planos y placas laterales (el morro y sus pilares siguen a la columna) */
+        if (m.g === "fwflap_0" || m.g === "fwflap_1" || (m.g === "static" && x > xF + .5 && z < .24 && Math.abs(y) > .16)) { cls[v] = 1; continue }
+        if (m.g === "rwflap" || (m.g === "static" && x < xR - .45 && z > .5)) { cls[v] = 2; continue }
+        cls[v] = 0;
+        /* brazos de suspensión y carenados de las manguetas: hacia la rueda */
+        const ay = Math.abs(y), front = Math.abs(x - xF) < Math.abs(x - xR), ax = front ? xF : xR, half = (front ? res.p.trf : res.p.trr) / 2;
+        if (ay > .44 && Math.abs(x - ax) < .62) { wi[v] = wheelOf(front, y > 0 ? 1 : -1), ww[v] = clamp((ay - .44) / Math.max(.05, half - .2 - .44), 0, 1) }
+      }
+      const solid = SOLID.test(m.m || "") || m.g === "helmet";
+      const mat = solid ? new T.MeshStandardMaterial({ color: new T.Color(...m.col).multiplyScalar(/tyre/.test(m.m) ? .45 : 1), metalness: m.met, roughness: Math.max(.25, m.rou), side: T.DoubleSide, vertexColors: !0 }) : new T.MeshPhysicalMaterial({ vertexColors: !0, metalness: .2, roughness: .35, clearcoat: .8, clearcoatRoughness: .1, side: T.DoubleSide });
+      const pt = mkCar({ base, idx: m.geo.index.array }, sp, mat, cls, wi, ww, solid);
+      /* normales del modelo original: los giros dibujados son de pocos grados y recalcularlas estropea las caras degeneradas */
+      pt.g.setAttribute("normal", m.geo.attributes.normal), pt.keepN = 1;
+      parts.push(pt), objs.push(pt.m);
+      /* forma sin deformar: aristas de la carrocería */
+      if (/paint/.test(m.m || "")) { const tmp = new T.BufferGeometry(); tmp.setAttribute("position", new T.BufferAttribute(Float32Array.from(base, (val, i) => i % 3 === 0 ? val - car.wb / 2 : val), 3)), tmp.setIndex(new T.BufferAttribute(m.geo.index.array, 1)); const e = new T.EdgesGeometry(tmp, 35), pa = e.attributes.position.array; for (let i = 0; i < pa.length; i += 3) { const y = pa[i + 1], z = pa[i + 2]; pa[i + 1] = z, pa[i + 2] = y } objs.push(new T.LineSegments(e, new T.LineBasicMaterial({ color: "#56616d", transparent: !0, opacity: .35 }))) }
+    }
+    for (const o of objs) scene.add(o);
+    parts3d = { parts, wheels: [], arms: [], pylon: null, objs, car: !0 };
+    deform(null, 0)
+  }
+  function mkCar(G, sp, mat, cls, wi, ww, solid) {
+    const n = G.base.length / 3, g = new T.BufferGeometry();
+    g.setAttribute("position", new T.BufferAttribute(new Float32Array(n * 3), 3)), g.setAttribute("color", new T.BufferAttribute(new Float32Array(n * 3).fill(1), 3)), g.setIndex(new T.BufferAttribute(G.idx, 1));
+    const m = new T.Mesh(g, mat), B = new Float32Array(n * 4);
+    for (let v = 0; v < n; v++) {
+      const x = G.base[v * 3];
+      let j = 0; for (; j < sp.length - 2 && x < sp[j + 1].x;) j++;
+      const f = clamp((sp[j].x - x) / (sp[j].x - sp[j + 1].x), 0, 1);
+      B[v * 4] = j, B[v * 4 + 1] = f, B[v * 4 + 2] = sp[j].z + (sp[j + 1].z - sp[j].z) * f
+    }
+    solid && (m.userData.solid = 1);
+    return { m, g, G, bind: "car", B, cls, wi, ww }
+  }
   /* desplazamiento y giro de un nudo (en metros y radianes) escalados */
   function nodeU(u, n, sc) {
     const nd = res.S.nodes[n], g = k => k < nd.dof && u ? u[nd.d0 + k] * sc : 0;
@@ -166,27 +222,36 @@ LAB.chassis = (() => {
     for (let j = 0; j < nsp - 1; j++) { const el = S.els.find(e => e.a === S.sp[j] && e.b === S.sp[j + 1]); E.push(el && u ? Math.sqrt(el.U / Umax) : 0) }
     const wingU = (center, tips) => ({ uc: nodeU(u, center, sc), ut: tips.map(t => nodeU(u, t, sc)), C: S.nodes[center], Tn: tips.map(t => S.nodes[t]), heat: u ? Math.sqrt(Math.max(...S.els.filter(e => e.grp === (center === S.sp[0] ? "fw" : "rw")).map(e => e.U)) / Umax) : 0 });
     const FW = wingU(S.sp[0], S.fwT), RW = wingU(S.sp[14], S.rwT);
+    const WU = S.wheels.map(w => nodeU(u, w.n, sc)), x0 = LAB.car.wb / 2;
     for (const pt of P3.parts) {
       const { G, B, g } = pt, pos = g.attributes.position.array, col = g.attributes.color.array, n = G.base.length / 3, solid = pt.m.userData.solid;
       for (let v = 0; v < n; v++) {
         const x = G.base[v * 3], y = G.base[v * 3 + 1], z = G.base[v * 3 + 2];
         let dx, dy, dz, heat;
-        if (pt.bind === "spine") {
+        const c = pt.cls ? pt.cls[v] : -1;
+        if (c === 3) { const q = WU[pt.wi[v]]; dx = q[0], dy = q[1], dz = q[2], heat = 0 }
+        else if (pt.bind === "spine" || c === 0 || c === 1 || c === 2) {
           const j = B[v * 4], f = B[v * 4 + 1], zs = B[v * 4 + 2], A = S.nodes[S.sp[j]], Bn = S.nodes[S.sp[j + 1]], L = Math.hypot(Bn.x - A.x, Bn.z - A.z), ua = U[j], ub = U[j + 1];
           const h1 = 1 - 3 * f * f + 2 * f ** 3, h2 = f - 2 * f * f + f ** 3, h3 = 3 * f * f - 2 * f ** 3, h4 = -f * f + f ** 3, rx = ua[3] + (ub[3] - ua[3]) * f, oz = z - zs;
           dx = ua[0] + (ub[0] - ua[0]) * f, dy = h1 * ua[1] + h2 * L * ua[5] + h3 * ub[1] + h4 * L * ub[5] + (y * Math.cos(rx) - oz * Math.sin(rx) - y), dz = h1 * ua[2] - h2 * L * ua[4] + h3 * ub[2] - h4 * L * ub[4] + (y * Math.sin(rx) + oz * Math.cos(rx) - oz);
-          heat = E[j] + (E[Math.min(E.length - 1, j + 1)] - E[j]) * f * .5
+          heat = E[j] + (E[Math.min(E.length - 1, j + 1)] - E[j]) * f * .5;
+          if (c === 0 && pt.wi[v] >= 0) { const q = WU[pt.wi[v]], a = pt.ww[v]; dx += (q[0] - dx) * a, dy += (q[1] - dy) * a, dz += (q[2] - dz) * a }
+          /* alerones: se mueven con su sección (sin desgarros con el morro) y además flexan hacia las puntas lo que dé el
+             modelo más allá del giro rígido */
+          if (c === 1 || c === 2) { const W = c === 1 ? FW : RW, sd = y < 0 ? 0 : 1, Tn = W.Tn[sd], a = clamp(Math.abs(y - W.C.y) / Math.abs(Tn.y - W.C.y), 0, 1.05), sh = 3 * a * a - 2 * a ** 3, uu = W.ut[sd], flex = uu[2] - (W.uc[2] + W.uc[3] * (Tn.y - W.C.y) - W.uc[4] * (Tn.x - W.C.x)); dz += flex * sh, heat = (heat || 0) * (1 - a) + (W.heat || 0) * a }
         } else {
-          const W = pt.bind === "fw" ? FW : RW, side = y < 0 ? 0 : 1, a = clamp(Math.abs(y - W.C.y) / Math.abs(W.Tn[side].y - W.C.y), 0, 1.05), sh = 3 * a * a - 2 * a ** 3, uu = W.ut[side];
+          const W = (pt.bind === "fw" || c === 1) ? FW : RW, side = y < 0 ? 0 : 1, a = clamp(Math.abs(y - W.C.y) / Math.abs(W.Tn[side].y - W.C.y), 0, 1.05), sh = 3 * a * a - 2 * a ** 3, uu = W.ut[side];
           dx = W.uc[0] + (uu[0] - W.uc[0]) * a, dy = W.uc[1], dz = W.uc[2] + (uu[2] - W.uc[2]) * sh + W.uc[3] * (y - W.C.y) - (x - W.C.x) * (W.uc[4] + (uu[4] - W.uc[4]) * a), heat = W.heat
         }
         const i3 = v * 3;
-        pos[i3] = x + dx - 1.8, pos[i3 + 1] = z + dz, pos[i3 + 2] = y + dy;
+        heat >= 0 || (heat = 0);
+        pos[i3] = x + dx - x0, pos[i3 + 1] = z + dz, pos[i3 + 2] = y + dy;
         if (solid) col[i3] = col[i3 + 1] = col[i3 + 2] = 1;
         else { const c = heatCol(heat); col[i3] = c.r, col[i3 + 1] = c.g, col[i3 + 2] = c.b }
       }
-      g.attributes.position.needsUpdate = !0, g.attributes.color.needsUpdate = !0, g.computeVertexNormals()
+      g.attributes.position.needsUpdate = !0, g.attributes.color.needsUpdate = !0, pt.keepN ? g.computeBoundingSphere() : g.computeVertexNormals()
     }
+    if (P3.car) return;
     const Pn = n => { const nd = S.nodes[n], q = nodeU(u, n, sc); return X3(nd.x + q[0], nd.y + q[1], nd.z + q[2]) };
     const place = (m, a, b) => { const d = b.clone().sub(a), L = d.length(); m.position.copy(a).addScaledVector(d, .5), m.scale.set(1, L, 1), m.quaternion.setFromUnitVectors(new T.Vector3(0, 1, 0), d.normalize()) };
     place(P3.pylon, Pn(S.sp[13]), Pn(S.sp[14]).add(new T.Vector3(0, -.05, 0)));
@@ -195,15 +260,15 @@ LAB.chassis = (() => {
       P3.wheels[i].m.position.copy(wp), place(P3.arms[i * 3], c.clone().add(up).add(new T.Vector3(.12, 0, 0)), wp.clone().add(up)), place(P3.arms[i * 3 + 1], c.clone().add(dn).add(new T.Vector3(-.15, 0, 0)), wp.clone().add(dn)), place(P3.arms[i * 3 + 2], wp.clone().add(new T.Vector3(0, -.08, 0)), c.clone().add(new T.Vector3(0, .26, 0)))
     })
   }
-  const heatCol = t => { t = clamp(t, 0, 1); const s = [[.18, .22, .27], [.24, .55, 1], [.18, .82, .42], [1, .82, .25], [1, .42, .1], [1, .23, .23]], x = t * (s.length - 1), i = Math.min(s.length - 2, x | 0), f = x - i; return { r: s[i][0] + (s[i + 1][0] - s[i][0]) * f, g: s[i][1] + (s[i + 1][1] - s[i][1]) * f, b: s[i][2] + (s[i + 1][2] - s[i][2]) * f } };
+  const heatCol = t => { t = clamp(t, 0, 1); const s = [[.46, .53, .62], [.24, .55, 1], [.18, .82, .42], [1, .82, .25], [1, .42, .1], [1, .23, .23]], x = t * (s.length - 1), i = Math.min(s.length - 2, x | 0), f = x - i; return { r: s[i][0] + (s[i + 1][0] - s[i][0]) * f, g: s[i][1] + (s[i + 1][1] - s[i][1]) * f, b: s[i][2] + (s[i + 1][2] - s[i][2]) * f } };
   /* ---------- cálculo ---------- */
   function compute() {
-    const p = { ...prm.v, nModes: 30 };
+    const p = { ...prm.v, nModes: 30, wb: LAB.car.wb };
     res = CM().run(p), res.p = p;
     const M = res.modes, find = re => M.find(m => re.test(m.name)), tors = find(/^Torsión/), bv = find(/^Flexión vertical/), bl = find(/^Flexión lateral/), fw = find(/^Alerón delantero/), rw = find(/^Alerón trasero/), hopF = find(/delantero (en fase|en oposición)/), hopR = find(/trasero (en fase|en oposición)/), heave = find(/^Bote/), pitch = find(/^Cabeceo/), roll = find(/^Balanceo/);
     const kRoll = (p.kwf * 1e3 * p.trf ** 2 / 2 + p.kwr * 1e3 * p.trr ** 2 / 2) * DEG, ratio = res.tor.k / kRoll;
     res.kRoll = kRoll, res.ratio = ratio;
-    ro.set("ktor", res.tor.k / 1e3, 1, res.tor.k < 2e4 ? "bad" : res.tor.k < 3e4 ? "warn" : "ok"), ro.set("kben", res.ben.k / 1e6, 1), ro.set("mass", res.mass, 0), ro.set("wf", res.xcg / 3.6 * 100, 1);
+    ro.set("ktor", res.tor.k / 1e3, 1, res.tor.k < 2e4 ? "bad" : res.tor.k < 3e4 ? "warn" : "ok"), ro.set("kben", res.ben.k / 1e6, 1), ro.set("mass", res.mass, 0), ro.set("wf", res.xcg / LAB.car.wb * 100, 1);
     ro.set("ratio", ratio, 1, ratio < 2.5 ? "bad" : ratio < 3.2 ? "warn" : "ok"), ro.set("fh", heave ? heave.f : NaN, 1), ro.set("fp", pitch ? pitch.f : NaN, 1), ro.set("fr", roll ? roll.f : NaN, 1);
     ro.set("fhf", hopF ? hopF.f : NaN, 1), ro.set("fhr", hopR ? hopR.f : NaN, 1), ro.set("ft", tors ? tors.f : NaN, 0), ro.set("fbv", bv ? bv.f : NaN, 0), ro.set("fbl", bl ? bl.f : NaN, 0), ro.set("ffw", fw ? fw.f : NaN, 1), ro.set("frw", rw ? rw.f : NaN, 1);
     const fk = p.speed / 3.6 / p.kerb;
@@ -248,13 +313,14 @@ LAB.chassis = (() => {
     if (!res || !parts3d || host.hidden) return;
     const t = (now - t0) / 1e3;
     let u, sc, info;
-    if (view === "tors") u = res.tor.u, sc = 120 * amp * (.55 + .45 * Math.sin(t * 2.4)), info = `<b>Banco de torsión</b>: ruedas traseras empotradas, ${(res.tor.T / 1e3).toFixed(1)} kN·m en las delanteras → ${(res.tor.ang / DEG).toFixed(3)}° · ${(res.tor.k / 1e3).toFixed(1)} kN·m/° · deformación ×120`;
-    else if (view === "bend") u = res.ben.u, sc = 60 * amp * (.55 + .45 * Math.sin(t * 2.4)), info = `<b>Flexión</b>: apoyado en los ejes, 10 kN en el habitáculo · ${(res.ben.k / 1e6).toFixed(1)} kN/mm · deformación ×60`;
+    /* amplificación: la necesaria para que el giro entre ejes se vea (~2,5°) sin romper la forma; se indica el factor real */
+    if (view === "tors") { const k = clamp(2.5 * DEG / Math.max(1e-6, res.tor.ang), 1, 500); u = res.tor.u, sc = k * amp * (.55 + .45 * Math.sin(t * 2.4)), info = `<b>Banco de torsión</b>: ruedas traseras fijas, ${(res.tor.T / 1e3).toFixed(1)} kN·m en las delanteras → ${(res.tor.ang / DEG).toFixed(3)}° entre ejes · ${(res.tor.k / 1e3).toFixed(1)} kN·m/° · deformación dibujada ×${Math.round(k * amp)}` }
+    else if (view === "bend") { let mz = 1e-9; for (const n of res.S.sp) { const nd = res.S.nodes[n]; mz = Math.max(mz, Math.abs(res.ben.u[nd.d0 + 2])) } const k = clamp(.025 / mz, 1, 2000); u = res.ben.u, sc = k * amp * (.55 + .45 * Math.sin(t * 2.4)), info = `<b>Flexión</b>: apoyado en los ejes, 10 kN en el habitáculo · ${(res.ben.k / 1e6).toFixed(1)} kN/mm · flecha máxima ${(mz * 1e3).toFixed(2)} mm · dibujada ×${Math.round(k * amp)}` }
     else {
       const m = res.modes[sel];
       /* normaliza para que el mayor desplazamiento sea ~12 cm en pantalla */
       let mx = 1e-9; for (const nd of res.S.nodes) for (let k = 0; k < 3; k++) mx = Math.max(mx, Math.abs(m.phi[nd.d0 + k]));
-      u = m.phi, sc = .12 / mx * amp * Math.sin(t * TAU * .9);
+      u = m.phi, sc = .05 / mx * amp * Math.sin(t * TAU * .9);
       info = `<b>Modo ${sel + 1}: ${m.name}</b> · ${m.f.toFixed(1)} Hz · animación ralentizada · color = energía de deformación · gris: forma sin deformar`
     }
     if (u !== loop.u) { for (const e of res.S.els) e.U = 0; if (view === "mode") CM().modes && classifyU(res.modes[sel]); else energyOf(u); loop.u = u }
@@ -269,14 +335,14 @@ LAB.chassis = (() => {
       const A = S.nodes[e.a], B = S.nodes[e.b], R0 = e.R, ul = new Float64Array(12), gv = (nd, k) => k < nd.dof ? u[nd.d0 + k] : 0;
       for (let blk = 0; blk < 4; blk++) { const nd = blk < 2 ? A : B, off = blk % 2 * 3; for (let i = 0; i < 3; i++) { let s = 0; for (let j = 0; j < 3; j++) s += R0[i][j] * gv(nd, off + j); ul[blk * 3 + i] = s } }
       let s = 0; for (let i = 0; i < 12; i++) for (let j = 0; j < 12; j++) s += ul[i] * e.kl[i][j] * ul[j];
-      e.U = s / 2 / Math.max(.05, e.L)
+      e.U = s / 2 / Math.max(.05, e.L), isFinite(e.U) || (e.U = 0)
     }
   }
   function classifyU(m) { energyOf(m.phi) }
   function init(el0) {
     host = el0;
     host.innerHTML = `
-    <div class="labhead"><div><h2>Chasis y vibraciones</h2><p class="sub">El coche entero como estructura de vigas: monocasco de carbono, motor y caja portantes, alerones, suspensión y neumáticos. Modos propios, banco de torsión y respuesta a los bordillos.</p></div>
+    <div class="labhead"><div><h2>Chasis y vibraciones</h2><p class="sub">El coche del simulador (${LAB.car.name.toLowerCase()}, batalla ${LAB.car.wb.toFixed(2)} m) como estructura de vigas: monocasco de carbono, motor y caja portantes, alerones, suspensión y neumáticos. Modos propios, banco de torsión y respuesta a los bordillos.</p></div>
       <div class="presets" id="chPre"></div></div>
     <div class="labgrid">
       <aside class="params" id="chParams"></aside>
@@ -306,5 +372,5 @@ LAB.chassis = (() => {
     init3d($("ch3d")) && buildSkin();
     requestAnimationFrame(loop)
   }
-  return { init }
+  return { init, _dbg: () => ({ parts3d, res, cam, scene, R }) }
 })();

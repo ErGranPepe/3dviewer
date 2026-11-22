@@ -218,21 +218,32 @@ LAB.susp = (() => {
   const PRESETS = {
     base: { name: "F1 delantera (pushrod)", v: {} },
     pull: { name: "F1 delantera (pullrod)", v: { type: "pull" } },
-    monaco: { name: "Mónaco: blanda y alta", v: { kspr: 320, karb: 300, kheave: 600, rh: 42, cbl: 11000, crl: 18000, road: "monaco", speed: 140, aerof: 115 } },
-    monza: { name: "Monza: baja carga", v: { scl: 2.6, kspr: 600, rh: 26, road: "pianos", speed: 320, aerof: 85 } },
-    porp: { name: "Rebote (porpoising)", v: { rh: 40, kspr: 300, kheave: 600, gef: 1.5, hstall: 14, stall: 70, alag: 20, speed: 300, road: "liso", cbl: 5000, crl: 8000, cheave: 0, pgap: 25 } },
+    monaco: { name: "Mónaco: blanda y alta", v: { kspr: 640, karb: 180, kheave: 1300, rh: 38, cbl: 16000, crl: 26000, road: "monaco", speed: 140, aerof: 115 } },
+    monza: { name: "Monza: baja carga", v: { scl: 2.6, kspr: 1200, kheave: 5200, rh: 26, road: "pianos", speed: 320, aerof: 85 } },
+    porp: { name: "Rebote (porpoising)", v: { rh: 36, kspr: 600, kheave: 1300, gef: 1.5, hstall: 14, stall: 70, alag: 20, speed: 300, road: "liso", cbl: 7000, crl: 11000, cheave: 0, pgap: 25 } },
     kerb: { name: "Salchicha a 200 km/h", v: { road: "salchicha", speed: 200 } }
   };
+  /* los puntos exteriores (rótulas, bieleta, dirección) siguen a la vía del reglamento elegido en el simulador */
+  {
+    const dy = (Math.round(LAB.car.tf * 1e3) - 1620) / 2;
+    for (const H of [LAB.kin3d.PUSH, LAB.kin3d.PULL]) if (!H._dy) { for (const k of ["LO", "UO", "PO", "TO"]) H[k] = [H[k][0], H[k][1] + dy, H[k][2]]; H.track = Math.round(LAB.car.tf * 1e3), H._dy = 1 }
+  }
   const DEF = [
     { title: "Lo esencial", open: !0, help: "Empieza por aquí. Cambia un valor y mira cómo responde la rueda en tiempo real.", items: [
       { id: "type", label: "Tipo de bieleta", v: "push", opts: [["push", "Pushrod (empuja)"], ["pull", "Pullrod (tira)"]], help: "Pushrod: la bieleta sube desde abajo de la mangueta y empuja el balancín. Pullrod: baja desde arriba y tira; deja el muelle más bajo (centro de gravedad) pero empaqueta peor." },
       { id: "speed", label: "Velocidad", unit: "km/h", min: 40, max: 340, step: 1, v: 230 },
       { id: "road", label: "Firme", v: "isoB", opts: [["liso", "Liso"], ["isoB", "Asfalto bueno (ISO B)"], ["isoC", "Asfalto bacheado (ISO C)"], ["salchicha", "Salchicha amarilla (derecha)"], ["pianos", "Pianos dentados"], ["bache", "Bache y escalón"], ["monaco", "Calles de Mónaco"], ["barrido", "Barrido de frecuencia 0,5–30 Hz"]] },
-      { id: "kspr", label: "Muelle (en el amortiguador)", unit: "N/mm", min: 50, max: 2000, step: 10, v: 500, help: "Más duro: menos balanceo y menos cambio de altura (mejor para el suelo aerodinámico), pero la rueda rebota más en baches y pianos." },
-      { id: "cbl", label: "Amortiguación compresión lenta", unit: "N·s/m", min: 500, max: 60000, step: 100, v: 20000 },
-      { id: "crl", label: "Amortiguación extensión lenta", unit: "N·s/m", min: 500, max: 80000, step: 100, v: 30000 },
-      { id: "karb", label: "Barra estabilizadora (en el balancín)", unit: "N/mm", min: 0, max: 2000, step: 10, v: 600 },
-      { id: "rh", label: "Altura al suelo (estática)", unit: "mm", min: 8, max: 70, step: .5, v: 38 }
+      { id: "kspr", label: "Muelle (en el amortiguador)", unit: "N/mm", min: 100, max: 3000, step: 10, v: 1000, help: "Más duro: menos balanceo y menos cambio de altura (mejor para el suelo aerodinámico), pero la rueda rebota más en baches y pianos." },
+      { id: "cbl", label: "Amortiguación compresión lenta", unit: "N·s/m", min: 500, max: 80000, step: 100, v: 28000 },
+      { id: "crl", label: "Amortiguación extensión lenta", unit: "N·s/m", min: 500, max: 100000, step: 100, v: 42000 },
+      { id: "karb", label: "Barra estabilizadora (en el balancín)", unit: "N/mm", min: 0, max: 2000, step: 10, v: 350 },
+      { id: "rh", label: "Altura al suelo delantera (estática)", unit: "mm", min: 8, max: 70, step: .5, v: 32, help: "La misma referencia que usa el simulador para el coche: 32 mm delante en parado." }
+    ]},
+    { title: "Frenos", help: "Disco, pastilla, conducto y reparto: se ven en el conjunto 3D y viajan al simulador.", items: [
+      { id: "discD", label: "Diámetro del disco", unit: "mm", min: 278, max: 345, step: 1, v: 328, help: "Más grande: más masa térmica (se calienta menos por frenada) y más radio de frenada, pero más peso no suspendido e inercia." },
+      { id: "pad", label: "Pastilla", v: "std", opts: [["std", "Carbono estándar (200–1 050 °C)"], ["cold", "Baja temperatura (circuitos fríos)"], ["hot", "Alta temperatura (Montreal, Mónaco)"]] },
+      { id: "duct", label: "Apertura del conducto de freno", unit: "%", min: 15, max: 100, step: 1, v: .6, scale: 100, help: "Más apertura enfría más pero añade arrastre aerodinámico." },
+      { id: "bbias", label: "Reparto de frenada (delante)", unit: "%", min: 50, max: 68, step: .5, v: 59 }
     ]},
     { title: "Amortiguador de 4 vías", adv: !0, items: [
       { id: "vkb", label: "Codo compresión", unit: "mm/s", min: 5, max: 300, step: 1, v: 50, help: "Velocidad de pistón donde pasa de baja a alta velocidad (válvula de soplado)." },
@@ -244,20 +255,20 @@ LAB.susp = (() => {
       { id: "pgap", label: "Hueco hasta el packer", unit: "mm", min: 0, max: 30, step: .5, v: 9, help: "Compresión del amortiguador a la que entra el tope (packer)." },
       { id: "kpack", label: "Rigidez del packer", unit: "N/mm", min: 0, max: 5000, step: 10, v: 900 },
       { id: "kpack2", label: "Progresividad del packer", unit: "N/mm²", min: 0, max: 500, step: 1, v: 60 },
-      { id: "kheave", label: "Tercer muelle (heave)", unit: "N/mm", min: 0, max: 6000, step: 10, v: 2000, help: "Solo trabaja cuando las dos ruedas suben a la vez (carga aerodinámica); no afecta al balanceo." },
+      { id: "kheave", label: "Tercer muelle (heave)", unit: "N/mm", min: 0, max: 9000, step: 10, v: 4300, help: "Solo trabaja cuando las dos ruedas suben a la vez (carga aerodinámica); no afecta al balanceo." },
       { id: "hgap", label: "Hueco del tercer muelle", unit: "mm", min: -10, max: 25, step: .5, v: 0 },
       { id: "cheave", label: "Amortiguador del tercer elemento", unit: "N·s/m", min: 0, max: 60000, step: 100, v: 8000 },
       { id: "inerter", label: "Inerter (J-damper)", unit: "kg", min: 0, max: 60, step: .5, v: 0, help: "Masa aparente entre carrocería y rueda; se usaba para calmar el rebote del neumático (wheel hop)." }
     ]},
     { title: "Rueda: vía, caída y convergencia", adv: !0, items: [
-      { id: "track", label: "Vía", unit: "mm", min: 1400, max: 2000, step: 1, v: 1620 }, { id: "rtyre", label: "Radio del neumático", unit: "mm", min: 300, max: 400, step: 1, v: 360 },
+      { id: "track", label: "Vía", unit: "mm", min: 1400, max: 2000, step: 1, v: Math.round(LAB.car.tf * 1e3) }, { id: "rtyre", label: "Radio del neumático", unit: "mm", min: 300, max: 400, step: 1, v: Math.round(LAB.car.R * 1e3) },
       { id: "camber", label: "Caída estática", unit: "°", min: -5, max: 1, step: .05, v: -3.2 }, { id: "toe", label: "Convergencia estática (+ abierta)", unit: "°", min: -1.5, max: 1.5, step: .01, v: .1 }
     ]},
     { title: "Puntos duros 3D (mm)", adv: !0, help: "x adelante desde el eje delantero, y hacia fuera desde el eje del coche, z altura sobre el suelo, rueda derecha en estático. La izquierda es simétrica.", items: [
       { id: "hp_LF_x", label: "Trapecio inferior · anclaje delantero · x", unit: "mm", min: -450, max: 450, step: 1, v: 210 },
       { id: "hp_LF_y", label: "Trapecio inferior · anclaje delantero · y", unit: "mm", min: -350, max: 900, step: 1, v: 235 },
       { id: "hp_LF_z", label: "Trapecio inferior · anclaje delantero · z", unit: "mm", min: 0, max: 800, step: 1, v: 150 },
-      { id: "hp_LR_x", label: "Trapecio inferior · anclaje trasero · x", unit: "mm", min: -450, max: 450, step: 1, v: -240 },
+      { id: "hp_LR_x", label: "Trapecio inferior · anclaje trasero · x", unit: "mm", min: -450, max: 450, step: 1, v: -200 },
       { id: "hp_LR_y", label: "Trapecio inferior · anclaje trasero · y", unit: "mm", min: -350, max: 900, step: 1, v: 225 },
       { id: "hp_LR_z", label: "Trapecio inferior · anclaje trasero · z", unit: "mm", min: 0, max: 800, step: 1, v: 140 },
       { id: "hp_LO_x", label: "Rótula inferior · x", unit: "mm", min: -450, max: 450, step: 1, v: -5 },
@@ -291,9 +302,9 @@ LAB.susp = (() => {
       { id: "hp_rbeta", label: "Balancín · ángulo estático", unit: "°", min: -180, max: 180, step: 1, v: 50 }, { id: "hp_ralpha", label: "Balancín · ángulo entre brazos", unit: "°", min: -180, max: 180, step: 1, v: 40 }
     ]},
     { title: "Masas, neumático y aerodinámica", adv: !0, items: [
-      { id: "mass", label: "Masa suspendida del coche", unit: "kg", min: 500, max: 900, step: 1, v: 740 },
-      { id: "wdist", label: "Reparto delante", unit: "%", min: 35, max: 55, step: .5, v: 45 },
-      { id: "munspr", label: "Masa no suspendida por rueda", unit: "kg", min: 8, max: 40, step: .5, v: 17 },
+      { id: "mass", label: "Masa suspendida del coche", unit: "kg", min: 500, max: 900, step: 1, v: LAB.car.mass - 96, help: "Masa mínima del reglamento menos las cuatro esquinas no suspendidas." },
+      { id: "wdist", label: "Reparto delante", unit: "%", min: 35, max: 55, step: .5, v: Math.round(LAB.car.wdist * 1000) / 10 },
+      { id: "munspr", label: "Masa no suspendida por rueda", unit: "kg", min: 8, max: 40, step: .5, v: 22, help: "Rueda y neumático ≈13 kg, freno ≈3,5, mangueta y buje ≈4,5 y media suspensión ≈1,5." },
       { id: "rgyr", label: "Radio de giro en balanceo", unit: "mm", min: 200, max: 600, step: 5, v: 380 },
       { id: "ktyre", label: "Rigidez vertical del neumático", unit: "N/mm", min: 150, max: 600, step: 5, v: 300 },
       { id: "ctyre", label: "Amortiguación del neumático", unit: "N·s/m", min: 0, max: 3000, step: 10, v: 400 },
@@ -467,6 +478,7 @@ LAB.susp = (() => {
         const R = sol.R;
         const sr = aux.sR || 0, K = model.K;
         $("sus3dInfo").innerHTML = `<b>Rueda derecha</b> recorrido ${(sr * 1e3).toFixed(1)} mm · caída ${(at(K, K.CAM, sr) / DEG).toFixed(2)}° · convergencia ${(at(K, K.TOE, sr) / DEG * 60).toFixed(1)}′ · avance ${(at(K, K.CAS, sr) / DEG).toFixed(2)}° · centro de balanceo ${(at(K, K.RC, sr) * 1e3).toFixed(0)} mm · carga ${(Fz / 1e3).toFixed(2)} kN<br><span>Barras: azul tracción, rojo compresión · flechas en la huella: verde vertical, azul lateral, naranja longitudinal · movimiento dibujado ×${$("susEx").value}, valores reales · arrastra para girar, botón derecho para desplazar</span>`;
+        if (frame % 30 === 0) { const rows = LAB.susp3d.checks(live.loads, prm.v); $("susChecks").innerHTML = "<h4>Comprobación de montaje</h4>" + rows.map(([s, t, d]) => `<div class="ck ${s}"><b>${t}</b><span>${d}</span></div>`).join("") }
         if (live.loads) {
           const tie = live.loads[5].f, rackF = Math.abs(tie) * Math.abs(LAB.kin3d.util.nrm(LAB.kin3d.util.sub(R.TI, R.TO))[1]), tq = rackF * .0075 * .3;
           ro.set("frack", rackF / 1e3, 2), ro.set("tqsw", tq, 1);
@@ -474,6 +486,27 @@ LAB.susp = (() => {
         }
       }
     } else draw2D()
+  }
+  for (const g of DEF) for (const it of g.items) { const m = /^hp_(\w\w)_([xyz])$/.exec(it.id); m && LAB.kin3d.PUSH[m[1]] && (it.v = LAB.kin3d.PUSH[m[1]]["xyz".indexOf(m[2])]) }
+  /* reglaje físico para el simulador: reparto de balanceo a partir de la rigidez al balanceo del eje (muelles por la
+     relación de movimiento al cuadrado + estabilizadora, en serie con el neumático) frente a la de referencia */
+  function rollK(P, MR) { const kt = P.ktyre * 1e3, kw = P.kspr * 1e3 * MR * MR + P.karb * 1e3 * MR * MR * 2; return kw * kt / (kw + kt) }
+  function sendToSim() {
+    const m = model, P = prm.v;
+    if (!m || !m.K || !m.K.ok) return;
+    const ref = Object.fromEntries(DEF.flatMap(g => g.items.map(i => [i.id, i.v])));
+    const Kref = kinTable(ref), MRref = at(Kref, Kref.MR, 0), MR = m.MR0;
+    const kF = rollK(P, MR), kF0 = rollK(ref, MRref), kR0 = kF0 * .48 / .52;
+    /* rigidez de plataforma del eje (dos muelles + tercer muelle en la rueda, en serie con los dos neumáticos): la misma
+       magnitud que usa el simulador para la altura bajo carga (410 N/mm con el reglaje de referencia) */
+    const ser = (k, kt) => k * 2 * kt / (k + 2 * kt), kH = ser(2 * P.kspr * MR * MR + P.kheave * MR * MR, P.ktyre), kH0 = ser(2 * ref.kspr * MRref * MRref + ref.kheave * MRref * MRref, ref.ktyre);
+    const damp = (Q, mr) => { const kw = Q.kspr * 1e3 * mr * mr + Q.kheave * 1e3 * mr * mr / 2, kt = Q.ktyre * 1e3, mc = Q.mass * Q.wdist / 100 / 2, kr = kw * kt / (kw + kt), cw = Q.cbl * mr * mr; return [cw / (2 * Math.sqrt(kr * mc)), cw / (2 * Math.sqrt((kw + kt) * Q.munspr))] };
+    const [zb, zw] = damp(P, MR), [zb0, zw0] = damp(ref, MRref), pen = (b, w) => ((b - .45) / .3) ** 2 + Math.max(0, .2 - w) / .2 * .6;
+    const o = { v: 1, t: Date.now(), kspr: P.kspr, karb: P.karb, kheave: P.kheave, cbl: P.cbl, crl: P.crl, rh: P.rh, camber: P.camber, toe: P.toe, discD: P.discD, pad: P.pad, duct: P.duct, bias: P.bbias / 100,
+      hp: Object.fromEntries(Object.keys(P).filter(k => k.startsWith("hp_") || ["type", "rtyre", "track", "camber", "toe"].includes(k)).map(k => [k, P[k]])),
+      lltd: kF / (kF + kR0), kHrel: kH / kH0, rhF: P.rh, bumpPen: clamp(pen(zb, zw) - pen(zb0, zw0), -.3, 1.5), hopK: clamp(zw0 / Math.max(.03, zw), .5, 2.5), zH: clamp(P.cheave / ref.cheave, .25, 2.5), zb, zw, MR, reg: LAB.car.reg };
+    try { localStorage.setItem("pn3-setup", JSON.stringify(o)) } catch {}
+    $("susWarn").textContent = `Reglaje enviado: reparto de balanceo ${Math.round(o.lltd * 100)} % del., plataforma ×${o.kHrel.toFixed(2)}, ζ carrocería ${zb.toFixed(2)}. Actívalo en el simulador (Configurar carrera → Tú conduces).`
   }
   function verdict(A, mean, sd, mn, mx) {
     const out = [], v = sd / mean;
@@ -492,8 +525,10 @@ LAB.susp = (() => {
       <aside class="params" id="susParams"></aside>
       <section class="views">
         <div class="vrow"><div class="s3host" id="sus3d"><div class="s3info" id="sus3dInfo"></div><canvas id="susCv" class="big" hidden></canvas></div><div class="verdict" id="susVerdict"></div></div>
-        <div class="ctrl"><button id="susRun" class="btn on">Pausa</button><label>Velocidad de simulación <select id="susSpd"><option value=".1">×0,1 (cámara lenta)</option><option value=".25">×0,25</option><option value="1" selected>×1 (tiempo real)</option></select></label><label>Volante <input type="range" id="susSteer" min="-180" max="180" step="1" value="0" style="width:120px;vertical-align:middle"> <b id="susSteerV">0°</b></label><label>Cargas <select id="susMan"><option value="live">En vivo (firme)</option><option value="brake">Frenada a 5 g</option><option value="corner" selected>Curva a 4,5 g (rueda exterior)</option><option value="comb">Frenada en curva</option></select></label><label>Movimiento <select id="susEx"><option value="1">real</option><option value="3" selected>exagerado ×3</option><option value="6">exagerado ×6</option></select></label><button id="susReset" class="btn">Reiniciar</button><button id="susCsv" class="btn adv">Exportar CSV</button><span id="susWarn" class="warnt"></span></div>
-        <div class="ctrl s3views"><span>Vista</span><button class="btn" data-sv="all">Eje completo</button><button class="btn" data-sv="corner">Rueda</button><button class="btn" data-sv="steer">Dirección</button><button class="btn" data-sv="top">Planta</button></div>
+        <div class="ctrl"><button id="susRun" class="btn on">Pausa</button><label>Velocidad de simulación <select id="susSpd"><option value=".1">×0,1 (cámara lenta)</option><option value=".25">×0,25</option><option value="1" selected>×1 (tiempo real)</option></select></label><label>Volante <input type="range" id="susSteer" min="-180" max="180" step="1" value="0" style="width:120px;vertical-align:middle"> <b id="susSteerV">0°</b></label><label>Cargas <select id="susMan"><option value="live">En vivo (firme)</option><option value="brake">Frenada a 5 g</option><option value="corner" selected>Curva a 4,5 g (rueda exterior)</option><option value="comb">Frenada en curva</option></select></label><label>Movimiento <select id="susEx"><option value="1">real</option><option value="3" selected>exagerado ×3</option><option value="6">exagerado ×6</option></select></label><button id="susReset" class="btn">Reiniciar</button><button id="susSend" class="btn send" title="Guarda este reglaje para el coche del simulador">Enviar al simulador</button><button id="susCsv" class="btn adv">Exportar CSV</button><span id="susWarn" class="warnt"></span></div>
+        <div class="ctrl s3views"><span>Vista</span><button class="btn" data-sv="all">Eje completo</button><button class="btn" data-sv="corner">Rueda</button><button class="btn" data-sv="inside">Por dentro</button><button class="btn" data-sv="brake">Freno</button><button class="btn" data-sv="rocker">Balancín</button><button class="btn" data-sv="steer">Dirección</button><button class="btn" data-sv="top">Planta</button></div>
+        <div class="ctrl s3tools"><label>Vista explosionada <input type="range" id="susExpl" min="0" max="1" step="0.01" value="0" style="width:140px;vertical-align:middle"></label><label class="ck"><input type="checkbox" id="susXray"> Rayos X</label><label class="ck"><input type="checkbox" id="susCut"> Corte por la rueda</label><label class="ck"><input type="checkbox" id="susDuct" checked> Conducto de freno</label><label class="ck"><input type="checkbox" id="susLoadsCk" checked> Fuerzas</label><span class="hint">Pulsa una pieza para ver su ficha</span></div>
+        <div class="checks" id="susChecks"></div>
         <div class="readouts" id="susRo"></div>
         <div class="loadtbl" id="susLoads"></div>
         <div class="pgrid"><canvas id="susLoad"></canvas><canvas id="susTrav"></canvas><canvas id="susHist"></canvas><canvas id="susFft"></canvas></div>
@@ -525,9 +560,12 @@ LAB.susp = (() => {
     $("susSteer").oninput = e => { $("susSteerV").textContent = e.target.value + "°", LAB.susp3d && LAB.susp3d.setOpts({ steer: +e.target.value }) };
     $("susMan").onchange = e => LAB.susp3d && LAB.susp3d.setOpts({ discT: e.target.value === "brake" || e.target.value === "comb" ? 950 : 450 });
     document.querySelectorAll("[data-sv]").forEach(b => b.onclick = () => $("sus3d").view && $("sus3d").view(b.dataset.sv));
+    const o3 = o => LAB.susp3d && LAB.susp3d.setOpts(o);
+    $("susExpl").oninput = e => o3({ explode: +e.target.value }), $("susXray").onchange = e => o3({ xray: e.target.checked }), $("susCut").onchange = e => o3({ cut: e.target.checked }), $("susDuct").onchange = e => o3({ duct: e.target.checked }), $("susLoadsCk").onchange = e => o3({ show: { loads: e.target.checked } });
+    $("susSend").onclick = sendToSim;
     $("susCsv").onclick = () => { const n = buf.n, rows = []; for (let j = 0; j < n; j += 3) { const k = (buf.i - n + j + NB) % NB; rows.push([buf.t[k], buf.FL[k], buf.FR[k], buf.sL[k], buf.sR[k], buf.hr[k], buf.vd[k], buf.ab[k], buf.rR[k], buf.fa[k]]) } downloadCSV("suspension.csv", ["t_s", "carga_izq_kN", "carga_dcha_kN", "recorrido_izq_mm", "recorrido_dcho_mm", "altura_mm", "vel_amort_dcho_mm_s", "acel_carroceria_g", "firme_dcho_mm", "carga_aero_kN"], rows) };
     window.addEventListener("labmode", () => setTimeout(() => { for (const p of Object.values(plots)) p.fit(); kinPlots() }, 50));
     reset(), loop()
   }
-  return { init, _test: { kinTable, build, step } }
+  return { init, _test: { kinTable, build, step, DEF, at, model: () => model, set: o => prm.set(o) } }
 })();

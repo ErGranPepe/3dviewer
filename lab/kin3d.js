@@ -21,7 +21,7 @@ LAB.kin3d = (() => {
     const k = mul(c, 1 / s), t = Math.atan2(s, d);
     return p => rotAx(p, [0, 0, 0], k, t)
   }
-  const PUSH = { type: "push", LF: [210, 235, 150], LR: [-240, 225, 140], LO: [-5, 705, 170], UF: [175, 310, 380], UR: [-215, 300, 370], UO: [-35, 660, 505], PO: [-15, 650, 222], TI: [95, 255, 198], TO: [92, 668, 252], RP: [-30, 115, 560], SD: [-30, -150, 600], r1: 75, r2: 55, rbeta: 50, ralpha: 40, track: 1620, R: 360, camber: -3.2, toe: 0 };
+  const PUSH = { type: "push", LF: [210, 235, 150], LR: [-200, 225, 140], LO: [-5, 705, 170], UF: [175, 310, 380], UR: [-215, 300, 370], UO: [-35, 660, 505], PO: [-15, 650, 222], TI: [95, 255, 198], TO: [92, 668, 252], RP: [-30, 115, 560], SD: [-30, -150, 600], r1: 75, r2: 55, rbeta: 50, ralpha: 40, track: 1620, R: 360, camber: -3.2, toe: 0 };
   const PULL = { ...PUSH, type: "pull", PO: [-25, 640, 468], RP: [-30, 150, 120], SD: [-30, -120, 65], r1: 75, r2: 80, rbeta: 4, ralpha: 124 };
   const PTS = ["LF", "LR", "LO", "UF", "UR", "UO", "PO", "TI", "TO", "RP", "SD"];
   const NAMES = { LF: "Trapecio inferior, anclaje delantero", LR: "Trapecio inferior, anclaje trasero", LO: "Rótula inferior", UF: "Trapecio superior, anclaje delantero", UR: "Trapecio superior, anclaje trasero", UO: "Rótula superior", PO: "Bieleta en la mangueta", TI: "Extremo de la cremallera", TO: "Brazo de dirección", RP: "Eje del balancín", SD: "Anclaje del amortiguador" };

@@ -14,7 +14,8 @@ LAB.chassismodel = (() => {
   }
   function build(P) {
     const nodes = [], els = [], springs = [], ground = [], mass = [];
-    const N = (name, x, y, z, dof = 6, grp = "spine") => (nodes.push({ name, x, y, z, dof, grp, m: 0, I: [0, 0, 0] }), nodes.length - 1);
+    /* cotas del coche del simulador: las estaciones longitudinales se escalan a la batalla del reglamento */
+    const kx = (P.wb || 3.6) / 3.6, N = (name, x, y, z, dof = 6, grp = "spine") => (nodes.push({ name, x: x * kx, y, z, dof, grp, m: 0, I: [0, 0, 0] }), nodes.length - 1);
     const E_c = P.Ec * 1e9, G_c = E_c * .36, E_ti = 110e9, G_ti = 42e9, E_al = 70e9, G_al = 26e9;
     /* columna: x adelante (eje trasero en 0), z arriba */
     const sp = [["Alerón del.", 4.92, .14], ["Morro", 4.45, .3], ["Mamparo del.", 3.95, .4], ["Eje delantero", 3.6, .4], ["Pies", 3.12, .38], ["Volante", 2.62, .36], ["Cadera", 2.12, .32], ["Depósito", 1.72, .34], ["Mamparo tras.", 1.42, .36], ["Motor", 1.0, .36], ["Motor tras.", .58, .34], ["Caja", .22, .3], ["Eje trasero", 0, .3], ["Estructura tras.", -.36, .32], ["Alerón tras.", -.62, .92]].map(([n, x, z]) => N(n, x, 0, z));

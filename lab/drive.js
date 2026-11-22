@@ -88,7 +88,7 @@ LAB.drive = (() => {
     ro.set("shifts", E.shifts, 0), ro.set("fuel", E.fuel, 2), ro.set("tpk", D.peak / 1e3, 2, D.peak > 9e3 ? "bad" : D.peak > 6e3 ? "warn" : "ok"), ro.set("shock", worst ? worst.shock / 1e3 : NaN, 2, worst && worst.shock > 4e3 ? "bad" : worst && worst.shock > 2.5e3 ? "warn" : "ok");
     ro.set("fn", `${D.fn[0].toFixed(0)}–${D.fn[7].toFixed(0)}`), ro.set("life", life.lifeKm >= 1e6 ? "∞" : Math.round(life.lifeKm).toLocaleString("es-ES"), 0, life.lifeKm < 3000 ? "bad" : life.lifeKm < 6000 ? "warn" : "ok"), ro.set("lifeG", life.lifeKm < 1e9 ? `${life.g + 1}ª` : "—");
     ro.set("mzE", Df.mzEntry, 0), ro.set("mzX", Df.mzExit, 0), ro.set("spin", Df.spinPct, 1, Df.spinPct > 3 ? "bad" : Df.spinPct > 1 ? "warn" : "ok");
-    drawPlots(), gearTable(), verdict()
+    drawPlots(), gearTable(), verdict(), cornerChips()
   }
   function drawPlots() {
     const L = res.Lp, n = L.n, x = new Float32Array(n), sp = new Float32Array(n), gr = new Float32Array(n), rpm = new Float32Array(n), soc = new Float32Array(n), pk = new Float32Array(n), pi = new Float32Array(n), ph = new Float32Array(n);
@@ -118,6 +118,20 @@ LAB.drive = (() => {
     for (let i = 0; i < n; i++) tl[i] = Df.TL[i] / 1e3, tr[i] = Df.TR[i] / 1e3, mz[i] = Df.Mz[i] / 1e3;
     plots.diff.draw([{ x, y: tl, n, col: "#ffd23f", label: "Rueda izq. kN·m" }, { x, y: tr, n, col: "#3d8bff", label: "Rueda dcha. kN·m" }], { title: "Reparto del diferencial", xlabel: "km", vlines: cur });
     plots.mz.draw([{ x, y: mz, n, col: "#b45cff", label: "Momento de guiñada kN·m (+ izq.)" }], { title: "Guiñada del diferencial", xlabel: "km", vlines: cur })
+  }
+  /* curva a curva: mínimo del modelo, de la pole real y de tu vuelta en el simulador */
+  function cornerChips() {
+    const G = DM().trackGrid(res.p.track), box = $("drvCorners");
+    if (!G.real || !G.real.corners) return void(box.innerHTML = "");
+    const L = res.Lp, n = L.n, ref = G.real.ref, SL = simLap(), sim = SL && SL.key === G.real.key ? SL : null, win = .012, rows = [];
+    for (const [num, fr] of G.real.corners) {
+      let rv = 1e9, mv = 1e9, sv = 1e9;
+      for (let i = 0; i < ref.f.length; i++) { let d = Math.abs(ref.f[i] - fr); d = Math.min(d, 1 - d), d < win && (rv = Math.min(rv, ref.v[i])) }
+      for (let k = Math.floor((fr - win) * n); k <= Math.ceil((fr + win) * n); k++) mv = Math.min(mv, L.v[(k % n + n) % n] * 3.6);
+      if (sim) { const nb = sim.v.length; for (let b = Math.floor((fr - win) * nb); b <= Math.ceil((fr + win) * nb); b++) { const v = sim.v[(b % nb + nb) % nb]; v > 0 && (sv = Math.min(sv, v)) } }
+      rows.push([num, mv, rv, sim ? sv : null])
+    }
+    box.innerHTML = `<b>Velocidad mínima en cada curva</b> <span>modelo · <i>real ${G.real.pole.drv} ${G.real.pole.year}</i>${sim ? ` · <u>simulador ${sim.code}</u>` : ""}</span><div>` + rows.map(([k, m, r, s2]) => `<span class="${m - r < -8 ? "neg" : m - r > 8 ? "pos" : ""}">T${k} <b>${Math.round(m)}</b> <i>${Math.round(r)}</i>${s2 ? ` <u>${Math.round(s2)}</u>` : ""}</span>`).join("") + "</div>"
   }
   function simLap() { try { return JSON.parse(localStorage.getItem("pn3-simlap") || "null") } catch (e) { return null } }
   function gearTable() {
@@ -179,6 +193,7 @@ LAB.drive = (() => {
         <div class="ctrl s3views"><span>Vista</span><button class="btn" data-dv="box">Caja</button><button class="btn" data-dv="diff">Diferencial</button><button class="btn" data-dv="ers">ERS</button><button class="btn" data-dv="all">Todo</button></div>
         <div class="readouts" id="drvRo"></div>
         <div class="pgrid"><canvas id="drvSp"></canvas><canvas id="drvErs"></canvas><canvas id="drvSoc"></canvas><canvas id="drvZoom"></canvas></div>
+        <div class="drvc" id="drvCorners"></div>
         <div class="geartbl" id="drvGears"></div>
         <h3 class="adv">Régimen, línea motriz y diferencial</h3>
         <div class="pgrid adv"><canvas id="drvRpm"></canvas><canvas id="drvTds"></canvas><canvas id="drvDiff"></canvas><canvas id="drvMz"></canvas></div>

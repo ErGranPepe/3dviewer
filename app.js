@@ -75,7 +75,7 @@
    cda: 1.6,
    LD: 3.93,
    aeroF: .43,
-   muScale: 1.589,
+   muScale: 1.637,
    kLoad: .142,
    muXr: .852,
    drsCd: .75,
@@ -284,15 +284,16 @@
 
  function racingLine(tr) {
   const N = tr.N,
-   lim = HW - (tr.real ? STREET[tr.key] ? 1.3 : .95 : 1.6),
+   lim0 = HW - (tr.real ? STREET[tr.key] ? 1.3 : .95 : 1.6),
    NX = new Float32Array(N),
    NY = new Float32Array(N);
+  let lim = lim0;
   for (let i = 0; i < N; i++) NX[i] = -Math.sin(tr.hd[i]), NY[i] = Math.cos(tr.hd[i]);
-  if (tr.rlReal) {
-   const a2 = new Float32Array(N);
-   for (let i = 0; i < N; i++) a2[i] = clamp(tr.rlReal[i], -lim, lim);
-   return racingLineFinish(tr, a2, NX, NY)
-  }
+  /* circuitos reales: la trazada del TUM se optimizó para una pista más estrecha (≈4,5 m de semiancho); aquí se
+     reoptimiza a curvatura mínima con todo el ancho real menos el del coche, partiendo de ella. Así desaparecen los
+     codos que obligaban a frenar donde el coche real va a fondo (Ascari, Parabólica, tramos reconstruidos) */
+  const realStart = tr.rlReal ? i => clamp(tr.rlReal[i], -lim, lim) : null;
+  tr.rlReal && STREET[tr.key] && (lim = HW - 2.1);
 
   function solve(step, n0, iters) {
    const M = Math.floor(N / step),
@@ -329,16 +330,16 @@
    return n
   }
   const s1 = 8,
-   n1 = solve(s1, null, 9e3),
-   M1 = n1.length,
-   up = i => {
+   n1 = realStart ? null : solve(s1, null, 9e3),
+   M1 = n1 ? n1.length : 0,
+   up = realStart || (i => {
     const f = i / s1,
      j = Math.floor(f) % M1,
      t = f - Math.floor(f);
     return n1[j] * (1 - t) + n1[(j + 1) % M1] * t
-   },
+   }),
    s2 = 2,
-   n2 = solve(s2, up, 6e3),
+   n2 = solve(s2, up, realStart ? 7e3 : 6e3),
    M2 = n2.length,
    rl = new Float32Array(N);
   for (let i = 0; i < N; i++) {
@@ -471,6 +472,34 @@
   Monaco: [2658, 847, -1, 18.2, 0, 28]
  };
 
+ /* corrección de la geometría con la telemetría real: donde la línea central se dobla más de lo que el coche real pudo
+    tomar a la velocidad a la que pasó (codos de los tramos reconstruidos o del GPS), se alisa localmente hasta que la
+    curvatura vuelve a ser compatible con esa velocidad. Solo en los tramos reconstruidos y solo para errores groseros (curva imposible en un 38 %). */
+ function fixKinks(X, Y, def, ds) {
+  const ref = def.ref, N = X.length;
+  if (!ref || !ref.f || !ref.v || !def.patched) return 0;
+  const vr = new Float32Array(N);
+  for (let k = 0, j = 0; k < N; k++) { const f = k / N; for (; j < ref.f.length - 2 && ref.f[j + 1] < f;) j++; vr[k] = ref.v[j] / 3.6 }
+  const h = Math.max(2, Math.round(7 / ds)), aLat = v => 1.9 * 9.81 + 1.9 * .5 * 1.2 * 4.6 * v * v / 800;
+  let fixed = 0;
+  for (let pass = 0; pass < 15; pass++) {
+   const mark = new Uint8Array(N);
+   let any = 0;
+   for (let i = 0; i < N; i++) {
+    const a = (i - h + N) % N, b = (i + h) % N, ax = X[i] - X[a], ay = Y[i] - Y[a], bx = X[b] - X[i], by = Y[b] - Y[i], la = Math.hypot(ax, ay), lb = Math.hypot(bx, by), lc = Math.hypot(X[b] - X[a], Y[b] - Y[a]), kap = Math.abs(2 * (ax * by - ay * bx) / Math.max(1e-6, la * lb * lc));
+    let v = vr[i]; for (let q = -h; q <= h; q++) v = Math.min(v, vr[(i + q + N) % N]);
+    const vAllow = Math.sqrt(aLat(v) / Math.max(1e-6, kap));
+    vAllow < .62 * v && v > 25 && (mark[i] = 1, any = 1)
+   }
+   if (!any) break;
+   for (let i = 0; i < N; i++) if (mark[i]) for (let q = -h; q <= h; q++) {
+    const j = (i + q + N) % N, a = (j - 1 + N) % N, b = (j + 1) % N, w = .5 * (1 - Math.abs(q) / (h + 1));
+    X[j] += w * ((X[a] + X[b]) / 2 - X[j]), Y[j] += w * ((Y[a] + Y[b]) / 2 - Y[j]), fixed++
+   }
+  }
+  return def.kinksFixed = fixed
+ }
+
  function makeTrackReal(def) {
   const N = def.x.length,
    L = def.L,
@@ -479,6 +508,7 @@
    Y = Float32Array.from(def.y),
    HD = new Float32Array(N),
    K = new Float32Array(N);
+  fixKinks(X, Y, def, ds);
   for (let i = 0; i < N; i++) {
    const a = (i - 1 + N) % N,
     b = (i + 1) % N;
@@ -1334,8 +1364,10 @@
    35] = clamp((vCap - u) / 30, -1, 1)
  }
 
+ /* giro máximo de rueda: el mismo tope que la geometría de dirección del Laboratorio (≈25°, el que pide la horquilla de
+    Mónaco); a velocidad lo limita el agarre */
  function maxSteer(u) {
-  return .5 / (1 + u / 30) + .15 * Math.max(0, 1 - u / 26)
+  return Math.min(.44, .5 / (1 + u / 30) + .15 * Math.max(0, 1 - u / 26))
  }
 
  function kEff(tr, i) {
@@ -1421,7 +1453,7 @@
   /* presión de la carcasa (modelo de sistemas): fuera de la óptima la huella se deforma y el agarre cae */
   if (c.sys) { const dp = (ax ? c.sys.pR - 1.52 : c.sys.pF - 1.7); m *= 1 - .15 * dp * dp }
   return m *= wr < .7 ? 1 - .11 * wr : wr < 1 ? .923 - Math.pow(wr - .7, 1.5) : .6, m *= 1 - .1 * t.grain - .14 * t.blister - .04 * Math.min(1, t.flat), t.punct === ax && (m *=
-   .55), m
+   .55), c.setup && c.setup.gm && (m *= c.setup.gm[ax]), m
  }
  const pac = a => Math.sin(1.45 * Math.atan(18 * a)),
   pacR = a => Math.sin(1.45 * Math.atan(21 * a));
@@ -1430,8 +1462,28 @@
   return clamp((.009 * Math.min(rpm, 10500) + 5.5) / 100, .3, 1)
  }
 
- function brakeF(T) {
-  return T < 200 ? .78 + .22 * T / 200 : T > 1050 ? Math.max(.55, 1 - (T - 1050) / 500) : 1
+ /* eficacia del carbono-carbono frente a la temperatura; la pastilla elegida en el Laboratorio desplaza la ventana */
+ function brakeF(T, pad) {
+  const [t0, f0, t1] = pad === "cold" ? [120, .82, 950] : pad === "hot" ? [300, .7, 1150] : [200, .78, 1050];
+  return T < t0 ? f0 + (1 - f0) * Math.max(0, T) / t0 : T > t1 ? Math.max(.55, 1 - (T - t1) / 500) : 1
+ }
+
+ /* reglaje físico enviado desde el Laboratorio: reparto de balanceo, altura y rigidez de plataforma, caída,
+    convergencia, amortiguación, freno (disco, pastilla, conducto y reparto) */
+ function applyLab(c, L, tr) {
+  const st = c.setup, bk = tr && BUMPY[tr.key] || 1;
+  st.lab = L, L.lltd != null && (st.lltd = clamp(L.lltd, .35, .7)), L.bias != null && (st.bias = clamp(L.bias, .5, .7));
+  const dc = (L.camber ?? -3.2) + 3.5, toe = clamp(L.toe ?? 0, -1.5, 1.5);
+  /* caída: el agarre lateral cae con el cuadrado de la distancia a la óptima; la convergencia abierta mejora la
+     entrada en curva a costa de arrastre de los neumáticos y temperatura; amortiguación mala = carga que oscila */
+  const bump = clamp(L.bumpPen || 0, 0, 1.5) * .009 * bk;
+  const g0 = 1 - .004 * .09 + .0006;
+  st.gm = [(1 - .004 * dc * dc + .006 * clamp(toe, -.5, .5)) / g0 * (1 - bump), 1 - bump * .7];
+  /* todo relativo al reglaje de referencia del Laboratorio (caída −3,2°, convergencia 0,1° abierta, conducto 60 %): con
+     él, el coche es exactamente el de siempre */
+  st.wearF = 1 + .05 * Math.max(0, -(L.camber ?? -3.2) - 3.5) + .12 * (Math.abs(toe) - .1), st.cd *= 1 + .015 * (Math.abs(toe) - .1) + .02 * ((L.duct ?? .6) - .6);
+  st.rhF0 = clamp(L.rhF ?? 32, 8, 70), st.kH = clamp(L.kHrel ?? 1, .3, 3), st.hopK = clamp(L.hopK ?? 1, .5, 2.5), st.zH = clamp(L.zH ?? 1, .25, 2.5);
+  st.discM = Math.pow((L.discD ?? 328) / 328, 2.2), st.duct = clamp(L.duct ?? .6, .15, 1), st.pad = L.pad || "std", st.bal = (st.bal || 0) + .002 * (32 - st.rhF0)
  }
 
  function physics(w, c, dt) {
@@ -1444,6 +1496,7 @@
   c.steerS += (clamp(c.steer, -1, 1) - c.steerS) * Math.min(1, dt * 12);
   const delta = c.steerS * maxSt,
    al = Math.abs(c.lat);
+  c.delta = delta;
   let sMu = 1,
    sDrag = 0;
   c.surf = 0;
@@ -1468,7 +1521,7 @@
    pf = c.perf,
    mass = CAR.mass + c.fuel,
    dmg = c.dmg;
-  let cl = CAR.cla * st.cl * pf.cl * (1 - .22 * dmg.fw - .35 * dmg.floor),
+  let cl = CAR.cla * st.cl * pf.cl * (1 - .22 * dmg.fw - .35 * dmg.floor) * (st.rhCl || 1),
    aF = CAR.aeroF + st.bal - .07 * dmg.fw;
   c.drs && (CAR.reg === "2026" ? (cl *= .6, aF += .01) : (cl *= .93, aF += .025));
   const cd = CAR.cda * st.cd * pf.cd * (c.drs ? CAR.drsCd : 1) * (1 - c.slip) * (1 + .12 * dmg.fw + .08 * dmg.floor),
@@ -1522,7 +1575,7 @@
    fyr0 = c.fyr0 || 0,
    fyf0 = c.fyf0 || 0,
    pFrac = 0;
-  const bf = brakeF(c.brakeT) * (c.fail && c.fail.brakes ? .6 : 1),
+  const bf = brakeF(c.brakeT, st.pad) * (c.fail && c.fail.brakes ? .6 : 1),
    Fz0f = mass * 9.81 * CAR.b / CAR.wb,
    Fz0r = mass * 9.81 * CAR.a / CAR.wb;
   for (let k = 0; k < SUB; k++) {
@@ -1638,7 +1691,7 @@
    tmR = 1 + Math.max(0, (t.tr - cm.topt - 15) / 25),
    wetPen = (t.c === "I" || t.c === "W") && wet < .15 ? 2.6 : 1,
    kW = 24e-9 * w.wearMul * cm.wear * wetPen * (1 + t.blister * .8) * (1 + Math.min(1, t.flat) * .3) * (1.25 - c.drv.tyre / 400);
-  t.wf = Math.min(1.05, t.wf + ePf * kW * tmF * (c.surf === 2 ? 1.5 : 1)), t.wr = Math.min(1.05, t.wr + ePr * kW * tmR * (c.surf === 2 ? 1.5 : 1));
+  t.wf = Math.min(1.05, t.wf + ePf * kW * tmF * (c.surf === 2 ? 1.5 : 1) * (c.setup.wearF || 1)), t.wr = Math.min(1.05, t.wr + ePr * kW * tmR * (c.surf === 2 ? 1.5 : 1));
   const Tavg = (t.tf + t.tr) / 2,
    slideP = (ePf + ePr) / dt;
   Tavg < cm.topt - 20 && slideP > 25e3 ? t.grain = Math.min(1, t.grain + dt * .025) : Tavg > cm.topt - 10 && (t.grain = Math.max(0, t.grain - dt * .008)), Math.max(t.tf, t.tr) >
@@ -1651,10 +1704,10 @@
     8,5 MJ de recuperación por vuelta, sin MGU-H, aerodinámica activa en recta para todos y modo adelantamiento) ===== */
  function regsTable() {
   return {
-   "2025": { a: 1.98, b: 1.62, wb: 3.6, Iz: 1050, tf: 1.6, trr: 1.55, mass: 798, cla: 5.5, cda: 1.6, drsCd: .75, LD: 3.93, pIce: 431e3, pK: 12e4, pH: 6e4, bat: 4e6, dLap: 4e6, hLap: 2e6, gripF: .98, gripR: 1.05 },
+   "2025": { a: 1.98, b: 1.62, wb: 3.6, Iz: 1050, tf: 1.6, trr: 1.55, mass: 798, cla: 5.5 * .86, cda: 1.6, drsCd: .75, LD: 3.93 * .86, pIce: 431e3, pK: 12e4, pH: 6e4, bat: 4e6, dLap: 4e6, hLap: 2e6, gripF: .98, gripR: 1.05 },
    /* 2026: térmico ~400 kW (−28 %), 350 kW eléctricos, ~30 % menos carga, menos resistencia y aún menos en modo recta,
       neumáticos más estrechos (−25/−30 mm) y 30 kg menos */
-   "2026": { a: 1.87, b: 1.53, wb: 3.4, Iz: 960, tf: 1.55, trr: 1.5, mass: 768, cla: 5.5 * .8, cda: 1.6 * .9, drsCd: .55, LD: 3.93 * .93, pIce: 322e3, pK: 35e4, pH: 0, bat: 4e6, dLap: 1e12, hLap: 8.5e6, gripF: .98 * .99, gripR: 1.05 * .99 }
+   "2026": { a: 1.87, b: 1.53, wb: 3.4, Iz: 960, tf: 1.55, trr: 1.5, mass: 768, cla: 5.5 * .8 * .86, cda: 1.6 * .9, drsCd: .55, LD: 3.93 * .93 * .86, pIce: 322e3, pK: 35e4, pH: 0, bat: 4e6, dLap: 1e12, hLap: 8.5e6, gripF: .98 * .99, gripR: 1.05 * .99 }
   }
  }
 
@@ -2182,7 +2235,7 @@
      grid: i + 1,
      drv: e.drv || Object.assign({}, DEF_DRV)
     });
-   applySetup(c, e.wing != null ? e.wing : clamp(tr.wingRec + (w.wetLine > .3 ? .15 : 0), 0, 1), e.bias), e.lltd != null && (c.setup.lltd = e.lltd), e.sq && (c.setup.q = e.sq), place(w, c, -14 - i * 8, i % 2 ? -3 : 3,
+   applySetup(c, e.wing != null ? e.wing : clamp(tr.wingRec + (w.wetLine > .3 ? .15 : 0), 0, 1), e.bias), e.lltd != null && (c.setup.lltd = e.lltd), e.lab && applyLab(c, e.lab, tr), e.sq && (c.setup.q = e.sq), place(w, c, -14 - i * 8, i % 2 ? -3 : 3,
     0), c.prog = -14 - i * 8, c.maxProg = c.prog, c.fuel = Math.min(110, (w.laps + .35) * fpl * (.97 + .06 * w.rngW()) + 1.2);
    let tc = w.wetLine > .7 ? "W" : w.wetLine > .25 ? "I" : c.genome && c.genome.pit > .74 ? "S" : "M";
    return e.tire && (tc = e.tire), c.tire = newTire(tc, 74), c.used[tc] = 1, c.stints = [{
@@ -2592,7 +2645,8 @@
   S.wasSpin && !c.spinR && u > 5 && (S.dsPk = S.Tin * 1.6 * (8 - g) / 4), S.dsPk *= Math.exp(-h * 3), S.wasSpin = c.spinR;
   /* ---- frenos por eje: convección, radiación, oxidación del carbono, líquido ---- */
   const Pb = c.pBrkW || 0, PF = Pb * clamp(st.bias * 1.08, .3, .9), PR = Pb - PF, Ta = air + 273, rad = (T, A) => .85 * 5.67e-8 * A * ((T + 273) ** 4 - Ta ** 4);
-  S.TbF += h * (PF - (15 + 4.5 * u) * (S.TbF - air) - rad(S.TbF, .45)) / 1500, S.TbR += h * (PR - (12 + 3.5 * u) * (S.TbR - air) - rad(S.TbR, .38)) / 1150;
+  const dM = st.discM || 1, dk = st.duct != null ? .55 + .75 * st.duct : 1;
+  S.TbF += h * (PF - (15 + 4.5 * u) * dk * Math.sqrt(dM) * (S.TbF - air) - rad(S.TbF, .45 * Math.sqrt(dM))) / (1500 * dM), S.TbR += h * (PR - (12 + 3.5 * u) * (S.TbR - air) - rad(S.TbR, .38)) / 1150;
   c.brakeT = .6 * S.TbF + .4 * S.TbR;
   S.wearF += h * 1e-3 * Math.exp((S.TbF - 750) / 85), S.wearR += h * 8e-4 * Math.exp((S.TbR - 750) / 85);
   S.TflF += h * ((S.TbF - S.TflF) * .0025 - (S.TflF - air) * (.002 + 2e-5 * u)), S.TflR += h * ((S.TbR - S.TflR) * .002 - (S.TflR - air) * (.002 + 2e-5 * u));
@@ -2611,9 +2665,16 @@
   /* ---- chasis: altura al suelo, tablón, porpoising, rebote de rueda, vibración ---- */
   const kerb = c.surf === 1 && tr._kerb && tr._kerb[idx], vl = c.vload || 1, pitch = mass * ax * CAR.hcg / CAR.wb;
   S.bump = 2.2 * S.bumpK * (vnoise(c.s / 6.5) - .5) + 1.1 * S.bumpK * (vnoise(c.s / 2.1 + 31) - .5);
-  S.rhF = 32 + S.rh0 - (DF * CAR.aeroF + (vl - 1) * mass * 9.81 * CAR.b / CAR.wb) / 410 + pitch / 410 - (kerb ? 9 : 0) + S.bump;
+  const kHf = 410 * (st.kH || 1);
+  S.rhF = (st.rhF0 ?? 32) + S.rh0 - (DF * CAR.aeroF + (vl - 1) * mass * 9.81 * CAR.b / CAR.wb) / kHf + pitch / kHf - (kerb ? 9 : 0) + S.bump;
   S.rhR = 52 + S.rh0 - (DF * (1 - CAR.aeroF) + (vl - 1) * mass * 9.81 * CAR.a / CAR.wb) / 360 - pitch / 360 - (kerb ? 6 : 0) + S.bump * .8;
-  S.porp += ((S.rhR < 18 && u > 65 ? 6 * clamp((u - 65) / 20, 0, 1) * clamp((18 - S.rhR) / 8, 0, 1) : 0) - S.porp) * Math.min(1, h / .6);
+  S.porp += ((S.rhR < 18 && u > 65 ? 6 * clamp((u - 65) / 20, 0, 1) * clamp((18 - S.rhR) / 8, 0, 1) : 0) + (st.lab && S.rhF < 9 && u > 65 ? 5 * clamp((9 - S.rhF) / 6, 0, 1) / (st.zH || 1) : 0) - S.porp) * Math.min(1, h / .6);
+  /* con reglaje del Laboratorio el fondo responde a la altura delantera: más carga al bajar, desprendimiento por debajo de 6 mm */
+  if (st.lab) {
+   /* misma carga que el coche de referencia a igual altura: se compara con la altura que tendría con el reglaje base */
+   const rhB = 32 + S.rh0 - (DF * CAR.aeroF + (vl - 1) * mass * 9.81 * CAR.b / CAR.wb) / 410 + pitch / 410 - (kerb ? 9 : 0) + S.bump, fl = r => clamp(1 + .1 * (32 - r) / 32, .88, 1.08) * (r < 6 ? 1 - .3 * clamp((6 - r) / 6, 0, 1) : 1);
+   st.rhCl = fl(S.rhF) / fl(rhB)
+  }
   S.rhP = .8 * S.rhF + .2 * S.rhR - 6 - S.porp * .5;
   if (S.rhP < .5 && u > 15) {
    const dw = (.5 - S.rhP) * 2.2e-5 * u * h;
@@ -2622,7 +2683,7 @@
   S.plank < 9.35 && sysLog(w, c, "warn", "Tablón a " + S.plank.toFixed(2) + " mm (mínimo 9,00): evita pianos y compresiones", "plank");
   S.stop = S.rhF < 3 ? 1 : 0;
   const fh = 17, rr = S.fFlat / fh, Hh = 1 / Math.sqrt((1 - rr * rr) ** 2 + (.24 * rr) ** 2);
-  S.hopR = rr, S.hop = (kerb ? .9 : 0) + Math.min(1, t.flat) * .6 * Hh + Math.abs(S.bump) * .05;
+  S.hopR = rr, S.hop = ((kerb ? .9 : 0) + Math.min(1, t.flat) * .6 * Hh + Math.abs(S.bump) * .05) * (st.hopK || 1);
   S.kerbE += kerb && u > 50 && vl > 1.05 ? h : 0, S.kerbE > 25 && (S.delam = Math.min(1, S.delam + h * .003)), S.delam > .25 && (c.dmg.floor = Math.max(c.dmg.floor, (S.delam - .25) * .4));
   S.flex = 7.5 * (u / 83) ** 2 * (1 + 1.5 * c.dmg.fw), S.Vf = 108 * Math.sqrt(Math.max(.05, 1 - .6 * c.dmg.fw));
   u > S.Vf && running && c.dmg.fw < 1 && (c.dmg.fw = 1, sysLog(w, c, "bad", "El alerón dañado entra en flameo a " + Math.round(u * 3.6) + " km/h y se rompe"), evt(w, c.code + " pierde el alerón delantero por flameo", "fail", c));
@@ -2631,7 +2692,7 @@
   /* ---- lo que siente el piloto: par en el volante (cae al acercarse al límite del tren delantero) y pedal ---- */
   const util = clamp(c.load || 0, 0, 1.3), trail = .015 + .035 * Math.max(0, 1 - util * util);
   S.steerTq += (Math.abs(c.fyf0 || 0) * trail / 11 * .32 - S.steerTq) * Math.min(1, h / .1), S.gripFeel = Math.max(0, 1 - util * util);
-  S.pedal = c.brk * 1500 / Math.max(.5, brakeF(c.brakeT)) * (S.vlock ? .45 : 1), S.pedalTr = c.brk * (S.vlock ? 95 : 38) * (1 + S.wearF * .03);
+  S.pedal = c.brk * 1500 / Math.max(.5, brakeF(c.brakeT, st.pad)) * (S.vlock ? .45 : 1), S.pedalTr = c.brk * (S.vlock ? 95 : 38) * (1 + S.wearF * .03);
   S.mesh = [30, 33, 35, 37, 39, 41, 43, 45][g] * rpm / 60;
   S.bolt = Math.max(0, S.bolt - h * wet * 4e-7);
   /* ---- piloto ---- */
@@ -3397,7 +3458,7 @@
     },
     drv: e.drv || Object.assign({}, DEF_DRV)
    });
-  applySetup(c, e.wing != null ? e.wing : clamp(track.wingRec + (w.wetLine > .3 ? .15 : 0), 0, 1), e.bias), e.sq && (c.setup.q = e.sq);
+  applySetup(c, e.wing != null ? e.wing : clamp(track.wingRec + (w.wetLine > .3 ? .15 : 0), 0, 1), e.bias), e.sq && (c.setup.q = e.sq), o.lab && applyLab(c, o.lab, track);
   const tc = w.wetLine > .7 ? "W" : w.wetLine > .25 ? "I" : "S";
   c.tire = newTire(tc, COMP[tc].topt), c.fuel = 8, c.batt = 1, c.muEst = 1.6, c.brakeT = 500, c.engT = 100, c.mode = 2, c.push = clamp(.62 + (c.drv.pace - 85) / 30 + (w.wetLine >
    .3 ? (c.drv.wet - 85) / 40 : 0), .2, .95), c.attack = .5, o.fuel != null && (c.fuel = o.fuel), o.mode != null && (c.mode = o.mode), o.batt != null && (c.batt = o.batt), o.tireT != null && (c.tire.tf = c.tire.tr = o.tireT), o.wear != null && (c.tire.wf = c.tire.wr = o.wear), o.push != null && (c.push = o.push);
@@ -3530,6 +3591,8 @@
   steerTo,
   speedTo,
   targetSpeed,
+  kEff,
+  applyLab,
   playerControl,
   reflex,
   physics,
@@ -15716,7 +15779,8 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
  function regScale(o) {
   const r26 = root.Sim && root.Sim.CAR && root.Sim.CAR.reg === "2026", k = r26 ? 1 : 0;
   if (o.regK === k || !o.lod) return;
-  o.regK = k, o.lod.scale.set(r26 ? 3.4 / 3.6 : 1, 1, r26 ? .95 : 1);
+  /* el modelo tiene 3,4 m de batalla: se estira a la del reglamento (3,6 m en 2025) para que coincida con la física */
+  o.regK = k, o.lod.scale.set(r26 ? 1 : 3.6 / 3.4, 1, r26 ? .95 : 1);
   for (const wh of o.wheels || []) wh.scale.z = r26 ? .93 : 1
  }
 
@@ -17506,6 +17570,7 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
   })[c]),
   clamp = S.clamp,
   app = window.__app = {
+   focusCar: () => focusCar(),
    view: "3d",
    director: !0,
    mode: "race",
@@ -18269,6 +18334,15 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
   return v
  }
 
+ /* reglaje físico guardado por el Laboratorio (pestaña Suspensión → «Enviar al simulador») */
+ function labSetup() { try { const o = JSON.parse(localStorage.getItem("pn3-setup") || "null"); return o && o.v === 1 ? o : null } catch { return null } }
+ function labPanel() {
+  const L = labSetup(), row = $("pLabRow");
+  if (!row) return;
+  row.hidden = !L;
+  L && ($("pLabInfo").textContent = `muelle ${L.kspr} N/mm · estabilizadora ${L.karb} N/mm (reparto de balanceo ${Math.round(L.lltd * 100)} % del.) · altura ${L.rh} mm · caída ${L.camber.toFixed(2)}° · convergencia ${L.toe.toFixed(2)}° · disco ${L.discD} mm · freno ${Math.round(L.bias * 100)} % del. Sustituye a los ajustes de estabilizadora y reparto de frenada.`)
+ }
+
  function buildEntries(withPlayer) {
   const useUser = $("rSource").value === "user" && userPop;
   let es = S.DRIVERS.map((d, i) => ({
@@ -18306,6 +18380,7 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
     wing: +$("pWing").value,
     bias: +$("pBias").value,
     lltd: $("pRoll") ? +$("pRoll").value : null,
+    lab: $("pLab") && $("pLab").checked && !$("pLabRow").hidden ? labSetup() : null,
     tire: ty === "auto" ? null : ty,
     tc: $("pTc").checked,
     abs: $("pAbs").checked
@@ -19523,7 +19598,7 @@ registerProcessor('engine-proc',EngineProc);`;
    $("pWingV").textContent = Math.round(e.target.value * 100) + "%"
   }, $("pBias").oninput = e => {
    $("pBiasV").textContent = Math.round(e.target.value * 100) + "% del."
-  }, $("pRoll") && ($("pRoll").oninput = e => {
+  }, labPanel(), window.addEventListener("storage", e => e.key === "pn3-setup" && labPanel()), $("pRoll") && ($("pRoll").oninput = e => {
    $("pRollV").textContent = Math.round(e.target.value * 100) + "% del."
   }), ["S", "M", "H", "I", "W"].forEach(k => {
    const b = document.createElement("button");
@@ -20620,7 +20695,7 @@ registerProcessor('engine-proc',EngineProc);`;
    app.cam.rot +
    '" title="Cámara girada">GIRO</button><button id="zoomIn" aria-label="Acercar">+</button><button id="zoomOut" aria-label="Alejar">−</button><button id="raysBtn" aria-pressed="' +
    app.rays + '" title="Sensores de la IA">IA</button>' + (has3d ? '<button id="viewBtn" title="Cambiar a 3D">3D</button>' : ""), app.view === "3d" && app.sample && (h +=
-    '<button id="aiBtn" title="Análisis en directo generado por Claude (usa tu cuenta)">ANÁLISIS IA</button>'), h += '<button id="vozBtn" aria-pressed="' + ($("rComm").value !==
+    '<button id="aiBtn" title="Análisis en directo generado por Claude (usa tu cuenta)">ANÁLISIS IA</button>'), h += '<button id="suspBtn" aria-pressed="' + !!(window.SUSP_LIVE && SUSP_LIVE.on) + '" title="Conjunto de suspensión y freno delantero del coche seguido, en tiempo real">SUSPENSIÓN</button><button id="vozBtn" aria-pressed="' + ($("rComm").value !==
     "off") + '" title="Narración">VOZ</button><button id="soundBtn" aria-pressed="' + !!app.sound + '" title="Sonido del motor">SON</button>', el.innerHTML = h, el
    .querySelectorAll("[data-c3]").forEach(b => b.onclick = () => {
     const k = b.dataset.c3;
@@ -20630,7 +20705,13 @@ registerProcessor('engine-proc',EngineProc);`;
    const b = $(id);
    b && (b.onclick = f)
   };
-  on("thermBtn", () => { app.thermal = !app.thermal, R3D.setThermal && R3D.setThermal(app.thermal), pressed("thermBtn", app.thermal) }), on("camFit", () => setCam("fit")), on("camFollow", () => setCam("follow")), on("camTv", () => setCam("tv")), on("camRot", () => {
+  on("suspBtn", () => {
+   /* el conjunto CAD se carga solo cuando se pide (kinemática 3D + piezas del Laboratorio) */
+   const go = () => window.SUSP_LIVE && SUSP_LIVE.toggle();
+   if (window.SUSP_LIVE) return go();
+   const sc = document.createElement("script");
+   sc.src = window.CADJS || "a/cad.js", sc.onload = go, document.head.appendChild(sc)
+  }), on("thermBtn", () => { app.thermal = !app.thermal, R3D.setThermal && R3D.setThermal(app.thermal), pressed("thermBtn", app.thermal) }), on("camFit", () => setCam("fit")), on("camFollow", () => setCam("follow")), on("camTv", () => setCam("tv")), on("camRot", () => {
    app.cam.rot = !app.cam.rot, pressed("camRot", app.cam.rot), app.cam.rot && app.cam.mode === "fit" && setCam("follow")
   }), on("zoomIn", () => {
    if (app.cam.mode === "fit") {
@@ -20944,6 +21025,7 @@ registerProcessor('engine-proc',EngineProc);`;
     mean = ok.reduce((a, v) => a + Math.abs(v.err), 0) / Math.max(1, ok.length);
    el.innerHTML =
     "<p><b>Reglamento 2026</b> (por defecto, elegible en la carrera): motor térmico de ~400 kW y MGU-K de 350 kW que se recorta de 290 a 355 km/h, sin MGU-H; hasta 8,5 MJ recuperados por vuelta (frenada, recorte en recta y gas parcial) con 4 MJ de ventana de batería; la centralita despliega por debajo de una velocidad umbral que se ajusta sola para que la energía cuadre. Aerodinámica activa: en las rectas todos abren los alerones delantero y trasero (modo recta); a menos de 1 s del de delante en el punto de detección se gana el modo adelantamiento (350 kW hasta 337 km/h y 0,5 MJ más). Calibrado para que la vuelta rápida sea un 3–6 % más lenta que en 2025, como en las primeras carreras de 2026.</p>" +
+    "<p><b>Correspondencia con datos reales</b>: cada circuito trae la telemetría de su pole real (velocidad, marcha, gas y freno). La trazada se reoptimiza a curvatura mínima con todo el ancho de la pista partiendo de la del TUM, los codos de los tramos reconstruidos se alisan donde la curvatura sería imposible para la velocidad real medida, y en la carrera la gráfica de velocidad compara cada vuelta con la real curva a curva. La IA rueda en aire limpio al límite de su agarre con un margen según su talento y solo decide con la red neuronal cuando hay coches cerca; así la vuelta rápida de carrera queda a un 3–4 % de la pole, como en la realidad.</p>" +
     "<p>Los 16 circuitos son reales: línea central y anchura del <b>TUM racetrack-database</b> (Universidad Técnica de Múnich; OpenStreetMap + imágenes de satélite, licencia LGPL-3.0), alineada por ICP con la <b>telemetría oficial de posición de la F1 de 2024</b> (vía FastF1 / TracingInsights). De esa telemetría salen la elevación, la trazada de la vuelta de referencia, las zonas DRS, la numeración de curvas, la temperatura, la presión y la humedad (densidad del aire).</p><p>La física del coche se calibró con esas mismas vueltas: potencia en rueda y resistencia por circuito ajustadas a las aceleraciones en recta, curva de potencia según el caudal de combustible del reglamento, sensibilidad a la carga del neumático, elipse de fricción y eficiencia aerodinámica ajustadas para reproducir las vueltas reales. Error medio del modelo dinámico: <b>" +
     mean.toFixed(1).replace(".", ",") +
     ' %</b> en tiempo de vuelta.</p><p>Encima de esa dinámica, cada coche lleva un <b>modelo físico de sus sistemas</b> que se integra en tiempo real: aceite (ecuación de Vogel, película de cojinete tipo Sommerfeld, aireación y descebe por G), refrigeración (presión de vapor de Antoine, ebullición nucleada frente a crítica, cavitación por NPSH), pistón y segmentos (dilatación diferencial acero/aluminio), detonación con control de picado, muelles neumáticos de válvula, torsión del cigüeñal por órdenes, tornillería (fluencia de Arrhenius y autoaflojamiento de Junker), retenes, caja (Basquin y picado por marcha), frenos por eje (convección, radiación de Stefan-Boltzmann y oxidación del carbono), presión del neumático (gas ideal), altura al suelo y tablón, rebote de rueda, flameo del alerón, piloto y latencia de la telemetría. La fiabilidad usa vidas de Weibull con factores de aceleración: las averías salen del estado de cada pieza. Se ve en «Ingeniería en vivo» desde la telemetría de cualquier coche.</p><table class="tbl"><thead><tr><th>Circuito</th><th style="text-align:right">Simulado</th><th style="text-align:right">Real 2024</th><th style="text-align:right">Error</th><th style="text-align:right">V. punta</th></tr></thead><tbody>' +

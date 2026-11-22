@@ -4,6 +4,12 @@ set -e
 cd /home/claude/src
 E=./node_modules/.bin/esbuild
 P=/home/claude/pages
+# conjunto CAD de suspensión para la vista en vivo (cinemática 3D + piezas + bucle), cargado bajo demanda
+{ echo '(()=>{"use strict";const LAB=window.LAB||(window.LAB={});const clamp=(v,a,b)=>v<a?a:v>b?b:v,lerp=(a,b,t)=>a+(b-a)*t,TAU=Math.PI*2,DEG=Math.PI/180;'; cat lab/carmesh.js lab/kin3d.js lab/suspcad.js lab/live.js; echo '})();'; } > /tmp/cad.all.js
+$E /tmp/cad.all.js --minify --target=es2020 --log-level=error > /tmp/cad.min.js
+HC=$(sha256sum /tmp/cad.min.js | cut -c1-10)
+OLDC=$(grep -o 'a/cad\.[0-9a-f]*\.js' $P/index.html | head -1)
+if [ "$OLDC" != "a/cad.$HC.js" ]; then cp /tmp/cad.min.js $P/a/cad.$HC.js; sed -i "s#$OLDC#a/cad.$HC.js#g" $P/index.html; git -C $P rm -q --cached $OLDC 2>/dev/null || true; rm -f $P/$OLDC; fi
 $E app.js --minify-whitespace --minify-syntax --target=es2020 --log-level=error > /tmp/app.min.js
 for f in data; do :; done
 H=$(sha256sum /tmp/app.min.js | cut -c1-10)
