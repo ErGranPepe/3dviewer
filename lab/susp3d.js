@@ -71,6 +71,7 @@ LAB.susp3d = (() => {
     new ResizeObserver(fit).observe(host), fit(), place();
     host.view = (v) => { Object.assign(st, { all: { az: .55, el: .28, d: 2.9, t: new T.Vector3(.05, .32, 0) }, corner: { az: -.75, el: .22, d: 1.2, t: new T.Vector3(0, .3, .62) }, inside: { az: -2.45, el: .32, d: .62, t: new T.Vector3(-.02, .34, .62) }, brake: { az: -.98, el: .16, d: .56, t: new T.Vector3(0, .33, .7) }, rocker: { az: 2.3, el: .62, d: .62, t: new T.Vector3(-.06, .56, .12) }, top: { az: .01, el: 1.4, d: 2.6, t: new T.Vector3(0, .3, 0) }, steer: { az: Math.PI - .4, el: .5, d: 1.7, t: new T.Vector3(-.1, .36, 0) } }[v] || {}), st.t = st.t.clone(), place() };
     clip = new T.Plane(new T.Vector3(-1, 0, 0), 0);
+    host.cam = (az, el, d, x, y, z) => { Object.assign(st, { az, el, d, t: new T.Vector3(x, y, z) }), place() };
     return !0
   }
   function setEx(v) { ex = v }
@@ -118,7 +119,7 @@ LAB.susp3d = (() => {
     const rpR = S.W(g.RP, 1), ax = rpR.x - .11, ay = rpR.y + .06, az = Math.abs(rpR.z) - .02;
     A.arbTube = add(S.put(S.cyl(.011, az * 2, 24), new T.Vector3(ax, ay, 0), new T.Vector3(0, 0, 1)), M.tiDark.clone(), { name: "Barra estabilizadora (tubo de torsión)", mat: "Titanio β", kg: .5, info: "Se retuerce solo cuando las dos ruedas suben distinto (balanceo); su rigidez reparte la transferencia de carga entre ejes." });
     A.arbC = new T.Vector3(ax, ay, 0), A.arbZ = az;
-    A.blades = [-1, 1].map(sd => { const gr = new T.Group(); gr.position.set(ax, ay, sd * az), root.add(gr); const b = new T.Mesh(new T.BoxGeometry(.075, .006, .03).translate(.0375, 0, 0), M.tiDark); b.castShadow = !0, b.userData.part = { name: "Lámina de la estabilizadora", mat: "Acero de muelle", kg: .08, info: "Girar la lámina de plano a canto cambia su rigidez a flexión: así se ajusta la barra sin desmontarla." }; gr.add(b, new T.Mesh(S.cyl(.016, .02, 20).rotateX(Math.PI / 2), M.ti)); return { gr, b } });
+    A.blades = [-1, 1].map(sd => { const gr = new T.Group(); gr.position.set(ax, ay, sd * az), root.add(gr); const b = new T.Mesh(new T.BoxGeometry(.075, .007, .03).translate(.0375, 0, 0), M.aluBlk); b.castShadow = !0, b.userData.part = { name: "Lámina de la estabilizadora", mat: "Acero de muelle", kg: .08, info: "Girar la lámina de plano a canto cambia su rigidez a flexión: así se ajusta la barra sin desmontarla." }; gr.add(b, new T.Mesh(S.cyl(.016, .02, 20).rotateX(Math.PI / 2), M.ti)); return { gr, b } });
     A.drops = [-1, 1].map(() => add(S.cyl(.004, 1, 12), M.steel, { name: "Bieleta de la estabilizadora", mat: "Titanio con rótulas", kg: .05, info: "" }));
     A.dropEnds = [0, 1, 2, 3].map(() => add(new T.SphereGeometry(.007, 12, 10), M.steel));
     /* tercer elemento (heave): amortiguador con muelle helicoidal y topes, entre los dos balancines */
@@ -264,7 +265,7 @@ LAB.susp3d = (() => {
       const CP = CAD().W(s.CP, side), defl = clamp((side > 0 ? aux.FtR : aux.FtL) / (K.kt || 3e5) * ex, 0, .05);
       parts.pads[k].position.set(CP.x, CP.y - .006 + defl * 0, CP.z), parts.pads[k + "k"].visible = rd > .002, rd > .002 && (parts.pads[k + "k"].scale.y = rd * ex, parts.pads[k + "k"].position.set(CP.x, CP.y - rd * ex / 2 - .006, CP.z));
       const vecs = [[0, F[2], 0], [0, 0, F[1] * side], [F[0], 0, 0]];
-      parts.arrows[k].forEach((a, i) => { const vv = new T.Vector3(...vecs[i]), L = vv.length() / 25e3; a.visible = L > .005 && !opts.explode, a.position.copy(CP), L > .005 && (a.setDirection(vv.normalize()), a.setLength(L, Math.min(.06, L * .3), Math.min(.035, L * .2))) })
+      parts.arrows[k].forEach((a, i) => { const vv = new T.Vector3(...vecs[i]), L = vv.length() / 25e3; a.visible = L > .005 && !opts.explode && opts.show.loads, a.position.copy(CP), L > .005 && (a.setDirection(vv.normalize()), a.setLength(L, Math.min(.06, L * .3), Math.min(.035, L * .2))) })
     });
     /* fuerzas axiales de cada barra de la rueda derecha */
     const L = live.loads;

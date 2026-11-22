@@ -228,9 +228,14 @@ LAB.suspcad = (() => {
     add(U, put(ringGeo(.078, .05, .072, 40), hubC, spinOut, X3()), M.ti, { name: "Mangueta (alojamiento del rodamiento)", mat: "Titanio Ti-6Al-4V impreso y mecanizado", kg: 2.6, info: "Sólido rígido que une las dos rótulas, el brazo de dirección y la bieleta; aloja el rodamiento de la rueda y sujeta la pinza." });
     add(U, put(ringGeo(.05, .036, .05, 32), hubC, spinOut, X3()), M.steel, { name: "Rodamiento de rueda (doble hilera de bolas cerámicas)", mat: "Acero M50 / nitruro de silicio", kg: .55, info: "Soporta la carga vertical, lateral y el par de frenada transmitido por el buje." });
     const edge = (Pt, w) => { const d = Pt.clone().sub(hubC); d.addScaledVector(spinOut, -d.dot(spinOut)); return hubC.clone().addScaledVector(d.normalize(), w) };
-    for (const [Pt, w0, h0, w1, h1, nm] of [[UO0, .05, .03, .03, .022, "brazo superior"], [LO0, .056, .034, .034, .024, "brazo inferior"], [TO0, .03, .022, .02, .016, "brazo de dirección"], [PO0, .03, .022, .022, .018, "soporte de la bieleta"]]) {
-      const a = edge(Pt, .07), b = Pt.clone().addScaledVector(Pt.clone().sub(a).normalize(), -.016);
-      add(U, beam(a, b, w0, h0, w1, h1, spinOut, .5), M.ti, { name: "Mangueta, " + nm, mat: "Titanio Ti-6Al-4V", kg: .25, info: "Brazo mecanizado con vaciados; termina en una horquilla para la rótula." });
+    for (const [Pt, w0, h0, w1, h1, nm] of [[UO0, .07, .046, .04, .028, "brazo superior"], [LO0, .078, .05, .044, .03, "brazo inferior"], [TO0, .042, .03, .026, .02, "brazo de dirección"], [PO0, .044, .032, .03, .022, "soporte de la bieleta"]]) {
+      const a = edge(Pt, .064), b = Pt.clone().addScaledVector(Pt.clone().sub(a).normalize(), -.016);
+      add(U, beam(a, b, w0, h0, w1, h1, spinOut, .45), M.ti, { name: "Mangueta, " + nm, mat: "Titanio Ti-6Al-4V", kg: .3, info: "Brazo mecanizado con vaciados; termina en una horquilla para la rótula." });
+    }
+    /* alma de la mangueta: une los brazos superior e inferior por detrás del alojamiento, como en una pieza fundida */
+    {
+      const inb = spinOut.clone().multiplyScalar(-.012), up0 = edge(UO0, .05).add(inb), lo0 = edge(LO0, .05).add(inb);
+      add(U, beam(lo0, up0, .05, .022, .05, .022, X3().addScaledVector(spinOut, -X3().dot(spinOut)), .4), M.ti, { name: "Mangueta, alma central", mat: "Titanio Ti-6Al-4V", kg: .4, info: "Une los dos brazos por el lado interior; con los nervios da la rigidez a flexión que pide la carga de frenada." });
     }
     /* horquillas de la mangueta con su tornillo */
     const uClev = (Pt, ax, d, nm, kind) => {
@@ -255,7 +260,7 @@ LAB.suspcad = (() => {
     /* pinza radial de seis pistones, pastillas y conducto (fijos a la mangueta) */
     const discC = WC0.clone().addScaledVector(spinOut, -.105), Rd = S.disc / 2, ang = S.caliperAng * DEGc;
     const fw = X3().addScaledVector(spinOut, -X3().dot(spinOut)).normalize(), upv = new T.Vector3().crossVectors(spinOut, fw).normalize().multiplyScalar(side > 0 ? 1 : -1);
-    const radial = fw.clone().multiplyScalar(Math.cos(ang)).addScaledVector(upv, Math.sin(ang)).normalize(), tang = new T.Vector3().crossVectors(spinOut, radial).normalize();
+    const radial = fw.clone().multiplyScalar(Math.cos(ang)).addScaledVector(upv, Math.sin(ang)).normalize(), tang = new T.Vector3().crossVectors(radial, spinOut).normalize();
     const calG = grp("cal", spinOut.clone().multiplyScalar(.12).addScaledVector(radial, .05));
     U.add(calG), A.root.remove(calG), calG.matrixAutoUpdate = !0;
     const cb = new T.Matrix4().makeBasis(tang, radial, spinOut).setPosition(discC);
@@ -280,6 +285,10 @@ LAB.suspcad = (() => {
     const SP = new T.Group(); SP.matrixAutoUpdate = !1, U.add(SP), A.groups.spin = SP, SP.userData.ex = spinOut.clone().multiplyScalar(.28);
     const addS = (geo, mat, info) => { const o = mesh(geo, mat, info); SP.add(o); info && A.parts.push(o); return o };
     addS(put(cyl(.034, .2, 24), WC0.clone().addScaledVector(spinOut, -.01), spinOut, X3()), M.steel, { name: "Buje (mangueta de rueda)", mat: "Acero maraging", kg: 1.2, info: "Gira dentro del rodamiento y transmite par de frenada al disco por las garras de la campana." });
+    /* brida del buje con los pasadores de arrastre de la llanta */
+    const flC = WC0.clone().addScaledVector(spinOut, S.rimW / 2 - .085);
+    addS(put(cyl(.062, .012, 36), flC, spinOut, X3()), M.steel, { name: "Brida del buje y pasadores de arrastre", mat: "Acero maraging", kg: .3, info: "Seis pasadores transmiten el par a la llanta; la tuerca central solo la aprieta contra la brida." });
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2, dirR = fw.clone().multiplyScalar(Math.cos(a)).addScaledVector(upv, Math.sin(a)); addS(put(cyl(.0055, .03, 12), flC.clone().addScaledVector(dirR, .047).addScaledVector(spinOut, .015), spinOut, X3()), M.ti) }
     /* disco ventilado */
     const DG = new T.Group(); SP.add(DG), DG.userData.ex = spinOut.clone().multiplyScalar(-.1), DG.matrixAutoUpdate = !0;
     const discGeo = put(ringGeo(Rd, S.discIn / 2, S.discT, 96), discC, spinOut, X3());
@@ -294,7 +303,9 @@ LAB.suspcad = (() => {
     DG.add(inst);
     /* campana con garras */
     const bellC = discC.clone().addScaledVector(spinOut, .03);
-    DG.add(mesh(put(new T.CylinderGeometry(S.discIn / 2 - .006, .052, .05, 36, 1, !0), bellC, spinOut, X3()), M.alu, null));
+    /* campana: sombrero mecanizado que une el buje con el disco por sus garras */
+    const ri = S.discIn / 2 - .004, bellProf = [[.04, .022], [.06, .022], [.06, .016], [ri - .006, .006], [ri, -.012], [ri, -.03], [ri - .006, -.03], [ri - .006, -.014], [.056, .012], [.04, .012]];
+    DG.add(mesh(put(lathe(bellProf, 48), bellC, spinOut, X3()), M.alu, { name: "Campana del disco", mat: "Aluminio-litio o titanio", kg: .35, info: "Lleva el par de frenada del disco al buje por doce garras radiales que dejan dilatar el disco sin tensiones." }));
     for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, dirR = fw.clone().multiplyScalar(Math.cos(a)).addScaledVector(upv, Math.sin(a)); DG.add(mesh(put(new T.BoxGeometry(.012, .016, .012), discC.clone().addScaledVector(dirR, S.discIn / 2 - .002), dirR, spinOut), M.ti)) }
     /* llanta de 18" */
     const RG = new T.Group(); SP.add(RG), RG.userData.ex = spinOut.clone().multiplyScalar(.12), RG.matrixAutoUpdate = !0;

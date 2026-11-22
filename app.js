@@ -4637,6 +4637,7 @@ void main(){
    sc = look().seat;
   return R.__rsm = {
    crowd: new THREE.MeshStandardMaterial({
+    userData: { th: "crowd" },
     map: c,
     roughness: 1,
     emissive: "#ffffff",
@@ -7236,7 +7237,7 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
     normalMap: quality !== "low" ? isSand ? TEX.sandN : TEX.grassN : null,
     normalScale: isSand ? new THREE.Vector2(.35, .35) : new THREE.Vector2(1.6, 1.6)
    });
-  return m.onBeforeCompile = sh => {
+  return m.userData.th = isSand ? "sand" : "grass", m.onBeforeCompile = sh => {
    sh.uniforms.tMacro = {
     value: TEX.macro
    }, sh.uniforms.uHW = {
@@ -7486,6 +7487,7 @@ varying vec2 vSoil;
   if (PAVE) return PAVE;
   const t = TEX.asphalt.clone();
   t.needsUpdate = !0, t.wrapS = t.wrapT = THREE.RepeatWrapping, t.repeat.set(14 / 3, 14 / 3), PAVE = new THREE.MeshStandardMaterial({
+   userData: { th: "pave" },
    map: t,
    color: "#c9c6c0",
    roughness: .93,
@@ -7701,7 +7703,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
   geo2.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)), geo2.setAttribute("uv", new THREE.Float32BufferAttribute(U, 2)), geo2.setIndex(I);
   const nrm = new Float32Array(8 * 3);
   for (let i = 0; i < 8; i++) nrm[i * 3 + 1] = 1;
-  geo2.setAttribute("normal", new THREE.BufferAttribute(nrm, 3)), grassMat = new THREE.MeshLambertMaterial({
+  geo2.setAttribute("normal", new THREE.BufferAttribute(nrm, 3)), grassMat = new THREE.MeshLambertMaterial({ userData: { th: "veg" },
    map: TEX.tuft,
    alphaTest: .3,
    side: THREE.FrontSide,
@@ -10751,6 +10753,7 @@ float e=min(min(vBc.x,vBc.y),vBc.z);float strut=1.0-smoothstep(0.02,0.06,e);gl_F
  function waterMat(opts) {
   opts = opts || {};
   const m = new THREE.MeshStandardMaterial({
+   userData: { th: "water" },
    color: opts.color || "#0d3a4f",
    roughness: opts.rough != null ? opts.rough : .06,
    metalness: 0,
@@ -12703,6 +12706,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    }
   }, [1, 1]), TEX.crowd2.anisotropy = 8);
   const crowdM = new THREE.MeshStandardMaterial({
+    userData: { th: "crowd" },
     map: TEX.crowd2,
     roughness: 1,
     metalness: 0,
@@ -14274,8 +14278,10 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
     if (e.g === "static") {
      const sp = splitNose(geo2),
       m2 = new THREE.Mesh(sp.rest, mat);
+     m2.userData.cm = e.m;
      if (m2.castShadow = lv < 2, m2.receiveShadow = lv === 0, grp.add(m2), sp.nose) {
       const nm = new THREE.Mesh(sp.nose, mat);
+      nm.userData.cm = e.m;
       nm.position.set(-NOSEX, -.25, 0), nm.castShadow = lv < 2, nm.receiveShadow = lv === 0, nz.add(nm)
      }
      return
@@ -14284,7 +14290,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
      m3 = mat;
     if (e.g === "helmet" && e.col && e.col[0] + e.col[1] + e.col[2] > 1.2) g3 = helmetGeo(lv, mi, geo2), m3 = helmetMat(car, team, pc, ac);
     const m = new THREE.Mesh(g3, m3);
-    m.castShadow = lv < 2, m.receiveShadow = lv === 0, grp.add(m)
+    m.userData.cm = e.m, m.castShadow = lv < 2, m.receiveShadow = lv === 0, grp.add(m)
    });
    for (const k of ["fwflap_0", "fwflap_1"]) G[k] && (G[k].position.x -= NOSEX, G[k].position.y -= .25, nz.add(G[k]));
    for (let i = 0; i < 4; i++) {
@@ -15666,91 +15672,281 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
   return zAtS(c.s) + bankOff(bankAt(i, f - i), c.lat || 0)
  }
 
- /* ===================== CÁMARA TÉRMICA =====================
-    Sustituye los materiales de cada coche por un sombreado que calcula la temperatura de cada punto de la carrocería a
-    partir del modelo de sistemas: banda de cada neumático (la exterior en curva más caliente y el hombro interior por la
-    caída), discos por eje, tapa motor, salida de escape, pontón izquierdo (agua) y derecho (aceite), caja, batería,
-    tablón (fricción al rozar) y casco. Paleta de cámara térmica (ironbow) y el resto del mundo oscurecido. */
- const THERM = { on: !1, log: !1, cars: new Set, el: null, labels: [] };
- const THERM_FS = `uniform mat4 uInv;uniform float uT[16];uniform vec3 uW[4];uniform float uLo,uHi,uLog,uCode;varying vec3 vW;varying vec3 vN;
- vec3 iron(float t){t=clamp(t,0.,1.);vec3 c[7];c[0]=vec3(.01,.0,.04);c[1]=vec3(.16,.02,.40);c[2]=vec3(.52,.05,.55);c[3]=vec3(.86,.2,.18);c[4]=vec3(1.,.58,.04);c[5]=vec3(1.,.92,.45);c[6]=vec3(1.,1.,.97);
-  float x=t*6.;int i=int(min(5.,floor(x)));float f=x-float(i);vec3 a=c[0],b=c[1];
-  for(int k=0;k<6;k++){if(k==i){a=c[k];b=c[k+1];}}return mix(a,b,f);}
+ /* ===================== CÁMARA TÉRMICA RADIOMÉTRICA =====================
+    Una cámara de infrarrojo de onda larga (microbolómetro, 8–14 µm) de verdad:
+    · Cada superficie tiene su temperatura física: la carrocería por balance de energía (sol absorbido según el color y la
+      orientación, convección forzada que crece con la velocidad, radiación con el cielo frío y con el asfalto caliente),
+      más el calor que le llega de dentro: motor, turbo y colectores, radiadores de agua y aceite y sus salidas de aire,
+      caja de cambios, batería bajo el depósito, MGU-K, electrónica de control, escape, tablón por fricción, piloto; cada
+      neumático por bandas (exterior en curva, hombro interior por la caída) y su carcasa en el flanco; discos, pinzas y
+      llantas calentadas por el freno. El mundo también: asfalto a la temperatura de pista del simulador, hierba y árboles
+      enfriados por transpiración, pianos y líneas blancas más fríos (absorben menos sol), muros y edificios según les dé el
+      sol, cristales y agua que reflejan el cielo, público a temperatura de piel y ropa, y un cielo radiométricamente frío.
+    · Cada material tiene su emisividad (carbono 0,90, pintura 0,92, goma 0,95, carbono-carbono 0,86, metal oxidado 0,75,
+      vidrio y agua con Fresnel: a ángulos rasantes reflejan el cielo y se ven fríos).
+    · Radiancia de banda integrando Planck entre 8 y 14 µm: S = τ·[ε·L(T) + (1−ε)·L(T_reflejada)] + (1−τ)·L(T_aire), con la
+      transmisión de la atmósfera según la distancia y la humedad.
+    · La cámara convierte la radiancia en temperatura con SU emisividad y SU temperatura reflejada (como una real: el metal
+      pulido se lee frío), con ruido del sensor (NETD 40 mK), ruido de patrón fijo, desenfoque óptico, resolución del sensor,
+      control automático de ganancia por histograma, paletas, isotermas y medidor puntual. */
+ const THERM = { on: !1, cars: new Set, el: null, labels: [], mats: new Map, world: !1, pal: 0, mode: 0, epsCam: .95, trefl: null, auto: !0, lo: 15, hi: 140, iso: 0, isoT: 100, sensor: 640, agc: [15, 140], spot: null, rb: null, rbN: 0, sky: null, hidden: [] };
+ /* uniformes comunes a todos los materiales térmicos (sol, aire, cielo, pista, humedad) */
+ const THU = { uLair: { value: 50 }, uHW: { value: 7.5 }, uSun: { value: { x: 0, y: 1, z: 0 } }, uQ: { value: 500 }, uQd: { value: 80 }, uAir: { value: 22 }, uSkyD: { value: 25 }, uTrk: { value: 35 }, uBeta: { value: 3e-4 }, uWet: { value: 0 }, uDirect: { value: 0 }, uLo: { value: 15 }, uHi: { value: 140 } };
+ const TH_GLSL = `uniform vec3 uSun;uniform float uLair,uHW,uQ,uQd,uAir,uSkyD,uTrk,uBeta,uWet,uDirect,uLo,uHi;
+ /* radiancia de banda 8–14 µm (W·m⁻²·sr⁻¹) por Simpson sobre la ley de Planck */
+ float Lband(float Tc){float T=max(Tc+273.15,150.),s=0.;for(int i=0;i<7;i++){float l=8.+float(i),w=(i==0||i==6)?1.:(i==1||i==3||i==5)?4.:2.;s+=w*1.191042e8/(l*l*l*l*l*(exp(14387.77/(l*T))-1.));}return s/3.;}
+ /* temperatura aparente del cielo despejado o cubierto según la elevación (más frío en el cénit) */
+ float skyT(vec3 d){return uAir-uSkyD*pow(clamp(d.y,0.,1.),.35);}
+ float envT(vec3 r){return r.y>0.?skyT(r):mix(uTrk,uAir+2.,.25);}
+ /* balance de energía linealizado de una superficie: sol absorbido, convección h, radiación con cielo y suelo */
+ float surfT(vec3 n,float a,float hc,float eps){float fs=.5+.5*n.y,fg=1.-fs,hr=5.8*eps;
+  return uAir+(a*(uQ*max(0.,dot(n,uSun))+uQd*fs)+hr*((uTrk-uAir)*fg-uSkyD*.8*fs))/(hc+hr);}
+ vec3 iron0(float t){t=clamp(t,0.,1.);vec3 c0=vec3(.01,0.,.04),c1=vec3(.16,.02,.40),c2=vec3(.52,.05,.55),c3=vec3(.86,.2,.18),c4=vec3(1.,.58,.04),c5=vec3(1.,.92,.45),c6=vec3(1.,1.,.97);
+  float x=t*6.;return x<1.?mix(c0,c1,x):x<2.?mix(c1,c2,x-1.):x<3.?mix(c2,c3,x-2.):x<4.?mix(c3,c4,x-3.):x<5.?mix(c4,c5,x-4.):mix(c5,c6,x-5.);}
+ /* salida: R radiancia que llega a la cámara, G temperatura real (/1000), B emisividad efectiva */
+ vec4 thOut(float T,float eps,vec3 n,vec3 wp,float fres){vec3 V=normalize(cameraPosition-wp);float c=abs(dot(V,n));
+  if(fres>0.){float F=.04+.96*pow(1.-c,5.);eps=mix(eps,eps*(1.-F)/.96,fres);}
+  vec3 R=reflect(-V,n*sign(dot(V,n)+1e-4));float d=length(cameraPosition-wp),tau=exp(-uBeta*d);
+  float S=tau*(eps*Lband(T)+(1.-eps)*Lband(envT(R)))+(1.-tau)*uLair;
+  if(uDirect>.5)return vec4(pow(iron0((T-uLo)/(uHi-uLo)),vec3(2.2)),1.);
+  return vec4(S,T/1000.,eps,1.);}`;
+ const TH_VS = `#include <common>
+ varying vec3 vW;varying vec3 vN;varying vec3 vL;varying vec2 vUv;uniform mat4 uInv;attribute float aLat;attribute float aPav;attribute float aUrb;varying vec3 vTer;
+ void main(){vec3 p=position,nn=normal;vTer=vec3(aLat,aPav,aUrb);
+ #ifdef USE_INSTANCING
+  p=(instanceMatrix*vec4(p,1.)).xyz;nn=mat3(instanceMatrix)*nn;
+ #endif
+  vec4 w=modelMatrix*vec4(p,1.);vW=w.xyz;vN=normalize(mat3(modelMatrix)*nn);vL=(uInv*w).xyz;vUv=uv;gl_Position=projectionMatrix*viewMatrix*w;}`;
+ /* ---- coche: campo de temperatura por zonas en coordenadas del modelo (x adelante, y arriba, z lateral) ---- */
+ const TH_CAR_FS = TH_GLSL + `uniform float uT[24];uniform vec3 uW[4];uniform float uEps,uAlb,uKind,uFres;varying vec3 vW;varying vec3 vN;varying vec3 vL;
  float blob(vec3 p,vec3 c,vec3 r){vec3 d=(p-c)/r;return exp(-dot(d,d));}
- void main(){vec3 p=(uInv*vec4(vW,1.)).xyz;float T=uT[13]+7.;
-  T=mix(T,uT[6],blob(p,vec3(-.95,.78,0.),vec3(.75,.22,.28)));
-  T=mix(T,uT[8],blob(p,vec3(-1.05,.42,-.56),vec3(.55,.16,.18)));T=mix(T,uT[9],blob(p,vec3(-1.05,.42,.56),vec3(.55,.16,.18)));
-  T=mix(T,uT[10],blob(p,vec3(-1.95,.36,0.),vec3(.32,.14,.18)));T=mix(T,uT[11],blob(p,vec3(-.25,.12,0.),vec3(.45,.06,.25)));
-  T=mix(T,uT[12],blob(p,vec3(.3,.02,0.),vec3(1.5,.035,.16)));T=mix(T,uT[14],blob(p,vec3(.05,.76,0.),vec3(.14,.13,.13)));
-  T=mix(T,uT[13]+.06*(uT[7]-uT[13]),blob(p,vec3(-2.52,.74,0.),vec3(.09,.2,.18)));T=mix(T,.5*(uT[8]+uT[9]),blob(p,vec3(-1.55,.62,0.),vec3(.25,.1,.16)));
-  T=mix(T,uT[7],blob(p,vec3(-2.38,.52,0.),vec3(.14,.11,.11)));
+ void main(){vec3 p=vL,n=normalize(vN);float hc=uT[22];
+  /* piel: balance de energía con la convección del coche a su velocidad */
+  float T=surfT(n,1.-uAlb,hc,uEps);
+  /* calor interior conducido a la carrocería (acoplamiento según el espesor y la ventilación de cada zona) */
+  T=mix(T,uT[6],.55*blob(p,vec3(-.85,.74,0.),vec3(.55,.2,.24)));           /* tapa motor sobre el bloque */
+  T=mix(T,uT[18],.42*blob(p,vec3(-1.3,.6,0.),vec3(.22,.12,.2)));           /* turbo y colectores bajo la tapa */
+  T=mix(T,uT[8],.5*blob(p,vec3(-.35,.42,-.5),vec3(.5,.16,.18)));          /* pontón izquierdo: radiador de agua */
+  T=mix(T,uT[9],.5*blob(p,vec3(-.35,.42,.5),vec3(.5,.16,.18)));           /* pontón derecho: aceite e intercooler */
+  T=mix(T,.5*(uT[8]+uT[9])-6.,.7*blob(p,vec3(-1.55,.6,0.),vec3(.28,.1,.18))); /* salida del aire caliente */
+  T=mix(T,uT[20],.35*blob(p,vec3(.28,.55,-.42),vec3(.22,.1,.12)));         /* electrónica de control y unidad de potencia */
+  T=mix(T,uT[19],.35*blob(p,vec3(-.75,.3,-.32),vec3(.25,.12,.1)));         /* MGU-K */
+  T=mix(T,uT[10],.65*blob(p,vec3(-1.75,.32,0.),vec3(.4,.13,.18)));         /* caja de cambios */
+  T=mix(T,uT[11],.45*blob(p,vec3(-.45,.07,0.),vec3(.45,.05,.25)));          /* batería bajo el depósito */
+  T=mix(T,uT[12],blob(p,vec3(.3,.02,0.),vec3(1.5,.03,.16)));               /* tablón: fricción con el asfalto */
+  T=mix(T,uT[7]*.32+uT[13]*.68,.55*blob(p,vec3(-2.3,.56,0.),vec3(.16,.12,.14))); /* estructura junto al escape */
+  T=mix(T,uT[7],blob(p,vec3(-2.36,.5,0.),vec3(.08,.05,.06)));             /* boca del escape */
+  T=mix(T,33.,.6*blob(p,vec3(.08,.62,0.),vec3(.3,.12,.22)));               /* piloto en el habitáculo */
+  if(uKind>1.5&&uKind<2.5)T=uT[14];                                        /* casco */
+  if(uKind>2.5&&uKind<3.5)T=uT[14]-4.;                                     /* visera */
+  /* ruedas: banda por zonas, flanco a la temperatura de carcasa, llanta y pinza calentadas por el disco */
   for(int k=0;k<4;k++){vec3 w=uW[k];float r=length(p.xy-w.xy),dz=p.z-w.z;
-   if(r<.37&&abs(dz)<.19){float inner=clamp(-sign(w.z)*dz/.14,-1.,1.);float tt=uT[k]+4.5*inner;
-    float rim=smoothstep(.27,.22,r);tt=mix(tt,uT[13]+28.,rim);float d=smoothstep(.19,.13,r)*step(0.,-sign(w.z)*dz+.02);tt=mix(tt,k<2?uT[4]:uT[5],d);T=tt;}}
-  float t=uLog>.5?log(1.+max(0.,T-uLo)/35.)/log(1.+(uHi-uLo)/35.):(T-uLo)/(uHi-uLo);t=clamp(t,0.,1.);
-  vec3 V=normalize(cameraPosition-vW);float sh=.62+.38*abs(dot(normalize(vN),V));
-  gl_FragColor=uCode>.5?vec4(t*sh*.5,0.,sh*.5,1.):vec4(iron(t)*sh,1.);}`;
- /* pase de pantalla completa: el coche llega codificado (rojo = temperatura, azul = sombreado, verde = 0) y el resto del
-    mundo se convierte a la misma paleta por luminancia y tono (cielo frío, asfalto al sol más templado que la hierba) */
- const THERM_PASS = {
-  uniforms: { tDiffuse: { value: null }, uOn: { value: 0 }, uTrk: { value: .25 } },
-  vertexShader: "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
-  fragmentShader: `uniform sampler2D tDiffuse;uniform float uOn,uTrk;varying vec2 vUv;
- vec3 iron(float t){t=clamp(t,0.,1.);vec3 c[7];c[0]=vec3(.01,.0,.04);c[1]=vec3(.16,.02,.40);c[2]=vec3(.52,.05,.55);c[3]=vec3(.86,.2,.18);c[4]=vec3(1.,.58,.04);c[5]=vec3(1.,.92,.45);c[6]=vec3(1.,1.,.97);
-  float x=t*6.;int i=int(min(5.,floor(x)));float f=x-float(i);vec3 a=c[0],b=c[1];for(int k=0;k<6;k++){if(k==i){a=c[k];b=c[k+1];}}return mix(a,b,f);}
- void main(){vec4 c=texture2D(tDiffuse,vUv);if(uOn<.5){gl_FragColor=c;return;}
-  float t,sh=1.;
-  if(c.g<.006*c.b+1e-5&&c.b>.002&&c.r<=c.b*1.01){t=c.r/c.b;sh=min(1.2,c.b*2.);}
-  else{float L=dot(c.rgb,vec3(.2126,.7152,.0722)),warm=L/(L+.7),blue=clamp((c.b-c.r)/(c.b+.02),0.,1.),grn=clamp((c.g-max(c.r,c.b))/(c.g+.02),0.,1.);
-   t=.03+uTrk*warm*(1.-.85*blue)*(1.-.35*grn);sh=.75+.25*warm;}
-  gl_FragColor=vec4(pow(iron(t)*sh,vec3(2.2)),1.);}`
- };
- function thermMat() {
-  return new THREE.ShaderMaterial({
-   uniforms: { uInv: { value: new THREE.Matrix4 }, uT: { value: new Float32Array(16) }, uW: { value: [0, 1, 2, 3].map(() => new THREE.Vector3) }, uLo: { value: 15 }, uHi: { value: 140 }, uLog: { value: 0 }, uCode: { value: 0 } },
-   vertexShader: "varying vec3 vW;varying vec3 vN;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;vN=mat3(modelMatrix)*normal;gl_Position=projectionMatrix*viewMatrix*w;}",
-   fragmentShader: THERM_FS, toneMapped: !1, side: THREE.DoubleSide
-  })
+   if(r<.37&&abs(dz)<.21){float side=-sign(w.z),inner=clamp(side*dz/.14,-1.,1.),tr=uT[k]+4.5*inner;
+    float Td=k<2?uT[4]:uT[5],car=k<2?uT[16]:uT[17];
+    float Tw=mix(car,tr,smoothstep(.3,.345,r));
+    Tw=mix(Tw,uT[13]+.22*(Td-uT[13]),smoothstep(.27,.23,r));
+    float cal=smoothstep(.2,.15,r)*step(-.02,side*dz);Tw=mix(Tw,min(Td,uT[13]+.38*(Td-uT[13])),cal*.6);
+    Tw=mix(Tw,Td,smoothstep(.17,.14,r)*smoothstep(.06,.0,abs(side*dz-.03)));
+    T=uKind>3.5?Tw:mix(T,Tw,.9);}}
+  gl_FragColor=thOut(T,uEps,n,vW,uFres);}`;
+ /* ---- mundo: cada material por su clase física ---- */
+ const TH_WORLD_FS = TH_GLSL + `uniform vec3 uCol;uniform float uAlb,uMet,uRough,uKind,uEm,uFix,uHc;uniform sampler2D tMap;uniform float uHasMap,uAlphaT;varying vec3 vW;varying vec3 vN;varying vec2 vUv;varying vec3 vTer;
+ void main(){vec3 n=normalize(vN);float alb=uAlb,a4=1.;
+  if(uHasMap>.5){vec4 tx=texture2D(tMap,vUv);a4=tx.a;if(a4<uAlphaT)discard;float lum=dot(pow(tx.rgb,vec3(2.2)),vec3(.2126,.7152,.0722));alb*=lum;}
+  alb=clamp(alb,.03,.92);float a=1.-alb,eps=.93,fres=0.,T;int k=int(uKind+.5);
+  if(k==1){T=uTrk+(a-.9)*16.+uWet*(uAir-uTrk)*.6;eps=mix(.95,.96,uWet);fres=uWet;}      /* asfalto: la pista del simulador */
+  else if(k==2){                                                                           /* terreno: pista, pianos, escapatorias, hierba */
+   float al=abs(vTer.x),gr=uAir+.35*(surfT(n,.8,12.,.95)-uAir)-uWet*1.5,pv=uAir+.8*(uTrk-uAir);
+   if(al<uHW-.32){T=uTrk-2.*smoothstep(uHW-2.,uHW-.4,al);eps=.95;fres=uWet;}               /* asfalto (la goma de la trazada, más oscura y caliente) */
+   else if(al<uHW){T=uAir+.4*(uTrk-uAir);eps=.93;}                                         /* línea blanca: refleja casi todo el sol */
+   else if(al<uHW+1.25){T=uAir+.72*(uTrk-uAir);eps=.93;}                                   /* piano rojo y blanco */
+   else{T=mix(mix(gr,pv,clamp(vTer.y,0.,1.)),surfT(n,.65,12.,.92),clamp(vTer.z,0.,1.)*.6);eps=mix(.97,.94,clamp(vTer.y,0.,1.));}
+   T+=uWet*(uAir-T)*.5;}
+  else if(k==8){T=uAir+.8*(uTrk-uAir)+uWet*(uAir-uTrk)*.5;eps=.95;}                        /* pavimento y viales */
+  else if(k==3){T=uAir+.25*(surfT(n,a,14.,.95)-uAir);eps=.96;}                             /* árboles y vegetación */
+  else if(k==4){T=uAir-2.5;eps=.96;fres=1.;}                                               /* agua */
+  else if(k==5){T=31.+.15*(uAir-25.);eps=.97;}                                             /* público */
+  else if(k==6){T=surfT(n,a,9.,.85);eps=.84;fres=1.;}                                      /* cristal */
+  else if(k==7){T=uFix;eps=.9;}                                                            /* temperatura fija */
+  else{eps=uMet>.5?.08+.55*uRough:.92;T=surfT(n,a,uHc,eps);fres=uMet>.5?0.:.6*(1.-uRough);} /* genérico */
+  T+=uEm*14.+6.*max(0.,max(uCol.r,max(uCol.g,uCol.b))-1.2);
+  gl_FragColor=thOut(T,eps,n,vW,fres);}`;
+ /* ---- cielo ---- */
+ const TH_SKY_FS = TH_GLSL + `varying vec3 vW;void main(){vec3 d=normalize(vW-cameraPosition);float T=skyT(d),tau=exp(-uBeta*2500.);
+  if(uDirect>.5){gl_FragColor=vec4(pow(iron0((T-uLo)/(uHi-uLo)),vec3(2.2)),1.);return;}
+  gl_FragColor=vec4(Lband(T)*tau+(1.-tau)*uLair,T/1000.,1.,1.);}`;
+ /* emisividad y tipo por material del modelo del coche */
+ const TH_CARMAT = { "f1-paint": [.92, .35, 0, 1], "f1-satin": [.9, .25, 0, .4], "f1-blue": [.92, .3, 0, 1], "f1-carbon": [.9, .08, 0, .8], "f1-ti": [.85, .3, 0, .2], "f1-gold": [.78, .5, 0, 0], "f1-hot": [.75, .2, 0, 0], "f1-mirror": [.84, .5, 0, 1], "f1-tyre": [.95, .05, 4, 0], "f1-rim": [.78, .2, 4, 0], "f1-disc": [.86, .1, 4, 0], "f1-white": [.92, .7, 2, 1], "f1-visor": [.9, .1, 3, 1] };
+ function thermMat(o, cm) {
+  const q = TH_CARMAT[cm] || (/^[0-9a-f]{8}-/.test(cm || "") ? [.95, .05, 4, 0] : [.9, .3, 0, .5]);
+  o.thU || (o.thU = { uInv: { value: new THREE.Matrix4 }, uT: { value: new Float32Array(24) }, uW: { value: [0, 1, 2, 3].map(() => new THREE.Vector3) } });
+  const t = new THREE.ShaderMaterial({ uniforms: Object.assign({}, THU, o.thU, { uEps: { value: q[0] }, uAlb: { value: q[1] }, uKind: { value: q[2] }, uFres: { value: q[3] } }), vertexShader: TH_VS, fragmentShader: TH_CAR_FS, toneMapped: !1, side: THREE.DoubleSide });
+  /* el resto del programa cambia colores de materiales (luces, pilotos): se mantienen como propiedades sin efecto */
+  return t.color = new THREE.Color(1, 1, 1), t.emissive = new THREE.Color(0, 0, 0), t.emissiveIntensity = 1, t
  }
  function thermApply(o, on) {
+  const root3 = o.lod || o.body;
   if (on) {
-   o.therm || (o.therm = thermMat());
-   (o.lod || o.body).traverse(m => { m.isMesh && m.material && !m.material.transparent && m.material !== o.therm && m !== o.rainLight && (m.userData.m0 = m.material, m.material = o.therm) }), THERM.cars.add(o);
-   o.body.updateWorldMatrix(!0, !0);
-   const inv = new THREE.Matrix4().copy(o.body.matrixWorld).invert(), v = new THREE.Vector3;
-   o.wheels.slice(0, 4).forEach((wh, k) => { wh.getWorldPosition(v), o.therm.uniforms.uW.value[k].copy(v.applyMatrix4(inv)) })
-  } else (o.lod || o.body).traverse(m => { m.isMesh && m.userData.m0 && (m.material = m.userData.m0, delete m.userData.m0) }), THERM.cars.delete(o);
+   o.thM || (o.thM = {});
+   root3.traverse(m => { if (!m.isMesh || !m.material || m === o.rainLight || m.userData.m0) return; if (m.material.transparent && !m.userData.cm) return; const cm = m.userData.cm || (m.material.color && m.material.color.getHex() < 2236962 ? "f1-carbon" : "f1-paint"); m.userData.m0 = m.material, m.material = o.thM[cm] || (o.thM[cm] = thermMat(o, cm)) }), THERM.cars.add(o);
+   root3.updateWorldMatrix(!0, !0);
+   const inv = new THREE.Matrix4().copy(root3.matrixWorld).invert(), v = new THREE.Vector3;
+   o.wheels.slice(0, 4).forEach((wh, k) => { wh.getWorldPosition(v), o.thU.uW.value[k].copy(v.applyMatrix4(inv)) })
+  } else root3.traverse(m => { m.isMesh && m.userData.m0 && (m.material = m.userData.m0, delete m.userData.m0) }), THERM.cars.delete(o);
   for (const wh of o.wheels) wh.stripe && (wh.stripe.visible = !on)
  }
+ /* temperaturas físicas de cada zona del coche a partir de los modelos del simulador */
  function thermCar(o, c, w) {
   const S = c.sys;
-  if (!S) return;
-  if (!o.isNew) return;
-  if (!o.therm || !THERM.cars.has(o)) thermApply(o, !0);
-  const U = o.therm.uniforms, T = U.uT.value, air = w.airT || 22, t = c.tire;
-  o.body.updateWorldMatrix(!0, !1), U.uInv.value.copy(o.body.matrixWorld).invert(), U.uCode.value = THERM.pass ? 1 : 0, U.uLo.value = air - 5, U.uHi.value = THERM.log ? 1000 : 140, U.uLog.value = THERM.log ? 1 : 0;
-  /* lado exterior en curva: se mide con el giro real del coche en pantalla */
-  const h = new THREE.Vector3(1, 0, 0).transformDirection(o.body.matrixWorld), left = new THREE.Vector3(0, 1, 0).cross(h);
+  if (!S || !o.isNew) return;
+  if (!THERM.cars.has(o)) thermApply(o, !0);
+  const U = o.thU, T = U.uT.value, air = w.airT || 22, t = c.tire, u = Math.max(0, c.u || 0), root3 = o.lod || o.body;
+  root3.updateWorldMatrix(!0, !1), U.uInv.value.copy(root3.matrixWorld).invert();
+  /* lado exterior en curva para cada rueda */
+  const h = new THREE.Vector3(1, 0, 0).transformDirection(root3.matrixWorld), left = new THREE.Vector3(0, 1, 0).cross(h);
   o.thH && (o.thTurn = (o.thTurn || 0) * .9 + .1 * clamp(h.clone().sub(o.thH).dot(left) * 400, -1, 1)), o.thH = h.clone();
-  const ay = Math.min(1, Math.abs(c.u * c.r) / 40);
-  for (let k = 0; k < 4; k++) { const wl = U.uW.value[k], side = Math.sign(wl.z) || 1, onLeft = side < 0 ? 1 : -1, outer = -(o.thTurn || 0) * onLeft; T[k] = (k < 2 ? t.tf : t.tr) + 7 * ay * outer }
-  T[4] = S.TbF, T[5] = S.TbR, T[6] = 42 + .12 * (S.Tpis - 100) + .05 * (S.T3 - 600), T[7] = S.T3 * .72, T[8] = c.engT * .62 + air * .38, T[9] = S.Toil * .62 + air * .38, T[10] = S.Tgb, T[11] = S.Tbat * .7 + air * .3;
-  o.thPl = Math.max(air + 8, (o.thPl || air) * .97 + (S.contact ? 22 : 0)), T[12] = o.thPl, T[13] = air, T[14] = 36, T[15] = w.trackT || air
+  const ay = Math.min(1, Math.abs(u * (c.r || 0)) / 40);
+  for (let k = 0; k < 4; k++) { const wl = U.uW.value[k], onLeft = (Math.sign(wl.z) || 1) < 0 ? 1 : -1; T[k] = (k < 2 ? t.tf : t.tr) + 7 * ay * -(o.thTurn || 0) * onLeft }
+  T[4] = S.TbF, T[5] = S.TbR;
+  T[6] = air + .55 * (S.Toil - air) + .02 * (S.T3 - 600);                 /* aire del vano motor junto a la tapa */
+  T[7] = S.T3 * .72;                                                        /* gas a la salida del escape */
+  T[8] = c.engT - 8, T[9] = S.Toil - 10;                                    /* núcleo de los radiadores */
+  T[10] = S.Tgb, T[11] = S.Tbat, T[13] = air, T[14] = 34 + .1 * (air - 25), T[15] = w.trackT || air;
+  o.thPl = Math.max(air + 8, (o.thPl || air) * .97 + (S.contact ? 22 : 0)), T[12] = o.thPl;
+  T[16] = S.TcF, T[17] = S.TcR, T[18] = air + .32 * (S.T3 - air), T[19] = S.Tmgk, T[20] = S.Tinv || 55;
+  T[22] = 8 + 7.4 * Math.pow(u, .8)                                         /* convección forzada (W/m²K) */
+ }
+ /* clase térmica de un material del mundo */
+ function thKind(m, o) {
+  if (o.userData && o.userData.veg) return 3;
+  if (m.userData.th) return { track: 1, grass: 2, sand: 2, veg: 3, water: 4, crowd: 5, glass: 6, pave: 8 }[m.userData.th] || 0;
+  const c = m.color || new THREE.Color(1, 1, 1), g = c.g, r = c.r, b = c.b;
+  if (o.isInstancedMesh && g > r * 1.15 && g > b * 1.05) return 3;
+  if (m.transparent && m.map && g > r * 1.1 && g > b * 1.05) return 3;
+  if (m.transparent && b > r * 1.2 && (m.roughness ?? 1) < .2) return 6;
+  if ((m.roughness ?? 1) < .12 && (m.metalness ?? 0) < .3 && m.transparent) return 6;
+  return 0
+ }
+ function thermWorldMat(m, o) {
+  const key = m.uuid + (o.isInstancedMesh ? "i" : "");
+  let t = THERM.mats.get(key);
+  if (t) return t;
+  const c = m.color ? m.color.clone() : new THREE.Color(.5, .5, .5), alb = Math.min(1, .2126 * c.r + .7152 * c.g + .0722 * c.b), em = m.emissive ? Math.max(m.emissive.r, m.emissive.g, m.emissive.b) * (m.emissiveIntensity ?? 1) : 0;
+  const map = m.map && m.map.image ? m.map : null;
+  t = new THREE.ShaderMaterial({ uniforms: Object.assign({}, THU, { uInv: { value: new THREE.Matrix4 }, uAlb: { value: alb }, uMet: { value: m.metalness ?? 0 }, uRough: { value: m.roughness ?? 1 }, uKind: { value: thKind(m, o) }, uEm: { value: Math.min(1.5, em) }, uFix: { value: 30 }, uHc: { value: 12 }, tMap: { value: map }, uHasMap: { value: map ? 1 : 0 }, uAlphaT: { value: m.transparent || m.alphaTest ? Math.max(.35, m.alphaTest || 0) : 0 } }), vertexShader: TH_VS, fragmentShader: TH_WORLD_FS, toneMapped: !1, side: m.side });
+  /* las luces que el programa enciende y apaga (semáforos, pantallas) cambian su color: encendidas, se calientan */
+  t.color = c, t.emissive = m.emissive ? m.emissive.clone() : new THREE.Color(0, 0, 0), t.emissiveIntensity = m.emissiveIntensity ?? 1, t.uniforms.uCol = { value: t.color };
+  THERM.mats.set(key, t);
+  return t
+ }
+ /* cambia todo el mundo a materiales térmicos (y lo devuelve); partículas y líneas se ocultan */
+ function thermWorld(on) {
+  const carRoots = new Set([...cars.values()].map(o => o.root));
+  if (on) {
+   scene.traverse(o => {
+    for (let p = o; p; p = p.parent) if (carRoots.has(p)) return;
+    if (o === THERM.sky) return;
+    if ((o.isPoints || o.isLine || o.isSprite) && o.visible) { THERM.hidden.push(o), o.visible = !1; return }
+    if (!(o.isMesh || o.isInstancedMesh) || !o.material || o.userData.thm0) return;
+    const m = Array.isArray(o.material) ? o.material[0] : o.material;
+    if (o === skyP || o === clouds || m.type === "ShaderMaterial" && !m.userData.th) { o.visible && (THERM.hidden.push(o), o.visible = !1); return }
+    o.userData.thm0 = o.material, o.material = thermWorldMat(m, o)
+   });
+   THERM.sky || (THERM.sky = new THREE.Mesh(new THREE.SphereGeometry(4e3, 32, 16), new THREE.ShaderMaterial({ uniforms: Object.assign({}, THU), vertexShader: "varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}", fragmentShader: TH_SKY_FS, side: THREE.BackSide, depthWrite: !1, toneMapped: !1 })), THERM.sky.frustumCulled = !1, THERM.sky.renderOrder = -10);
+   scene.add(THERM.sky), THERM.world = !0
+  } else {
+   scene.traverse(o => { o.userData.thm0 && (o.material = o.userData.thm0, delete o.userData.thm0) });
+   for (const o of THERM.hidden) o.visible = !0;
+   THERM.hidden = [], THERM.sky && scene.remove(THERM.sky), THERM.world = !1
+  }
+ }
+ /* ---- la cámara: radiancia → temperatura medida, ruido, óptica, sensor, ganancia y paleta ---- */
+ const THERM_PASS = {
+  uniforms: { tDiffuse: { value: null }, uOn: { value: 0 }, uEpsC: { value: .95 }, uTrc: { value: 20 }, uLrc: { value: 50 }, uLo: { value: 15 }, uHi: { value: 140 }, uPal: { value: 0 }, uMode: { value: 0 }, uIso: { value: 0 }, uIsoT: { value: 100 }, uTime: { value: 0 }, uRes: { value: { x: 1280, y: 720 } }, uSens: { value: { x: 640, y: 512 } }, uNetd: { value: .04 } },
+  vertexShader: "varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}",
+  fragmentShader: `uniform sampler2D tDiffuse;uniform float uLrc,uOn,uEpsC,uTrc,uLo,uHi,uPal,uMode,uIso,uIsoT,uTime,uNetd;uniform vec2 uRes,uSens;varying vec2 vUv;
+ float Lband(float Tc){float T=max(Tc+273.15,150.),s=0.;for(int i=0;i<7;i++){float l=8.+float(i),w=(i==0||i==6)?1.:(i==1||i==3||i==5)?4.:2.;s+=w*1.191042e8/(l*l*l*l*l*(exp(14387.77/(l*T))-1.));}return s/3.;}
+ float Tinv(float S){float L0=Lband(30.),T=303.15*pow(max(S,.01)/L0,1./4.2)-273.15;for(int i=0;i<4;i++){float f=Lband(T)-S,d=(Lband(T+.5)-Lband(T-.5));T-=f/max(d,1e-4);}return T;}
+ float h21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
+ vec3 pal(float t,float k){t=clamp(t,0.,1.);
+  if(k<.5){vec3 c0=vec3(.01,0.,.04),c1=vec3(.16,.02,.40),c2=vec3(.52,.05,.55),c3=vec3(.86,.2,.18),c4=vec3(1.,.58,.04),c5=vec3(1.,.92,.45),c6=vec3(1.,1.,.97);float x=t*6.;return x<1.?mix(c0,c1,x):x<2.?mix(c1,c2,x-1.):x<3.?mix(c2,c3,x-2.):x<4.?mix(c3,c4,x-3.):x<5.?mix(c4,c5,x-4.):mix(c5,c6,x-5.);}
+  if(k<1.5)return vec3(t);if(k<2.5)return vec3(1.-t);
+  if(k<3.5){float x=t*4.;return x<1.?mix(vec3(0.,0.,.5),vec3(0.,.4,1.),x):x<2.?mix(vec3(0.,.4,1.),vec3(0.,1.,.3),x-1.):x<3.?mix(vec3(0.,1.,.3),vec3(1.,1.,0.),x-2.):mix(vec3(1.,1.,0.),vec3(1.,0.,0.),x-3.);}
+  if(k<4.5){float x=t*3.;return x<1.?mix(vec3(0.,0.,.08),vec3(0.,.35,.6),x):x<2.?mix(vec3(0.,.35,.6),vec3(.55,.85,.95),x-1.):mix(vec3(.55,.85,.95),vec3(1.,.95,.75),x-2.);}
+  float x=t*3.;return x<1.?mix(vec3(0.),vec3(.45,0.,.05),x):x<2.?mix(vec3(.45,0.,.05),vec3(.95,.35,0.),x-1.):mix(vec3(.95,.35,0.),vec3(1.,1.,.7),x-2.);}
+ void main(){vec4 c0=texture2D(tDiffuse,vUv);if(uOn<.5){gl_FragColor=c0;return;}
+  /* sensor: píxeles del microbolómetro (con la óptica, un poco de desenfoque entre vecinos) */
+  vec2 g=uSens.x>0.?(floor(vUv*uSens)+.5)/uSens:vUv,px=uSens.x>0.?1./uSens:1./uRes;
+  vec4 c=texture2D(tDiffuse,g)*.6+(texture2D(tDiffuse,g+vec2(px.x*.5,0.))+texture2D(tDiffuse,g-vec2(px.x*.5,0.))+texture2D(tDiffuse,g+vec2(0.,px.y*.5))+texture2D(tDiffuse,g-vec2(0.,px.y*.5)))*.1;
+  /* radiométrica: la cámara supone su emisividad y su temperatura reflejada */
+  float Sobj=(c.r-(1.-uEpsC)*uLrc)/uEpsC,Tm=Tinv(Sobj);
+  vec2 cell=uSens.x>0.?floor(vUv*uSens):floor(vUv*uRes);
+  Tm+=uNetd*(h21(cell+fract(uTime*7.31))+h21(cell*1.7+fract(uTime*3.17))-1.)*1.7+.05*(h21(vec2(cell.x,3.))-.5);
+  float Tv=uMode<.5?Tm:uMode<1.5?c.g*1000.:uMode<2.5?uLo+(uHi-uLo)*c.b:uLo+(uHi-uLo)*(.5+(Tm-c.g*1000.)/max(1.,uHi-uLo)*2.);
+  float t=(Tv-uLo)/(uHi-uLo);vec3 col=pal(t,uPal);
+  if(uIso>.5&&uMode<1.5){col=Tv>uIsoT?mix(vec3(0.,1.,.55),vec3(1.,1.,.2),clamp((Tv-uIsoT)/max(1.,uHi-uIsoT),0.,1.)):vec3(dot(col,vec3(.33)));}
+  /* viñeteo residual de la óptica tras la corrección de no uniformidad */
+  vec2 q=vUv-.5;col*=1.-.12*dot(q,q)*2.;
+  gl_FragColor=vec4(pow(col,vec3(2.2)),1.);}`
+ };
+ /* pase de lectura: reduce la imagen a 64×36 para el control de ganancia por histograma y lee el punto central */
+ function ThermReadPass() {
+  const qm = new THREE.ShaderMaterial({ uniforms: { t: { value: null } }, vertexShader: "varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}", fragmentShader: "uniform sampler2D t;varying vec2 vUv;void main(){gl_FragColor=texture2D(t,vUv);}", depthTest: !1, depthWrite: !1 });
+  return { enabled: !0, needsSwap: !1, clear: !1, renderToScreen: !1, setSize() {}, dispose() {}, rt: new THREE.WebGLRenderTarget(64, 36, { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: !1 }), qm, quad: new THREE.Mesh(new THREE.PlaneGeometry(2, 2), qm), qc: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), buf: new Uint16Array(64 * 36 * 4), px: new Uint16Array(4), n: 0,
+  render(r, wb, rb) {
+   if (!THERM.on || this.n++ % 6) return;
+   try {
+    this.qm.uniforms.t.value = rb.texture, r.setRenderTarget(this.rt), r.render(this.quad, this.qc), r.readRenderTargetPixels(this.rt, 0, 0, 64, 36, this.buf);
+    r.readRenderTargetPixels(rb, Math.floor(rb.width / 2), Math.floor(rb.height / 2), 1, 1, this.px);
+    const H = THREE.DataUtils.fromHalfFloat, S = [];
+    for (let i = 0; i < 64 * 36; i++) { const v = H(this.buf[i * 4]); isFinite(v) && v > 0 && S.push(v) }
+    THERM.rbS = S, THERM.spot = [H(this.px[0]), H(this.px[1]) * 1e3, H(this.px[2])]
+   } catch (e) { THERM.rbS = null, THERM.rbErr = String(e) }
+  } }
+ }
+ /* Planck en JS para la ganancia automática y el medidor */
+ function thLband(Tc) { const T = Math.max(Tc + 273.15, 150); let s = 0; for (let i = 0; i < 7; i++) { const l = 8 + i, w = i === 0 || i === 6 ? 1 : i % 2 ? 4 : 2; s += w * 1.191042e8 / (l ** 5 * (Math.exp(14387.77 / (l * T)) - 1)) } return s / 3 }
+ function thTinv(S) { let T = 303.15 * Math.pow(Math.max(S, .01) / thLband(30), 1 / 4.2) - 273.15; for (let i = 0; i < 5; i++) T -= (thLband(T) - S) / Math.max(1e-4, thLband(T + .5) - thLband(T - .5)); return T }
+ const thMeas = S => thTinv((S - (1 - THERM.epsCam) * thLband(THERM.trefl ?? THU.uAir.value)) / THERM.epsCam);
+ /* entorno por fotograma: sol, flujo absorbido calibrado para que el asfalto quede a la temperatura de pista del simulador, cielo y atmósfera */
+ function thermFrame(w) {
+  if (!THERM.on) return;
+  const air = w && w.airT || 22, trk = w && w.trackT || air + 10, rain = w ? w.rain || 0 : 0, wet = w ? w.wetLine || 0 : 0, night = tod === "night";
+  const sd = sun.position.clone().sub(sun.target.position).normalize(), cz = Math.max(.05, sd.y), hum = rain > 0 ? .95 : .55, overcast = rain > 0 || w && /nub|variable/.test(w.weather || "") ? 1 : 0;
+  THU.uLair.value = thLband(air), THU.uHW.value = S.HW, THU.uSun.value = sd, THU.uAir.value = air, THU.uTrk.value = trk, THU.uWet.value = wet, THU.uSkyD.value = overcast ? 7 : 34 - 14 * hum, THU.uBeta.value = 1.5e-4 + 4e-4 * hum + 2e-3 * rain;
+  /* flujo que deja el asfalto (α 0,93, h 12) a la temperatura que da el simulador */
+  const hr = 5.8 * .95, need = (trk - air) * (12 + hr) + hr * THU.uSkyD.value * .8;
+  THU.uQd.value = night ? 0 : 60 * (1 - .5 * overcast), THU.uQ.value = Math.max(0, (need / .93 - THU.uQd.value) / cz) * (night ? 0 : 1);
+  night && (THU.uQd.value = Math.max(0, need / .93));
+  const P = THERM.pass && THERM.pass.uniforms;
+  if (P) {
+   if (THERM.rbS && THERM.rbS.length > 20) {
+    const T = THERM.rbS.map(thMeas).sort((a, b) => a - b), lo = T[Math.floor(T.length * .01)], hi = T[Math.min(T.length - 1, Math.floor(T.length * .995))];
+    const k = (THERM.agcN = (THERM.agcN || 0) + 1) < 3 ? 1 : .15;
+    THERM.agc = [THERM.agc[0] + (lo - THERM.agc[0]) * k, THERM.agc[1] + (Math.max(lo + 8, hi) - THERM.agc[1]) * k]
+   }
+   const [lo, hi] = THERM.auto ? THERM.agc : [THERM.lo, THERM.hi];
+   THU.uLo.value = P.uLo.value = lo, THU.uHi.value = P.uHi.value = hi, P.uEpsC.value = THERM.epsCam, P.uTrc.value = THERM.trefl ?? air, P.uLrc.value = thLband(THERM.trefl ?? air), P.uPal.value = THERM.pal, P.uMode.value = THERM.mode, P.uIso.value = THERM.iso, P.uIsoT.value = THERM.isoT, P.uTime.value = performance.now() / 1e3;
+   const sz = renderer.getSize(new THREE.Vector2());
+   P.uRes.value = { x: sz.x, y: sz.y }, P.uSens.value = THERM.sensor ? { x: THERM.sensor, y: Math.round(THERM.sensor * sz.y / sz.x) } : { x: 0, y: 0 }
+  } else THU.uDirect.value = 1, THU.uLo.value = air - 6, THU.uHi.value = air + 75;
+  /* objetos nuevos (coches que entran, mosaicos de Google que llegan) también pasan a térmico */
+  (THERM.nf = (THERM.nf || 0) + 1) % 90 === 0 && thermWorld(!0);
+  thermLegend(), thermLabels(w)
  }
  function thermLabels(w) {
   if (!THERM.el) return;
   const c = w && w.all && w.all.find(q => q.id === cam.focusId), o = c && cars.get(c.id);
   const lab = THERM.el.querySelectorAll(".thl");
-  if (!c || !o || !c.sys || !o.therm) { lab.forEach(e => e.style.display = "none"); return }
-  const pts = [], U = o.therm.uniforms, rect = renderer.domElement.getBoundingClientRect(), v = new THREE.Vector3;
-  U.uW.value.forEach((wl, k) => pts.push([wl.clone().setY(wl.y + .25), Math.round(U.uT.value[k]) + " °C"]));
-  pts.push([U.uW.value[0].clone().setZ(U.uW.value[0].z * .78), "disco " + Math.round(U.uT.value[4]) + " °C"], [new THREE.Vector3(-2.38, .62, 0), "escape " + Math.round(U.uT.value[7]) + " °C"]);
-  /* etiquetas sin solaparse: cada una sube hasta encontrar hueco y se une a su punto con una guía */
+  if (!c || !o || !c.sys || !o.thU || !THERM.showLab) { lab.forEach(e => e.style.display = "none"); return }
+  const pts = [], U = o.thU, T = U.uT.value, rect = renderer.domElement.getBoundingClientRect(), v = new THREE.Vector3, root3 = o.lod || o.body;
+  U.uW.value.forEach((wl, k) => pts.push([wl.clone().setY(wl.y + .25), Math.round(T[k]) + " °C"]));
+  pts.push([U.uW.value[0].clone().setZ(U.uW.value[0].z * .78), "disco " + Math.round(T[4]) + " °C"], [new THREE.Vector3(-2.38, .62, 0), "escape " + Math.round(T[7]) + " °C"]);
   const placed = [];
   pts.forEach(([p, txt], i) => {
    const e = lab[i];
    if (!e) return;
-   v.copy(p).applyMatrix4(o.body.matrixWorld).project(camera);
+   v.copy(p).applyMatrix4(root3.matrixWorld).project(camera);
    const vis = v.z < 1 && Math.abs(v.x) < .95 && Math.abs(v.y) < .95;
    if (e.style.display = vis ? "" : "none", !vis) return;
    e.textContent = txt;
@@ -15760,21 +15956,49 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
    placed.push([x, y, w2]), e.style.transform = `translate(${x.toFixed(0)}px,${y.toFixed(0)}px) translate(-50%,-100%)`, e.style.setProperty("--ld", Math.max(0, y0 - y - 4).toFixed(0) + "px")
   })
  }
+ const TH_PALS = ["Hierro", "Blanco caliente", "Negro caliente", "Arcoíris", "Ártico", "Lava"], TH_MODES = ["Temperatura medida (radiométrica)", "Temperatura real de cada superficie", "Emisividad de cada material", "Error de medida (medida − real)"];
+ R.__therm = () => ({ THERM, THU, composer, ao, bloom, camera, scene });
  R.setThermal = function(on) {
   THERM.on = on;
   if (THERM.pass && composer) {
-   THERM.pass.enabled = on, THERM.pass.uniforms.uOn.value = on ? 1 : 0;
+   THERM.pass.enabled = on, THERM.pass.uniforms.uOn.value = on ? 1 : 0, THU.uDirect.value = 0;
+   if (!THERM.rp) { THERM.rp = new THREE.RenderPass(scene, camera), THERM.rp.enabled = !1, composer.insertPass(THERM.rp, 0), THERM.rd = ThermReadPass(), composer.insertPass(THERM.rd, composer.passes.indexOf(THERM.pass)) }
+   /* fuera los efectos de cámara de televisión: la imagen es la del sensor */
+   ao && (ao.enabled = !on), THERM.rp.enabled = on && !!ao, bloom && (bloom.enabled = !on), bpass && (bpass.enabled = !on);
    on ? (THERM.tm0 == null && (THERM.tm0 = renderer.toneMapping), renderer.toneMapping = THREE.NoToneMapping) : THERM.tm0 != null && (renderer.toneMapping = THERM.tm0, THERM.tm0 = null)
   } else THERM.pass = null;
+  thermWorld(on), THERM.agcN = 0;
   if (!on) { for (const o of [...THERM.cars]) thermApply(o, !1); renderer.toneMappingExposure = LT.on ? LT.ce : 1.1 }
   if (!THERM.el) {
    const d = document.createElement("div");
-   d.className = "thermo", d.innerHTML = '<div class="thleg" title="Cambiar escala"><b>CÁMARA TÉRMICA</b><i></i><span class="thlo"></span><span class="thhi"></span><small>toca para cambiar la escala</small></div>' + "<div class=thl></div>".repeat(6), renderer.domElement.parentNode.appendChild(d), THERM.el = d;
-   d.querySelector(".thleg").onclick = () => { THERM.log = !THERM.log, thermLegend() }
+   d.className = "thermo", d.innerHTML = `<div class="thleg"><b>CÁMARA TÉRMICA · 8–14 µm</b><i></i><span class="thlo"></span><span class="thhi"></span><em class="thspot"></em></div>
+   <div class="thpan"><label>Paleta<select data-k="pal">${TH_PALS.map((n, i) => `<option value="${i}">${n}</option>`).join("")}</select></label>
+   <label>Imagen<select data-k="mode">${TH_MODES.map((n, i) => `<option value="${i}">${n}</option>`).join("")}</select></label>
+   <label>Escala<select data-k="auto"><option value="1">Automática (histograma)</option><option value="0">Manual</option></select></label>
+   <label class="thman">Mín. <input data-k="lo" type="number" value="15" step="1"> Máx. <input data-k="hi" type="number" value="140" step="5"> °C</label>
+   <label>Emisividad de la cámara <input data-k="eps" type="range" min=".05" max="1" step=".01" value=".95"><b class="thepsv">0,95</b></label>
+   <label>Sensor<select data-k="sens"><option value="320">320 × 240</option><option value="640" selected>640 × 512</option><option value="1280">1 280 × 1 024</option><option value="0">Pantalla completa</option></select></label>
+   <label class="thck"><input data-k="iso" type="checkbox"> Isoterma por encima de <input data-k="isoT" type="number" value="100" step="5"> °C</label>
+   <label class="thck"><input data-k="lab" type="checkbox"> Rótulos de temperatura</label>
+   <small class="thnote">Calidad gráfica baja: se ve la temperatura real de cada superficie, sin la simulación del sensor. Sube la calidad para la cámara radiométrica completa.</small>
+   <small>Radiométrica: lee la radiancia con la emisividad que le pongas, como una cámara real. El metal pulido y el cristal se leen fríos porque reflejan el cielo.</small></div>` + "<div class=thl></div>".repeat(6), renderer.domElement.parentNode.appendChild(d), THERM.el = d;
+   d.querySelectorAll("[data-k]").forEach(e => e.addEventListener(e.type === "checkbox" ? "change" : "input", () => {
+    const k = e.dataset.k, v = e.type === "checkbox" ? e.checked : +e.value;
+    k === "pal" ? THERM.pal = v : k === "mode" ? THERM.mode = v : k === "auto" ? (THERM.auto = !!v, d.querySelector(".thman").hidden = !!v) : k === "lo" ? THERM.lo = v : k === "hi" ? THERM.hi = v : k === "eps" ? (THERM.epsCam = v, d.querySelector(".thepsv").textContent = v.toFixed(2).replace(".", ",")) : k === "sens" ? THERM.sensor = v : k === "iso" ? THERM.iso = v ? 1 : 0 : k === "isoT" ? THERM.isoT = v : k === "lab" && (THERM.showLab = v)
+   })), d.querySelector(".thman").hidden = !0
   }
-  THERM.el.hidden = !on, thermLegend()
+  /* sin postproceso (calidad baja) no hay sensor ni radiometría: imagen directa de la temperatura real */
+  THERM.el.classList.toggle("thlite", !THERM.pass), THERM.el.hidden = !on, thermLegend()
  };
- function thermLegend() { if (!THERM.el) return; THERM.el.querySelector(".thlo").textContent = "ambiente", THERM.el.querySelector(".thhi").textContent = THERM.log ? "1 000 °C (log.)" : "140 °C" }
+ function thermLegend() {
+  if (!THERM.el) return;
+  const P = THERM.pass && THERM.pass.uniforms, lo = P ? P.uLo.value : THU.uLo.value, hi = P ? P.uHi.value : THU.uHi.value, f = x => (Math.round(x * 10) / 10).toFixed(1).replace(".", ",") + " °C";
+  THERM.el.querySelector(".thlo").textContent = f(lo), THERM.el.querySelector(".thhi").textContent = f(hi);
+  const i = THERM.el.querySelector(".thleg i");
+  i.style.background = ["linear-gradient(90deg,#03000a,#290566,#850d8c,#db3330,#ff940a,#ffeb73,#fff)", "linear-gradient(90deg,#000,#fff)", "linear-gradient(90deg,#fff,#000)", "linear-gradient(90deg,#000080,#0066ff,#00ff4d,#ffff00,#ff0000)", "linear-gradient(90deg,#000014,#005999,#8cd9f2,#fff2bf)", "linear-gradient(90deg,#000,#73000d,#f25900,#ffffb3)"][THERM.pal];
+  const s = THERM.spot, sp = THERM.el.querySelector(".thspot");
+  if (s && P && isFinite(s[0]) && s[0] > 0) { const tm = thMeas(s[0]); sp.textContent = `⌖ ${f(tm)}  · real ${f(s[1])} · ε ${s[2].toFixed(2).replace(".", ",")}` } else sp.textContent = ""
+ }
  /* coches de 2026: batalla de 3,4 m (antes 3,6), 1,9 m de ancho (antes 2,0) y neumáticos más estrechos */
  function regScale(o) {
   const r26 = root.Sim && root.Sim.CAR && root.Sim.CAR.reg === "2026", k = r26 ? 1 : 0;
@@ -16777,7 +17001,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
    for (; ci < crew.length; ci++) crew[ci].visible = !1;
    emit(w, dt)
   }
-  lightStep(dt), THERM.on && (THERM.pass ? (THERM.pass.uniforms.uTrk.value = .16 + .0035 * ((w && w.trackT) || 30)) : renderer.toneMappingExposure = (LT.on ? LT.ce : 1.1) * .16, thermLabels(w)), pSpray.step(dt, -7.5);
+  lightStep(dt), THERM.on && thermFrame(w), pSpray.step(dt, -7.5);
   {
    const L = clamp(.2 + sun.intensity * .3 + hemi.intensity * .3, .15, 3.2);
    for (const p of [pSmoke, pDust, pSpray, R.pBlack]) p && p.pts.material.uniforms.uLit && (p.pts.material.uniforms.uLit.value = L);
