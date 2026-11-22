@@ -9,6 +9,15 @@ window.SITE={
   contact:"",
   /* Clave de Google Maps Platform (Map Tiles API) para el "mundo real" en 3D. Restríngela en Google Cloud a tu dominio. Vacío = desactivado. */
   googleMapsKey:"",
-  sponsors:[]
+  sponsors:[],
+  /* Donaciones: pon tu usuario (solo el nombre, sin la dirección completa). Vacío = no se muestra el botón «Apoya».
+     kofi: ko-fi.com/<usuario> · github: github.com/sponsors/<usuario> · paypal: paypal.me/<usuario>
+     goal: objetivo del mes opcional (target 0 = sin barra); "raised" lo actualizas tú a mano. */
+  support:{
+    kofi:"",
+    github:"",
+    paypal:"",
+    goal:{label:"Objetivo del mes",target:0,raised:0}
+  }
 };
 window.SPONSORS=window.SITE.sponsors.length?window.SITE.sponsors:[{name:"TU MARCA AQUÍ"},{name:"ANÚNCIATE AQUÍ"}];

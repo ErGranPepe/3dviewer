@@ -24,6 +24,7 @@ nav.tabs button.on,.modes button.on{background:var(--accent);color:#111}
 .modes{display:flex;gap:4px;background:var(--panel2);padding:4px;border-radius:10px;margin-left:auto}
 .modes button.on{background:var(--ink)}
 main{padding:14px 18px 40px;max-width:1700px;margin:0 auto}
+.supBtn{margin-left:auto}
 .labhead{display:flex;gap:16px;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}
 .labhead h2{font:800 28px/1 var(--display);text-transform:uppercase;margin:0 0 4px}
 .sub{color:var(--mute);margin:0;max-width:70ch}
@@ -149,6 +150,11 @@ h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color
 .note{color:var(--faint);font-size:12px;margin-top:20px;max-width:100ch}
 @media (max-width:1000px){.s3host{height:360px}.e3wrap{grid-template-columns:1fr}.e3view{height:58vh;min-height:320px}header{position:static}.views{order:-1}.labgrid{grid-template-columns:1fr}.params{position:static;max-height:none}.vrow{grid-template-columns:1fr}canvas.big{height:340px}.pgrid{grid-template-columns:1fr}}
 @media (max-width:560px){.e3view{height:52vh}.e3lab{font-size:10px;padding:1px 5px}.seg span{min-width:0;width:100%}main{padding:10px 12px 30px}header{padding:10px 12px}.modes{margin-left:0}canvas.big{height:300px}.readouts{grid-template-columns:repeat(2,1fr)}}
+
+button,select,input,.btn{transition:transform .12s ease,background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease}
+button:active:not(:disabled){transform:translateY(1px) scale(.98)}:focus-visible{outline:2px solid var(--accent,#ff6b1a);outline-offset:2px;border-radius:6px}
+@keyframes labIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}main>section:not([hidden]){animation:labIn .3s ease both}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body data-mode="easy">
@@ -169,7 +175,8 @@ h3{font:700 18px var(--display);text-transform:uppercase;margin:18px 0 8px;color
 </main>
 <script src="a/three.04d0db4a9b.js"></script>
 <script src="a/data.af7a7018c4.js"></script>
-<script src="a/lab.3193b8f334.js"></script>
+<script src="a/lab.41cac35a84.js"></script>
+<script src="config.js?v=20261122a"></script><script src="a/support.149b5c55de.js"></script>
 <script>
 (function(){
   LAB.setMode(LAB.mode);
