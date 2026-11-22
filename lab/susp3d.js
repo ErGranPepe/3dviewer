@@ -67,7 +67,7 @@ LAB.susp3d = (() => {
     });
     cv.addEventListener("pointerup", e => { drag && moved < 5 && e.button === 0 && pick(e), drag = null });
     cv.addEventListener("contextmenu", e => e.preventDefault()), cv.addEventListener("wheel", e => { e.preventDefault(), st.d = clamp(st.d * Math.exp(e.deltaY * .001), .25, 8), place() }, { passive: !1 });
-    const fit = () => { const r = host.getBoundingClientRect(); R.setSize(r.width, r.height, !1), cam.aspect = r.width / Math.max(1, r.height), cam.updateProjectionMatrix() };
+    const fit = () => { const r = host.getBoundingClientRect(); R.setSize(r.width, r.height, !1), cam.aspect = r.width / Math.max(1, r.height), cam.fov = cam.aspect < 1.5 ? clamp(30 * 1.5 / cam.aspect, 30, 52) : 30, cam.updateProjectionMatrix() };
     new ResizeObserver(fit).observe(host), fit(), place();
     host.view = (v) => { Object.assign(st, { all: { az: .55, el: .28, d: 2.9, t: new T.Vector3(.05, .32, 0) }, corner: { az: -.75, el: .22, d: 1.2, t: new T.Vector3(0, .3, .62) }, inside: { az: -2.45, el: .32, d: .62, t: new T.Vector3(-.02, .34, .62) }, brake: { az: -.98, el: .16, d: .56, t: new T.Vector3(0, .33, .7) }, rocker: { az: 2.3, el: .62, d: .62, t: new T.Vector3(-.06, .56, .12) }, top: { az: .01, el: 1.4, d: 2.6, t: new T.Vector3(0, .3, 0) }, steer: { az: Math.PI - .4, el: .5, d: 1.7, t: new T.Vector3(-.1, .36, 0) } }[v] || {}), st.t = st.t.clone(), place() };
     clip = new T.Plane(new T.Vector3(-1, 0, 0), 0);
@@ -112,9 +112,51 @@ LAB.susp3d = (() => {
     A.pinion = add(S.put(S.cyl(.02, .07, 20), new T.Vector3(tiR.x - .02, tiR.y + .04, .03), new T.Vector3(-.4, 1, 0).normalize()), M.alu);
     A.col = add(S.cyl(.012, 1, 16), M.steel, { name: "Columna de dirección", mat: "Acero con junta cardán", kg: .8, info: "" });
     A.sw = new T.Group(); root.add(A.sw);
-    const swBody = new T.Mesh(new T.BoxGeometry(.03, .16, .27), new T.MeshPhysicalMaterial({ color: "#1b1e22", metalness: .3, roughness: .4, clearcoat: 1 }));
-    const scr = new T.Mesh(new T.PlaneGeometry(.1, .055), new T.MeshBasicMaterial({ color: "#2fd16c" }));
-    scr.rotation.y = -Math.PI / 2, scr.position.x = -.017, A.sw.add(swBody, scr), swBody.userData.part = { name: "Volante", mat: "Carbono con pantalla y mandos", kg: 1.3, info: "Giro de tope a tope ≈ 360°." };
+    A.sw.userData.part = { name: "Volante", mat: "Carbono con pantalla y mandos", kg: 1.3, info: "Giro de tope a tope ≈ 360°. Pantalla con marcha, revoluciones y batería; botones de radio, limitador de boxes y neutro; ruedas de reparto de frenada, diferencial y mapa de motor; levas de cambio y de embrague por detrás." };
+    {
+      /* volante de F1: cuerpo de carbono en mariposa, empuñaduras, pantalla, botones, ruedas selectoras, levas y cierre rápido.
+         Ejes locales: x a lo largo de la columna (el piloto está en −x), y hacia arriba, z lateral */
+      const sw = A.sw, addSw = (geo, mat) => { const o = new T.Mesh(geo, mat); o.castShadow = !0, sw.add(o); return o };
+      const sh = new T.Shape(), W2 = .132, H2 = .074;
+      sh.moveTo(-W2 + .03, -H2), sh.lineTo(W2 - .03, -H2), sh.quadraticCurveTo(W2, -H2, W2, -H2 + .03), sh.lineTo(W2, H2 - .05), sh.quadraticCurveTo(W2, H2 - .02, W2 - .035, H2 - .012),
+        sh.lineTo(.06, H2), sh.lineTo(-.06, H2), sh.lineTo(-W2 + .035, H2 - .012), sh.quadraticCurveTo(-W2, H2 - .02, -W2, H2 - .05), sh.lineTo(-W2, -H2 + .03), sh.quadraticCurveTo(-W2, -H2, -W2 + .03, -H2);
+      /* la forma se dibuja en (z, y) y se extruye a lo largo de x */
+      const body = new T.ExtrudeGeometry(sh, { depth: .02, bevelEnabled: !0, bevelThickness: .004, bevelSize: .004, bevelSegments: 2, curveSegments: 10 });
+      body.rotateY(-Math.PI / 2), body.translate(.01, 0, 0);
+      const cfm = M.carbon.clone(); cfm.map = M.carbon.map.clone(), cfm.map.repeat.set(14, 14), cfm.map.needsUpdate = !0;
+      addSw(body, cfm);
+      /* empuñaduras de goma moldeada */
+      const grip = new T.MeshStandardMaterial({ color: "#16171a", roughness: .92, metalness: 0 });
+      for (const sd of [-1, 1]) {
+        const pts = [[.004, .066, .118], [-.008, .05, .142], [-.014, 0, .15], [-.008, -.05, .142], [.004, -.066, .118]].map(q => new T.Vector3(q[0], q[1], sd * q[2]));
+        addSw(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 24, .017, 12), grip);
+        for (const q of [pts[0], pts[4]]) addSw(new T.SphereGeometry(.017, 12, 10).translate(q.x, q.y, q.z), grip)
+      }
+      /* pantalla */
+      const cv = document.createElement("canvas"); cv.width = 384, cv.height = 224;
+      const g = cv.getContext("2d");
+      g.fillStyle = "#05070a", g.fillRect(0, 0, 384, 224);
+      for (let i = 0; i < 15; i++) g.fillStyle = i < 5 ? "#2fd16c" : i < 10 ? "#e8402f" : "#3d7bff", g.globalAlpha = i < 11 ? 1 : .22, g.beginPath(), g.arc(24 + i * 24, 20, 8, 0, 7), g.fill();
+      g.globalAlpha = 1, g.fillStyle = "#f2f4f6", g.font = "900 120px Arial, sans-serif", g.textAlign = "center", g.textBaseline = "middle", g.fillText("6", 192, 126);
+      g.font = "700 26px Arial, sans-serif", g.fillStyle = "#9fe870", g.textAlign = "left", g.fillText("+0.124", 14, 70), g.fillStyle = "#ffd23f", g.textAlign = "right", g.fillText("SOC 78", 370, 70);
+      g.fillStyle = "#cfd6dd", g.font = "700 22px Arial, sans-serif", g.textAlign = "left", g.fillText("BB 59.0", 14, 190), g.textAlign = "right", g.fillText("DIF 4", 370, 190), g.textAlign = "left", g.fillStyle = "#6b7682", g.fillText("242", 14, 130), g.textAlign = "right", g.fillText("ERS 3", 370, 130);
+      g.strokeStyle = "#232a33", g.lineWidth = 3, g.strokeRect(1.5, 1.5, 381, 221);
+      const tex = new T.CanvasTexture(cv); tex.colorSpace = T.SRGBColorSpace, tex.anisotropy = 4;
+      const scr = addSw(new T.PlaneGeometry(.096, .056), new T.MeshBasicMaterial({ map: tex }));
+      scr.rotation.y = -Math.PI / 2, scr.position.set(-.0166, .012, 0), scr.castShadow = !1;
+      addSw(new T.BoxGeometry(.004, .064, .104).translate(-.0142, .012, 0), M.aluBlk);
+      /* botones y ruedas selectoras */
+      const btn = (col, y, z) => { addSw(new T.CylinderGeometry(.0072, .0072, .007, 16).rotateZ(Math.PI / 2).translate(-.0175, y, z), new T.MeshStandardMaterial({ color: col, roughness: .45, metalness: .1, emissive: col, emissiveIntensity: .12 })); addSw(new T.CylinderGeometry(.0092, .0092, .003, 16).rotateZ(Math.PI / 2).translate(-.0152, y, z), M.aluBlk) };
+      [["#d8342c", .05, .076], ["#f2c230", .024, .08], ["#2fb45e", -.002, .08], ["#2f6fe0", .05, -.076], ["#e9ecef", .024, -.08], ["#8a4fd8", -.002, -.08], ["#ff7a1a", .058, .038], ["#19b8c8", .058, -.038]].forEach(q => btn(q[0], q[1], q[2]));
+      const dial = (col, y, z) => { addSw(new T.CylinderGeometry(.012, .0135, .011, 20).rotateZ(Math.PI / 2).translate(-.0195, y, z), M.aluBlk); addSw(new T.CylinderGeometry(.0075, .0075, .004, 16).rotateZ(Math.PI / 2).translate(-.026, y, z), new T.MeshStandardMaterial({ color: col, roughness: .4, metalness: .5 })); addSw(new T.BoxGeometry(.003, .007, .0022).translate(-.027, y + .006, z), new T.MeshBasicMaterial({ color: "#ffffff" })) };
+      dial("#d8342c", -.046, -.062), dial("#2f6fe0", -.05, 0), dial("#f2c230", -.046, .062);
+      /* levas de cambio (arriba) y de embrague (abajo), y cierre rápido de la columna */
+      for (const sd of [-1, 1]) {
+        addSw(new T.BoxGeometry(.004, .05, .062).translate(.042, .012, sd * .092), cfm), addSw(new T.BoxGeometry(.02, .012, .012).translate(.032, .012, sd * .064), M.aluBlk);
+        addSw(new T.BoxGeometry(.004, .034, .05).translate(.046, -.04, sd * .074), cfm), addSw(new T.BoxGeometry(.022, .01, .01).translate(.034, -.04, sd * .052), M.aluBlk)
+      }
+      addSw(new T.CylinderGeometry(.027, .024, .04, 24).rotateZ(Math.PI / 2).translate(.046, 0, 0), M.alu), addSw(new T.CylinderGeometry(.031, .031, .01, 24).rotateZ(Math.PI / 2).translate(.062, 0, 0), M.knobR)
+    }
     /* barra estabilizadora de lámina: tubo transversal con láminas giratorias y bieletas a cada balancín */
     const rpR = S.W(g.RP, 1), ax = rpR.x - .11, ay = rpR.y + .06, az = Math.abs(rpR.z) - .02;
     A.arbTube = add(S.put(S.cyl(.011, az * 2, 24), new T.Vector3(ax, ay, 0), new T.Vector3(0, 0, 1)), M.tiDark.clone(), { name: "Barra estabilizadora (tubo de torsión)", mat: "Titanio β", kg: .5, info: "Se retuerce solo cuando las dos ruedas suben distinto (balanceo); su rigidez reparte la transferencia de carga entre ejes." });
@@ -144,7 +186,9 @@ LAB.susp3d = (() => {
       A.innerJ[i].position.copy(p)
     });
     const pin = tL.clone().lerp(tR, .5), swP = new T.Vector3(-.62, .62, 0);
-    placeCyl(A.col, pin.clone().add(new T.Vector3(-.02, .06, 0)), swP), A.sw.position.copy(swP), A.sw.rotation.set(-opts.steer * DEG, 0, 0);
+    /* el volante va perpendicular a la columna y gira sobre su eje */
+    const colA = pin.clone().add(new T.Vector3(-.02, .06, 0)), colD = colA.clone().sub(swP).normalize();
+    placeCyl(A.col, colA, swP.clone().addScaledVector(colD, .06)), A.sw.position.copy(swP), A.sw.quaternion.setFromUnitVectors(new T.Vector3(1, 0, 0), colD).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), -opts.steer * DEG));
     /* puntos de estabilizadora y tercer elemento fijos a cada balancín */
     const pts = [AL, AR].map(Ac => ({ arb: rockerPt(Ac, Ac.arb0), hv: rockerPt(Ac, Ac.hv0) }));
     [-1, 1].forEach((sd, i) => {
@@ -275,7 +319,7 @@ LAB.susp3d = (() => {
       const legMeshes = [C.R.groups.lw.children.find(o => o.userData.part && /Trapecio inferior, brazo delantero/.test(o.userData.part.name)), C.R.groups.lw.children.find(o => o.userData.part && /Trapecio inferior, brazo trasero/.test(o.userData.part.name)), C.R.groups.uw.children.find(o => o.userData.part && /Trapecio superior, brazo delantero/.test(o.userData.part.name)), C.R.groups.uw.children.find(o => o.userData.part && /Trapecio superior, brazo trasero/.test(o.userData.part.name)), C.R.pr.tube, C.R.tr.tube];
       const es = labelsEl.children.length === 6 ? labelsEl.children : (labelsEl.innerHTML = "<div></div>".repeat(6), labelsEl.children), rect = R.domElement.getBoundingClientRect(), vv = new T.Vector3();
       /* rótulos sin solaparse: se colocan en orden y se desplazan en vertical hasta encontrar hueco */
-      const placed = [];
+      const placed = [], inf = host.querySelector(".s3info"), ib = inf && inf.offsetParent ? inf.getBoundingClientRect() : null, b0 = ib ? ib.top - rect.top - 12 : -1, b1 = ib ? ib.bottom - rect.top + 12 : -1;
       L.forEach((q, i) => {
         vv.copy(CAD().W(q.c, 1)).lerp(CAD().W(q.p, 1), .5).project(cam);
         const e = es[i], vis = vv.z < 1 && Math.abs(vv.x) < .98 && Math.abs(vv.y) < .98 && !opts.explode;
@@ -283,6 +327,8 @@ LAB.susp3d = (() => {
         if (!vis) return;
         const x = (vv.x + 1) / 2 * rect.width;
         let y = (1 - vv.y) / 2 * rect.height;
+        /* nunca encima del texto de la cabecera de la vista */
+        ib && y > b0 && y < b1 && (y = b0 < rect.height / 2 ? b1 : b0);
         for (let k = 0; k < 10 && placed.some(([px, py]) => Math.abs(px - x) < 64 && Math.abs(py - y) < 20); k++) y += k % 2 ? -20 * (k + 1) : 20 * (k + 1);
         placed.push([x, y]), e.style.transform = `translate(${x.toFixed(0)}px,${y.toFixed(0)}px) translate(-50%,-50%)`
       })

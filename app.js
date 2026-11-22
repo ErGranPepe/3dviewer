@@ -50,6 +50,40 @@
   const N = tr.N,
    o = [new Float32Array(N), new Float32Array(N)],
    L = ESCAPE[tr.key];
+  if (tr.wr && !STREET[tr.key]) {
+   /* muros reales: distancia del eje a la primera barrera de verdad (vallas, muros y guardarraíles de OpenStreetMap,
+      edificios, agua) a cada lado, punto a punto. Donde no hay dato queda el muro por defecto. */
+   const n = tr.wr.n,
+    lo = EDGE + 2.6 - WALL;
+   for (let si = 0; si < 2; si++) {
+    const e = tr.wr.w[si],
+     a = o[si];
+    let p = 0;
+    for (let i = 0; i < N; i++) {
+     const q = i / N * (n - 1);
+     for (; p + 2 < e.length && e[p + 2] <= q;) p += 2;
+     const k0 = e[p],
+      v0 = e[p + 1],
+      k1 = p + 2 < e.length ? e[p + 2] : k0,
+      v1 = p + 2 < e.length ? e[p + 3] : v0;
+     a[i] = v0 < 0 || v1 < 0 ? (v0 >= 0 && q - k0 < .5 ? v0 * .1 - WALL : 0) : (v0 + (v1 - v0) * (k1 > k0 ? Math.min(1, (q - k0) / (k1 - k0)) : 0)) * .1 - WALL, a[i] = Math.max(lo, Math.min(a[i], 110 - WALL))
+    }
+    /* el muro no hace escalones: como mucho se abre o se cierra a 45° */
+    for (let it = 0; it < 2; it++) {
+     for (let i = 0; i < 2 * N; i++) {
+      const c = i % N,
+       pr = (c - 1 + N) % N;
+      a[c] > a[pr] + tr.ds && (a[c] = a[pr] + tr.ds)
+     }
+     for (let i = 2 * N - 1; i >= 0; i--) {
+      const c = i % N,
+       nx = (c + 1) % N;
+      a[c] > a[nx] + tr.ds && (a[c] = a[nx] + tr.ds)
+     }
+    }
+   }
+   return o
+  }
   if (!L) return o;
   for (const [s0, s1, ext] of L) {
    let sg = 0;
@@ -63,6 +97,44 @@
    }
   }
   return o
+ }
+ /* El código coloca todo lo que hay junto a la pista respecto a un muro nominal fijo (WALL); el muro real está en WALL + wallX.
+    Hasta el borde del piano no cambia nada; entre el piano y el muro la franja se estira o se encoge; del muro hacia fuera
+    todo se desplaza con él. latWarp pasa de nominal a real y latUnwarp al revés. */
+ function wxAt(tr, i, lat, f) {
+  const X = tr.wallX;
+  if (!X || tr.street) return 0;
+  const N = tr.N,
+   a = X[lat > 0 ? 0 : 1],
+   ii = (i % N + N) % N,
+   v = a[ii];
+  return f ? v + (a[(ii + 1) % N] - v) * f : v
+ }
+
+ /* la franja que se estira empieza donde acaba la escapatoria de asfalto pintado (si el muro deja sitio), para no deformarla */
+ function warpA(wx) {
+  const B = WALL - 2;
+  return Math.max(EDGE + .5, Math.min(EDGE + 9, B - 1.5, B + wx - .3))
+ }
+
+ function latWarp(tr, i, lat, f) {
+  const al = Math.abs(lat);
+  if (al <= EDGE + .5) return lat;
+  const wx = wxAt(tr, i, lat, f);
+  if (!wx) return lat;
+  const A = warpA(wx),
+   B = WALL - 2;
+  return al <= A ? lat : (lat > 0 ? 1 : -1) * (al >= B ? al + wx : A + (al - A) * (B + wx - A) / (B - A))
+ }
+
+ function latUnwarp(tr, i, lat) {
+  const al = Math.abs(lat);
+  if (al <= EDGE + .5) return lat;
+  const wx = wxAt(tr, i, lat, 0);
+  if (!wx) return lat;
+  const A = warpA(wx),
+   B = WALL - 2;
+  return al <= A ? lat : (lat > 0 ? 1 : -1) * (al >= B + wx ? al - wx : A + (al - A) * (B - A) / (B + wx - A))
  }
  const CAR = {
    mass: 798,
@@ -589,6 +661,7 @@
    ref: def.ref,
    zReal: def.z,
    hw: def.hw,
+   wr: def.wr,
    rho: def.rho || 1.2,
    aeroCda: def.cda,
    drsReal: def.drs,
@@ -769,6 +842,20 @@
      rin: Math.max(55, Math.min(rin + 30, 260)),
      rout: Math.max(55, Math.min(rout + 30, 260))
     };
+   }
+   if (tr.wr && tr.wallX && !tr.street) {
+    /* junto a la calle de boxes manda la geometría del pit lane: en ese lado el muro vuelve al valor nominal, con transición suave */
+    const P = tr.pit,
+     a = tr.wallX[P.side > 0 ? 0 : 1],
+     i0 = Math.round((P.inS - P.rin - 40) / tr.ds),
+     i1 = Math.round((P.inS + P.len + P.rout + 40) / tr.ds),
+     W2 = i => (i % N + N) % N;
+    for (let i = i0; i <= i1; i++) a[W2(i)] = 0;
+    for (let q = 1; q <= 40; q++) {
+     const u = W2(i1 + q),
+      d = W2(i0 - q);
+     a[u] = Math.max(-q * tr.ds, Math.min(q * tr.ds, a[u])), a[d] = Math.max(-q * tr.ds, Math.min(q * tr.ds, a[d]))
+    }
    }
    const P = tr.pit;
    /* zona de garajes: el tramo más largo del pit lane en el que la pista va recta (la salida de Interlagos o Austin sigue la curva) */
@@ -3168,7 +3255,7 @@
  function surfaceAt(tr, c) {
   tr._srf || wallLimits(tr);
   const i = c.idx,
-   al = Math.abs(c.lat),
+   al = Math.abs(latUnwarp(tr, i, c.lat)),
    si = c.lat > 0 ? 0 : 1;
   if (al + .95 <= HW + .35) return 0;
   if (tr.street) return tr._kerb[i] && al <= EDGE + .3 ? 1 : 5;
@@ -3644,6 +3731,8 @@
   targetSpeed,
   kEff,
   applyLab,
+  latWarp,
+  latUnwarp,
   playerControl,
   reflex,
   physics,
@@ -3738,6 +3827,7 @@
   lowPosts = [],
   tvPosts = [],
   OCC = [],
+  FEN = [],
   grid = null,
   quality = "high",
   tod = "day",
@@ -3810,12 +3900,18 @@
   ptM = (i, l, y) => pt(i, LM * l, y);
 
  function pt(i, lat, y) {
-  i = (i % tr.N + tr.N) % tr.N;
+  i = (i % tr.N + tr.N) % tr.N, lat = S.latWarp(tr, i, lat);
   const h = tr.hd[i];
   return [tr.x[i] - Math.sin(h) * lat, tr.z[i] + (y || 0) + bankOff(bankAt(i), lat), tr.y[i] + Math.cos(h) * lat]
  }
 
  function ptS(s, lat, y) {
+  {
+   const ss = (s % tr.L + tr.L) % tr.L,
+    f = ss / tr.ds,
+    i = Math.floor(f);
+   lat = S.latWarp(tr, i, lat, f - i)
+  }
   const p = S.ptAt(tr, s, lat);
   let b = 0;
   if (tr.bank) {
@@ -4347,14 +4443,14 @@ void main(){
      z = tr.z[i] + (tr.z[j] - tr.z[i]) * f,
      nx = -Math.sin(h),
      ny = Math.cos(h),
-     la = typeof o.latA == "function" ? o.latA(i, f) : o.latA,
-     lb = typeof o.latB == "function" ? o.latB(i, f) : o.latB,
+     la = S.latWarp(tr, i, typeof o.latA == "function" ? o.latA(i, f) : o.latA, f),
+     lb = S.latWarp(tr, i, typeof o.latB == "function" ? o.latB(i, f) : o.latB, f),
      ya = typeof o.y == "function" ? o.y(i, f) : o.y || 0,
      yb = o.yB != null ? typeof o.yB == "function" ? o.yB(i, f) : o.yB : ya,
      bkk = bankAt(i, f);
     pos.push(x + nx * la, z + ya + bankOff(bkk, la), yy + ny * la, x + nx * lb, z + yb + bankOff(bkk, lb), yy + ny * lb);
     const sd = (k + f) * tr.ds / (o.uvLen || 10);
-    if (uv.push(sd, 0, sd, 1), o.colorFn) {
+    if (o.uvLat ? uv.push(sd, Math.abs(la) / o.uvLat, sd, Math.abs(lb) / o.uvLat) : uv.push(sd, 0, sd, 1), o.colorFn) {
      const c = o.colorFn(k + f);
      col.push(c[0], c[1], c[2], c[0], c[1], c[2])
     }
@@ -7069,8 +7165,11 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
        break
       }
      }
-    const d = Math.sqrt(bd),
-     zt = tr.z[bi] + (tr.bank && tr.bank[bi] ? bankOff(tr.bank[bi], (x - tr.x[bi]) * -Math.sin(tr.hd[bi]) + (y - tr.y[bi]) * Math.cos(tr.hd[bi])) : 0),
+    const d0 = Math.sqrt(bd),
+     lt0 = (x - tr.x[bi]) * -Math.sin(tr.hd[bi]) + (y - tr.y[bi]) * Math.cos(tr.hd[bi]),
+     /* distancia nominal: con muros reales, toda la escapatoria cuenta como franja de pista y lo de fuera empieza en el muro */
+     d = Math.abs(S.latUnwarp(tr, bi, lt0 < 0 ? -d0 : d0)),
+     zt = tr.z[bi] + (tr.bank && tr.bank[bi] ? bankOff(tr.bank[bi], lt0) : 0),
      n = Math.sin(x * .0061 + ph[0]) * Math.cos(y * .0053 + ph[1]) + .5 * Math.sin(x * .013 + y * .011 + ph[2]) + .25 * Math.sin(x * .031 - y * .027 + ph[3]);
     if (WD && WD.off != null) {
      const dm = wdDem(x, y),
@@ -7606,9 +7705,10 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
       lim = Rr < full ? Math.max(.5, Rr - .3) : full;
      for (let c = 0; c < NC; c++) {
       const L = Math.min(cols[c], lim),
-       px = x + nx * L,
-       py = yy + ny * L,
-       zb = z + bankOff(bankAt(i, f), sd * L);
+       Lw = Math.abs(S.latWarp(tr, i, sd * L, f)),
+       px = x + nx * Lw,
+       py = yy + ny * Lw,
+       zb = z + bankOff(bankAt(i, f), sd * Lw);
       pos.push(px, c === 0 ? zb + .02 : vergeY(zb, L, Rr, px, py), py), uv.push(px / 14, py / 14), groundTint(px, py, L, tmp), col.push(tmp[0], tmp[1], tmp[2]), la.push(L)
      }
      if (row > 0) {
@@ -7889,6 +7989,14 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
     C = new THREE.Color;
    let n = 0,
     tries = 0;
+   /* público de pie solo donde lo hay de verdad: junto a las tribunas reales del circuito (no repartido al azar por el interior) */
+   const stXY = WD && WD.b ? WD.b.filter(b => b[2] >= 3 && b.length >= 9).map(b => {
+    const m = b.length - 3 >> 1;
+    let cx = 0,
+     cy = 0;
+    for (let q = 0; q < m; q++) cx += b[3 + q * 2] * .1, cy += b[4 + q * 2] * .1;
+    return [cx / m, cy / m]
+   }) : [];
    for (; n < cnt && tries < 600;) {
     tries++;
     const ci = rr() * N | 0,
@@ -7902,6 +8010,10 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
      const p0 = pt(i, cs, 0),
       h = tr.hd[i];
      if (inClear(p0[0] - Math.sin(h) * cs * (WALL + 6), p0[2] + Math.cos(h) * cs * (WALL + 6))) continue;
+     if (stXY.length >= 3) {
+      const pw = pt(i, cs * (WALL + 3), 0);
+      if (!stXY.some(([sx, sy]) => (sx - pw[0]) * (sx - pw[0]) + (sy - pw[2]) * (sy - pw[2]) < 8100)) continue
+     }
      const per = Math.max(1, Math.round(ds / .62));
      for (let r = 0; r < rows; r++)
       for (let u = 0; u < per && n < cnt; u++) {
@@ -9087,6 +9199,28 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
    front.position.set(-.19, 9.4, 0), front.rotation.y = -Math.PI / 2, G.add(front);
    const back = front.clone();
    back.position.x = .19, back.rotation.y = Math.PI / 2, G.add(back), G.add(box(1.2, 1.9, 8.6, dk, .6, 7.2, 0));
+   {
+    /* trasera de la caja de semáforos: tapa de registro con marco, costillas y el nombre del circuito, no un rectángulo negro */
+    const nm = String(tr.name || "Gran Premio").split(" · ")[0].toUpperCase(),
+     TB = canvasTex(1024, 208, (g, w, h) => {
+      const gr = g.createLinearGradient(0, 0, 0, h);
+      gr.addColorStop(0, "#343b45"), gr.addColorStop(1, "#1d2229"), g.fillStyle = gr, g.fillRect(0, 0, w, h), g.strokeStyle = "rgba(255,255,255,.09)", g.lineWidth = 3;
+      for (let k = 1; k < 8; k++) g.beginPath(), g.moveTo(k * w / 8, 12), g.lineTo(k * w / 8, h - 12), g.stroke();
+      g.strokeStyle = "rgba(255,255,255,.25)", g.lineWidth = 6, g.strokeRect(7, 7, w - 14, h - 14), g.fillStyle = "rgba(255,255,255,.32)";
+      for (let k = 0; k <= 8; k++)
+       for (const y of [22, h - 22]) g.beginPath(), g.arc(Math.min(w - 22, Math.max(22, k * w / 8)), y, 4.5, 0, 7), g.fill();
+      g.fillStyle = "#ff6b1a", g.fillRect(40, h / 2 - 46, 10, 92), g.fillStyle = "#eef1f4", g.textAlign = "left", g.textBaseline = "middle";
+      let fs = 84;
+      for (g.font = "900 " + fs + "px Arial, sans-serif"; g.measureText(nm).width > w - 150 && fs > 30;) fs -= 4, g.font = "900 " + fs + "px Arial, sans-serif";
+      g.fillText(nm, 70, h / 2 - 14), g.fillStyle = "rgba(238,241,244,.6)", g.font = "700 30px Arial, sans-serif", g.fillText("GRAN PREMIO · FÓRMULA NEURONAL", 72, h / 2 + 48)
+     }, [1, 1]),
+     rear = new THREE.Mesh(new THREE.PlaneGeometry(8.5, 1.8), new THREE.MeshStandardMaterial({
+      map: TB,
+      roughness: .55,
+      metalness: .25
+     }));
+    rear.position.set(1.215, 7.2, 0), rear.rotation.y = Math.PI / 2, G.add(rear)
+   }
    G.position.set(p0[0], p0[1], p0[2]), G.rotation.y = -h0, G.traverse(o => {
     o.isMesh && (o.castShadow = !0)
    }), group.add(G), OCC.push(G)
@@ -11314,7 +11448,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
  }
 
  function buildTrack() {
-  R.__forceTrees = [], R.__rsm = null, OCC = [];
+  R.__forceTrees = [], R.__rsm = null, OCC = [], FEN = [];
   trackGroup && (scene.remove(trackGroup), trackGroup.traverse(o => {
    o.geometry && o.geometry.dispose()
   })), trackGroup = new THREE.Group, scene.add(trackGroup);
@@ -11421,7 +11555,9 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
      y: .03,
      i0: a - 4,
      i1: b + 12,
-     uvLen: 12
+     uvLen: 12,
+     /* en las escapatorias reales (hasta 100 m) la grava conserva su grano: UV lateral en metros */
+     uvLat: tr.wr && !tr.street ? 15.6 : 0
     }),
     m = new THREE.Mesh(g, gravel);
    m.receiveShadow = !0, trackGroup.add(m)
@@ -11508,7 +11644,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    trackGroup.add(new THREE.Mesh(g2, tbM))
   }
   if (tr.street && tr.tecproSt) {
-   const wxS = (i, sd) => tr.wallX ? tr.wallX[sd > 0 ? 0 : 1][(i % N + N) % N] : 0;
+   const wxS = (i, sd) => tr.wallX && tr.street ? tr.wallX[sd > 0 ? 0 : 1][(i % N + N) % N] : 0;
    for (const [s0, s1] of tr.tecproSt) {
     const a = Math.round(s0 / tr.ds),
      b = Math.round(s1 / tr.ds);
@@ -11907,7 +12043,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    wallRanges = sd => runs(i => !(sd === PSD() && (i - pitA + N) % N < pitB - pitA) && reachAt(i, sd) >= WALL + 1.2).filter(([a, b]) => b - a >= 4),
    fenceRanges = sd => runs(i => !(sd === PSD() && (i - pitA + N) % N < pitB - pitA) && reachAt(i, sd) >= WALL + 1.2 && !inTun(i)).filter(([a, b]) => b - a >= 4),
    wx = (i, sd) => {
-    if (!tr.wallX) return 0;
+    if (!tr.wallX || !tr.street) return 0;
     const a = tr.wallX[sd > 0 ? 0 : 1];
     return i = (i % N + N) % N, a[i]
    },
@@ -11975,6 +12111,11 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
      }),
      uvs = g.attributes.uv;
     for (let k = 0; k < uvs.count; k++) uvs.setY(k, uvs.getY(k) * .8);
+    {
+     /* tramos de malla (planta y alturas) para que las cámaras de TV no se coloquen con una malla pegada al objetivo */
+     const Pf = g.attributes.position.array;
+     for (let k = 0; k + 11 < Pf.length; k += 6) FEN.push(Pf[k], Pf[k + 2], Pf[k + 6], Pf[k + 8], Math.min(Pf[k + 1], Pf[k + 7]), Math.max(Pf[k + 4], Pf[k + 10]))
+    }
     if (trackGroup.add(new THREE.Mesh(g, fenceMat)), quality !== "low") {
      const gT = ribbon({
        latA: WL(sd, .6),
@@ -12985,15 +13126,19 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
     kk = tr.k[(i + 10) % N];
    let side = Math.abs(kk) > 1 / 400 ? -Math.sign(kk) : rp() < .5 ? 1 : -1;
    rp() < .25 && (side = -side);
-   const inPit = (i - pitA + N) % N < pitB - pitA;
-   if (inPit && (side = -PSD()), reachAt(i, side) < WALL + 7) {
-    if (!inPit && reachAt(i, -side) >= WALL + 7) side = -side;
+   const inPit = (i - pitA + N) % N < pitB - pitA,
+    /* el muro se retranquea en las escapatorias: la torre va siempre detrás de él, nunca dentro de la grava */
+    wxa = sd => tr.wallX && tr.street ? tr.wallX[sd > 0 ? 0 : 1][(i % N + N) % N] : 0,
+    room = sd => reachAt(i, sd) - WALL - (tr.wallX ? tr.wallX[sd > 0 ? 0 : 1][(i % N + N) % N] : 0);
+   if (inPit && (side = -PSD()), room(side) < 5) {
+    if (!inPit && room(-side) >= 5) side = -side;
     else if (tvPosts.length > 3) continue
    }
-   const far = reachAt(i, side) >= WALL + 14,
-    lat = side * (tr.street ? WALL + .9 : far ? WALL + 7 + rp() * 3 : WALL + 3.5),
+   /* como las torres de verdad: pegada al muro, justo detrás de la malla y con el objetivo por encima de ella
+      (más atrás, la malla quedaría en primer plano tapando media imagen) */
+   const lat = side * (WALL + wxa(side) + (tr.street ? .9 : 1.6)),
     p = ptS(s, lat, 0),
-    hgt = Math.max(terrainH(p[0], p[2]), p[1]) + (tr.street ? 7.2 + rp() * 2.6 : (far ? 7.5 : 6.2) + rp() * 3.5 + (rp() < .18 ? 7 : 0));
+    hgt = Math.max(terrainH(p[0], p[2]), p[1]) + (tr.street ? 7.2 + rp() * 2.6 : 7 + rp() * 3.2 + (rp() < .18 ? 6 : 0));
    /* nada de cámaras dentro del túnel ni bajo los edificios que lo cubren */
    if ((tr.tunnel || []).some(([a, b]) => s > a - 90 && s < b + 40)) continue;
    /* ni justo detrás del pórtico de salida: el panel taparía medio encuadre */
@@ -14288,6 +14433,54 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
   })
  }
 
+ /* retrovisores de verdad en las cámaras a bordo: una vista trasera en una textura que se reparten los dos espejos.
+    Cada cristal enseña su lado (el borde interior, el flanco del propio coche) y la imagen va invertida, como en un espejo. */
+ const MIR = { rt: null, cam: null, mat: null, n: 0, car: null, v: null };
+ function mirrorGeo(g) {
+  if (g.userData.mir) return g.userData.mir;
+  const g2 = g.clone(), P = g2.attributes.position, uv = new Float32Array(P.count * 2);
+  let za = 1e9, zb = 0, y0 = 1e9, y1 = -1e9;
+  for (let i = 0; i < P.count; i++) {
+   const z = Math.abs(P.getZ(i)), y = P.getY(i);
+   za = Math.min(za, z), zb = Math.max(zb, z), y0 = Math.min(y0, y), y1 = Math.max(y1, y)
+  }
+  for (let i = 0; i < P.count; i++) {
+   const z = P.getZ(i), f = (Math.abs(z) - za) / Math.max(1e-6, zb - za);
+   uv[i * 2] = .5 - Math.sign(z) * (.09 + f * .37), uv[i * 2 + 1] = .1 + .8 * (P.getY(i) - y0) / Math.max(1e-6, y1 - y0)
+  }
+  return g2.setAttribute("uv", new THREE.BufferAttribute(uv, 2)), g2.userData.mirY = (y0 + y1) / 2, g2.userData.mirX = P.getX(0), g.userData.mir = g2
+ }
+ function mirrorOff() {
+  const m = MIR.car && MIR.car.mirror;
+  m && m.userData.mmO && m.material === MIR.mat && (m.material = m.userData.mmO), MIR.car = null
+ }
+ function mirrorStep(focus) {
+  const on = !!focus && (cam.eff === "onboard" || cam.eff === "helmet") && (quality === "high" || quality === "ultra") && !THERM.on && !R.noMirror,
+   o = on ? cars.get(focus.id) : null,
+   mesh = o && o.mirror;
+  if (MIR.car && MIR.car !== o && mirrorOff(), !mesh || !mesh.geometry.attributes.uv) return;
+  if (!MIR.rt) {
+   MIR.rt = new THREE.WebGLRenderTarget(512, 96, {
+    type: THREE.HalfFloatType,
+    depthBuffer: !0
+   }), MIR.rt.texture.generateMipmaps = !0, MIR.rt.texture.minFilter = THREE.LinearMipmapLinearFilter, MIR.cam = new THREE.PerspectiveCamera(15, 512 / 96, .85, 900), MIR.mat = new THREE.MeshBasicMaterial({
+    map: MIR.rt.texture,
+    side: THREE.DoubleSide,
+    color: "#dfe3e6"
+   }), MIR.mat.userData.th = "glass", MIR.v = new THREE.Vector3
+  }
+  /* si el equipo no puede con la pasada extra (menos de 30 fotogramas por segundo sostenidos), los espejos vuelven a ser cromados */
+  if (MIR.n > 240 && frT > 33) {
+   R.noMirror = 1, mirrorOff();
+   return
+  }
+  if (MIR.car !== o && (mesh.userData.mmO || (mesh.userData.mmO = mesh.material), mesh.material = MIR.mat, MIR.car = o), MIR.n++ % 3) return;
+  const c = MIR.cam, M = mesh.matrixWorld, g = mesh.geometry.userData;
+  mesh.updateWorldMatrix(!0, !1), c.position.set(g.mirX || .33, g.mirY || .72, 0).applyMatrix4(M), MIR.v.set(-40, (g.mirY || .72) - .9, 0).applyMatrix4(M), c.up.set(0, 1, 0).transformDirection(M), c.lookAt(MIR.v), c.updateMatrixWorld();
+  const au = renderer.shadowMap.autoUpdate, rt0 = renderer.getRenderTarget();
+  renderer.shadowMap.autoUpdate = !1, renderer.setRenderTarget(MIR.rt), renderer.render(scene, c), renderer.setRenderTarget(rt0), renderer.shadowMap.autoUpdate = au
+ }
+
  function buildCarNew(team, car, o, ti, pc, ac) {
   const body = o.body,
    mats = carMats(),
@@ -14336,9 +14529,12 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
     const geo2 = e.tags ? teamGeo(lv, mi, ti, pc, ac) : e.geo,
      mat = e.m === "f1-blue" ? accM : mats.get(e.m, e.col, e.met, e.rou);
     if (e.g === "static") {
-     const sp = splitNose(geo2),
+     const sp = e.m === "f1-mirror" && lv === 0 ? {
+       rest: mirrorGeo(geo2),
+       nose: null
+      } : splitNose(geo2),
       m2 = new THREE.Mesh(sp.rest, mat);
-     m2.userData.cm = e.m;
+     m2.userData.cm = e.m, e.m === "f1-mirror" && lv === 0 && (o.mirror = m2);
      if (m2.castShadow = lv < 2, m2.receiveShadow = lv === 0, grp.add(m2), sp.nose) {
       const nm = new THREE.Mesh(sp.nose, mat);
       nm.userData.cm = e.m;
@@ -14349,8 +14545,9 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
     let g3 = geo2,
      m3 = mat;
     if (e.g === "helmet" && e.col && e.col[0] + e.col[1] + e.col[2] > 1.2) g3 = helmetGeo(lv, mi, geo2), m3 = helmetMat(car, team, pc, ac);
+    e.m === "f1-mirror" && lv === 0 && (g3 = mirrorGeo(geo2));
     const m = new THREE.Mesh(g3, m3);
-    m.userData.cm = e.m, m.castShadow = lv < 2, m.receiveShadow = lv === 0, grp.add(m)
+    m.userData.cm = e.m, m.castShadow = lv < 2, m.receiveShadow = lv === 0, grp.add(m), e.m === "f1-mirror" && lv === 0 && (o.mirror = m)
    });
    for (const k of ["fwflap_0", "fwflap_1"]) G[k] && (G[k].position.x -= NOSEX, G[k].position.y -= .25, nz.add(G[k]));
    for (let i = 0; i < 4; i++) {
@@ -15848,7 +16045,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
   const root3 = o.lod || o.body;
   if (on) {
    o.thM || (o.thM = {});
-   root3.traverse(m => { if (!m.isMesh || !m.material || m === o.rainLight || m.userData.m0) return; if (m.material.transparent && !m.userData.cm) return; const cm = m.userData.cm || (m.material.color && m.material.color.getHex() < 2236962 ? "f1-carbon" : "f1-paint"); m.userData.m0 = m.material, m.material = o.thM[cm] || (o.thM[cm] = thermMat(o, cm)) }), THERM.cars.add(o);
+   root3.traverse(m => { if (!m.isMesh || !m.material || m === o.rainLight || m.userData.m0) return; if (m.material.transparent && !m.userData.cm) return; const cm = m.userData.cm || (m.material.color && m.material.color.getHex() < 2236962 ? "f1-carbon" : "f1-paint"); m.userData.m0 = m.material === MIR.mat && m.userData.mmO ? m.userData.mmO : m.material, m.material = o.thM[cm] || (o.thM[cm] = thermMat(o, cm)) }), THERM.cars.add(o);
    root3.updateWorldMatrix(!0, !0);
    const inv = new THREE.Matrix4().copy(root3.matrixWorld).invert(), v = new THREE.Vector3;
    o.wheels.slice(0, 4).forEach((wh, k) => { wh.getWorldPosition(v), o.thU.uW.value[k].copy(v.applyMatrix4(inv)) })
@@ -16017,7 +16214,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
   })
  }
  const TH_PALS = ["Hierro", "Blanco caliente", "Negro caliente", "Arcoíris", "Ártico", "Lava"], TH_MODES = ["Temperatura medida (radiométrica)", "Temperatura real de cada superficie", "Emisividad de cada material", "Error de medida (medida − real)"];
- R.__therm = () => ({ THERM, THU, composer, ao, bloom, camera, scene, OCC, tvPosts, occluded, cam });
+ R.__therm = () => ({ THERM, THU, composer, ao, bloom, camera, scene, OCC, tvPosts, occluded, cam, occRC, trackGroup, MIR, cars });
  R.setThermal = function(on) {
   THERM.on = on;
   if (THERM.pass && composer) {
@@ -16446,21 +16643,137 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
   return prCur
  };
 
- /* ¿tapa algo (pórtico de salida, puentes) la línea entre una cámara de TV y el coche? */
+ /* ¿tapa algo la línea entre una cámara de TV y el coche?
+    Índice de oclusores del circuito, construido una sola vez: cajas de cada estructura (tribunas, edificios, pórticos,
+    puentes, árboles). El terreno se comprueba con su mapa de alturas y las cintas que recorren toda la pista (asfalto,
+    pianos, guardarraíles, mallas) no cuentan: una cámara elevada ve por encima de ellas. */
+ let OCI = null;
  const occRC = { rc: null };
- /* todo lo construido junto a la pista (pórtico, puentes, tribunas, edificios, árboles) puede tapar una cámara */
- const OCC_ALL = () => trackGroup ? [trackGroup, ...OCC] : OCC;
+ let _oa = null, _ob = null, _od = null, _ot = null;
+ function occIndex() {
+  if (OCI && OCI.g === trackGroup && OCI.n === trackGroup.children.length) return OCI;
+  _oa || (_oa = new THREE.Vector3, _ob = new THREE.Vector3, _od = new THREE.Vector3, _ot = new THREE.Vector3);
+  const B = [], bx = new THREE.Box3, M = new THREE.Matrix4, sz = new THREE.Vector3,
+   ext = Math.max(tr.bounds.x1 - tr.bounds.x0, tr.bounds.y1 - tr.bounds.y0, 400);
+  trackGroup.updateMatrixWorld(!0);
+  for (const top of trackGroup.children) top.traverse(o => {
+   if (!o.isMesh || !o.geometry || o.userData.ground) return;
+   const g = o.geometry, m = Array.isArray(o.material) ? o.material[0] : o.material;
+   if (!m || g.type === "PlaneGeometry" || m.transparent && m.opacity < .85 || !g.attributes.position) return;
+   if (m.userData && /grass|sand|pave|water/.test(m.userData.th || "")) return;
+   g.boundingBox || g.computeBoundingBox();
+   const lb = g.boundingBox, tris = (g.index ? g.index.count : g.attributes.position.count) / 3;
+   if (o.isInstancedMesh) {
+    /* árboles: copa algo más estrecha que su caja; edificios: su caja orientada; farolas y postes no cuentan */
+    const veg = !!o.userData.veg;
+    let L = lb;
+    if (veg) { lb.getSize(sz); L = lb.clone(); const cx = (lb.min.x + lb.max.x) / 2, cz = (lb.min.z + lb.max.z) / 2; L.min.x = cx - sz.x * .33, L.max.x = cx + sz.x * .33, L.min.z = cz - sz.z * .33, L.max.z = cz + sz.z * .33, L.min.y = lb.min.y + sz.y * .22 }
+    for (let k = 0; k < o.count; k++) {
+     o.getMatrixAt(k, M), M.premultiply(o.matrixWorld), bx.copy(L).applyMatrix4(M);
+     const w = Math.max(bx.max.x - bx.min.x, bx.max.z - bx.min.z), h = bx.max.y - bx.min.y;
+     if (h < 2.5 || w < 1.2 || !veg && (w < 5 || h < 3)) continue;
+     B.push({ b: bx.clone(), inv: M.clone().invert(), lb: L, o, top })
+    }
+    return
+   }
+   bx.copy(lb).applyMatrix4(o.matrixWorld);
+   const w = Math.max(bx.max.x - bx.min.x, bx.max.z - bx.min.z), h = bx.max.y - bx.min.y;
+   if (w > ext * .3 || h < 2.2 || w < 1.5 || !isFinite(w) || !isFinite(h)) return;
+   B.push({ b: bx.clone(), o, top })
+  });
+  /* pórtico de salida: la línea entre sus dos pilares, del suelo a lo alto del panel */
+  const g0 = pt(0, -(S.HW + 3.4), 0), g1 = pt(0, S.HW + 3.4, 0);
+  return OCI = { g: trackGroup, n: trackGroup.children.length, B, cand: [], gan: [g0[0], g0[2], g1[0], g1[2], Math.min(g0[1], g1[1]) - 1, Math.max(g0[1], g1[1]) + 11.5] }
+ }
+ /* segmento a→b contra una caja alineada con los ejes */
+ function segBox(mn, mx, a, b) {
+  let t0 = 0, t1 = 1, d, u, v;
+  d = b.x - a.x; if (Math.abs(d) < 1e-9) { if (a.x < mn.x || a.x > mx.x) return !1 } else { u = (mn.x - a.x) / d, v = (mx.x - a.x) / d; if (u > v) { const q = u; u = v, v = q } u > t0 && (t0 = u), v < t1 && (t1 = v); if (t0 > t1) return !1 }
+  d = b.y - a.y; if (Math.abs(d) < 1e-9) { if (a.y < mn.y || a.y > mx.y) return !1 } else { u = (mn.y - a.y) / d, v = (mx.y - a.y) / d; if (u > v) { const q = u; u = v, v = q } u > t0 && (t0 = u), v < t1 && (t1 = v); if (t0 > t1) return !1 }
+  d = b.z - a.z; if (Math.abs(d) < 1e-9) { if (a.z < mn.z || a.z > mx.z) return !1 } else { u = (mn.z - a.z) / d, v = (mx.z - a.z) / d; if (u > v) { const q = u; u = v, v = q } u > t0 && (t0 = u), v < t1 && (t1 = v); if (t0 > t1) return !1 }
+  return !0
+ }
+ /* ¿hay terreno o algo construido entre o y el punto a la fracción f del camino hacia t? */
+ function occSeg(I, o, t, f) {
+  const d = _od.copy(t).sub(o), D = d.length(), L = Math.min(D - 2, D * f);
+  if (L <= 3) return !1;
+  d.divideScalar(D);
+  const n = Math.min(28, Math.max(5, Math.round(L / 10)));
+  for (let k = 1; k <= n; k++) {
+   const q = Math.max(3, k / n * L);
+   if (o.y + d.y * q < terrainH(o.x + d.x * q, o.z + d.z * q) - .5) return occRC.why = "terreno", !0
+  }
+  const a = _oa.copy(o).addScaledVector(d, 1.5), b = _ob.copy(o).addScaledVector(d, L), rc = occRC.rc || (occRC.rc = new THREE.Raycaster);
+  let set = !1;
+  for (const e of I.cand) {
+   if (!segBox(e.b.min, e.b.max, a, b)) continue;
+   if (e.inv) {
+    _ot.copy(a).applyMatrix4(e.inv);
+    const b2 = occRC.v || (occRC.v = new THREE.Vector3);
+    b2.copy(b).applyMatrix4(e.inv);
+    if (segBox(e.lb.min, e.lb.max, _ot, b2)) return occRC.why = e.o.userData.veg ? "árbol" : "edificio", occRC.e = e, !0;
+    continue
+   }
+   set || (rc.set(o, d), rc.near = 1.5, rc.far = L, set = !0);
+   const out = occRC.out || (occRC.out = []);
+   out.length = 0, e.o.raycast(rc, out);
+   if (out.length) return occRC.why = "estructura", occRC.e = e, !0
+  }
+  return !1
+ }
+ /* ¿cruza la visual una malla de protección en el primer tramo (cerca del objetivo, donde su trama llena la imagen)? */
+ function fenceNear(o, t, dyT) {
+  const F = FEN, lim = .4, top = quality !== "low" ? 1.1 : 0, dy = (t.y + dyT - o.y) * lim, rx = (t.x - o.x) * lim, rz = (t.z - o.z) * lim, ex = o.x + rx, ez = o.z + rz,
+   x0 = Math.min(o.x, ex), x1 = Math.max(o.x, ex), z0 = Math.min(o.z, ez), z1 = Math.max(o.z, ez);
+  for (let k = 0; k < F.length; k += 6) {
+   const ax = F[k], az = F[k + 1], bx = F[k + 2], bz = F[k + 3];
+   if ((ax < x0 && bx < x0) || (ax > x1 && bx > x1) || (az < z0 && bz < z0) || (az > z1 && bz > z1)) continue;
+   const sx = bx - ax, sz = bz - az, den = rx * sz - rz * sx;
+   if (Math.abs(den) < 1e-9) continue;
+   const u = ((ax - o.x) * sz - (az - o.z) * sx) / den, v = ((ax - o.x) * rz - (az - o.z) * rx) / den;
+   if (u < .01 || u > 1 || v < 0 || v > 1) continue;
+   const y = o.y + dy * u;
+   if (y > F[k + 4] && y < F[k + 5] + top) return !0
+  }
+  return !1
+ }
  function occluded(p, c) {
+  /* una cámara pegada a un pórtico o a un puente tiene la estructura llenando el encuadre aunque no tape al coche */
+  if (p.nearOcc == null) { p.nearOcc = !1; const bx = new THREE.Box3, pv = new THREE.Vector3(p.x, p.y, p.z); for (const o of OCC) { bx.setFromObject(o).expandByScalar(28); if (bx.containsPoint(pv)) { p.nearOcc = !0; break } } }
+  if (p.nearOcc) return occRC.why = "pórtico", !0;
   const o3 = cars.get(c.id);
-  if (!o3) return !1;
-  const rc = occRC.rc || (occRC.rc = new THREE.Raycaster), o = new THREE.Vector3(p.x, p.y, p.z), t = o3.root.position.clone();
+  if (!o3 || !trackGroup) return !1;
+  const I = occIndex(), o = new THREE.Vector3(p.x, p.y, p.z), t = o3.root.position.clone();
   t.y += .8;
-  /* el coche y lo que se ve encima de él en el encuadre (un pórtico a la altura de la cámara tapa media imagen) */
-  for (const up of [0, 2.5, 5]) {
-   const tt = t.clone(); tt.y += up;
-   const d = tt.sub(o), L = d.length();
-   rc.set(o, d.divideScalar(L)), rc.far = L - 2;
-   if (rc.intersectObjects(OCC_ALL(), !0).some(h => h.object.visible && h.distance > 1.5)) return !0
+  const fwd = t.clone().sub(o), dist = fwd.length(), right = new THREE.Vector3(fwd.z, 0, -fwd.x).normalize(), sp = Math.max(5, dist * .09);
+  /* candidatos: solo lo que cae dentro del volumen que barren los rayos */
+  const x0 = Math.min(o.x, t.x) - sp - 1, x1 = Math.max(o.x, t.x) + sp + 1, z0 = Math.min(o.z, t.z) - sp - 1, z1 = Math.max(o.z, t.z) + sp + 1, y0 = Math.min(o.y, t.y) - 1, y1 = Math.max(o.y, t.y + sp * .45) + 1;
+  I.cand.length = 0;
+  for (const e of I.B) {
+   const b = e.b;
+   b.max.x < x0 || b.min.x > x1 || b.max.z < z0 || b.min.z > z1 || b.max.y < y0 || b.min.y > y1 || !e.o.visible || !e.top.visible || I.cand.push(e)
+  }
+  /* rayo al coche entero; el abanico alrededor (lo que ocupa el encuadre) solo cuenta en primer plano:
+     una tribuna junto al coche es parte de la imagen, un pilar delante del objetivo no */
+  if (occSeg(I, o, t, 1)) return occRC.ray = 0, !0;
+  {
+   /* ninguna cámara mira a través del pórtico de salida: sus pilares y el panel cruzarían la imagen */
+   const G = I.gan, rx = t.x - o.x, rz = t.z - o.z, sx = G[2] - G[0], sz = G[3] - G[1], den = rx * sz - rz * sx;
+   if (Math.abs(den) > 1e-9) {
+    const u = ((G[0] - o.x) * sz - (G[1] - o.z) * sx) / den, v = ((G[0] - o.x) * rz - (G[1] - o.z) * rx) / den;
+    if (u > .02 && u < .98 && v >= 0 && v <= 1) {
+     const y = o.y + (t.y - o.y) * u;
+     if (y > G[4] && y < G[5]) return occRC.why = "pórtico", occRC.ray = 0, occRC.e = null, !0
+    }
+   }
+  }
+  /* la visual al coche y el borde inferior del encuadre */
+  if (fenceNear(o, t, 0) || fenceNear(o, t, -6)) return occRC.why = "malla", occRC.ray = 0, occRC.e = null, !0;
+  for (const lat of [0, -sp, sp]) for (const up of [0, sp * .45]) {
+   if (!lat && !up) continue;
+   const tt = t.clone().addScaledVector(right, lat);
+   tt.y += up;
+   if (occSeg(I, o, tt, .55)) return occRC.ray = 1, !0
   }
   return !1
  }
@@ -16888,8 +17201,8 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
    } = carFrame(focus);
   let pos, look2, fov = 50,
    up = new THREE.Vector3(0, 1, 0);
-  const k = cam.cut ? 1 : 1 - Math.exp(-dt * 7),
-   mode = cam.mode;
+  const k = cam.cut ? 1 : 1 - Math.exp(-dt * 7);
+  let mode = cam.mode;
   cam.eff = mode;
   const lead = new THREE.Vector3(focus.vx || 0, 0, focus.vy || 0);
   if (mode === "tv" || mode === "low") {
@@ -16912,6 +17225,8 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
      return best
     };
    let need = !cam.post || cam.focusId !== focus.id || (wantLow ? cam.postSet !== lowPosts && !cam.lowFb : cam.postSet !== tvPosts);
+   /* sin ninguna cámara despejada (túnel, paso bajo un edificio) se vuelve a buscar cada poco */
+   cam.blind && (cam.blindT = (cam.blindT || 0) - dt) <= 0 && (cam.blindT = .4, need = !0);
    if (cam.post && !need) {
     const lo = cam.postSet === lowPosts,
      d = sd(cam.post);
@@ -16921,16 +17236,23 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
    if (need) {
     let set = wantLow ? lowPosts : tvPosts,
      best = pickPost(set, !!wantLow);
+    let blind = !1;
     if (cam.lowFb = !1, !best && wantLow && (set = tvPosts, best = pickPost(tvPosts, !1), cam.lowFb = !0), !best) {
      let bd = 1e9;
-     for (const p of tvPosts) {
+     /* ninguna cámara despejada delante: la más cercana de las que rodean al coche, mejor si no tiene nada delante */
+     for (const p of tvPosts.slice().sort((a, b) => Math.abs(sd(a)) - Math.abs(sd(b))).slice(0, 6)) {
       const d = Math.abs(sd(p)) + (occluded(p, focus) ? 5e3 : 0);
       d < bd && (bd = d, best = p)
      }
-     set = tvPosts
+     set = tvPosts, blind = bd >= 5e3
     }
-    best !== cam.post && (cam.post = best, cam.cut = !0), cam.postSet = set, cam.focusId = focus.id
+    best !== cam.post && (cam.post = best, cam.cut = !0, cam.occT = 1.6), cam.postSet = set, cam.focusId = focus.id;
+    /* ninguna cámara de pista ve el coche: la realización pasa a la cámara que lo sigue hasta que vuelva a haber una despejada */
+    blind !== !!cam.blind && (cam.blind = blind, cam.cut = !0, cam.blindT = .4)
    }
+   cam.blind && (mode = "chase", cam.eff = "chase")
+  }
+  if (mode === "tv" || mode === "low") {
    const low = cam.postSet === lowPosts,
     posts2 = cam.postSet;
    pos = new THREE.Vector3(cam.post.x, cam.post.y, cam.post.z), look2 = P.clone().addScaledVector(lead, .12);
@@ -16938,9 +17260,13 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
    if (fov = clamp(2 * Math.atan((low ? 5.5 : 8.5) / dist) * 180 / Math.PI, low ? 18 : 3.2, low ? 62 : 52), camera.position.copy(pos), cam.cut) cam.look.copy(look2), cam.lookV =
     new THREE.Vector3, cam.fov = fov;
    else {
-    const w0 = low ? 11 : 8,
-     acc = look2.clone().sub(cam.look).multiplyScalar(w0 * w0).addScaledVector(cam.lookV, -2 * w0);
-    cam.lookV.addScaledVector(acc, dt), cam.look.addScaledVector(cam.lookV, dt), cam.fov += (fov - cam.fov) * (1 - Math.exp(-dt * 2.2))
+    /* muelle crítico del seguimiento, integrado en pasos cortos: estable también cuando el equipo va a pocos fotogramas */
+    const w0 = low ? 11 : 8, L = cam.look, V = cam.lookV;
+    for (let rem = Math.min(dt, .6); rem > 1e-5;) {
+     const h = Math.min(rem, .02);
+     rem -= h, V.x += ((look2.x - L.x) * w0 * w0 - 2 * w0 * V.x) * h, V.y += ((look2.y - L.y) * w0 * w0 - 2 * w0 * V.y) * h, V.z += ((look2.z - L.z) * w0 * w0 - 2 * w0 * V.z) * h, L.x += V.x * h, L.y += V.y * h, L.z += V.z * h
+    }
+    cam.fov += (fov - cam.fov) * (1 - Math.exp(-dt * 2.2))
    }
    const tt = performance.now() / 1e3,
     dr = dist * .0012;
@@ -17141,6 +17467,11 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
     C = ao.configuration,
     rr = clamp(dc * .055, 2.4, 14);
    Math.abs(C.aoRadius - rr) > .25 && (C.aoRadius = rr, C.distanceFalloff = clamp(rr * .42, 1, 5))
+  }
+  try {
+   mirrorStep(focus)
+  } catch (e) {
+   R.noMirror = 1, mirrorOff(), console.warn("retrovisores", e)
   }
   composer ? composer.render() : renderer.render(scene, camera)
  };
@@ -18005,7 +18336,7 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
  function buildGfx(tr) {
   const g = {},
    N = tr.N;
-  g.center = closed(tr, 0), g.wallL = closed(tr, S.WALL), g.wallR = closed(tr, -S.WALL), g.edgeL = closed(tr, S.HW - .4), g.edgeR = closed(tr, -(S.HW - .4));
+  g.center = closed(tr, 0), g.wallL = pathRange(tr, 0, tr.N, q => S.latWarp(tr, q, S.WALL)), g.wallR = pathRange(tr, 0, tr.N, q => S.latWarp(tr, q, -S.WALL)), g.edgeL = closed(tr, S.HW - .4), g.edgeR = closed(tr, -(S.HW - .4));
   const ka = new Float32Array(N);
   for (let i = 0; i < N; i++) {
    let m = 0;
@@ -18178,17 +18509,17 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
   const c = focusCar();
   if (cam.mode === "fit" || !c) {
    const s = Math.min(CW / (b.x1 - b.x0), CH / (b.y1 - b.y0)) * 1.04;
-   m = m.translate(CW / 2, CH / 2).scale(s).translate(-(b.x0 + b.x1) / 2, -(b.y0 + b.y1) / 2), app.scale = s, cam.a = 0
+   m = m.translate(CW / 2, CH / 2).scale(s, -s).translate(-(b.x0 + b.x1) / 2, -(b.y0 + b.y1) / 2), app.scale = s, cam.a = 0
   } else {
    cam.x += (c.x - cam.x) * .25, cam.y += (c.y - cam.y) * .25, Math.hypot(c.x - cam.x, c.y - cam.y) > 80 && (cam.x = c.x, cam.y = c.y);
    const s = cam.zoom * dpr;
    if (m = m.translate(CW / 2, CH * (cam.rot ? .64 : .5)), cam.rot) {
-    let d = -c.h * 180 / Math.PI - 90 - cam.a;
+    let d = c.h * 180 / Math.PI - 90 - cam.a;
     for (; d > 180;) d -= 360;
     for (; d < -180;) d += 360;
     cam.a += d * .15, m = m.rotate(cam.a)
    } else cam.a = 0;
-   m = m.scale(s).translate(-cam.x, -cam.y), app.scale = s
+   m = m.scale(s, -s).translate(-cam.x, -cam.y), app.scale = s
   }
   return m
  }
@@ -18479,7 +18810,7 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
    const list = app.w.cars.slice();
    app.w.sc && app.w.sc.car && list.push(app.w.sc.car);
    for (const c of list) c.gone || isTrain() && !c.alive || (ctx.fillStyle = c === f ? "#fff" : c.isSC ? "#ffd23f" : c.color || "#7fb2ff", ctx.beginPath(), ctx.arc(cx + (c.x -
-    mx) * s, cy + (c.y - my) * s, (c === f ? 3.2 : 2.2) * dpr, 0, 6.2832), ctx.fill())
+    mx) * s, cy - (c.y - my) * s, (c === f ? 3.2 : 2.2) * dpr, 0, 6.2832), ctx.fill())
   }
  }
  const rngT = S.rng(Date.now() & 16777215);
@@ -21207,7 +21538,7 @@ registerProcessor('engine-proc',EngineProc);`;
   const list = app.w.cars.slice();
   app.w.sc && app.w.sc.car && list.push(app.w.sc.car);
   for (const c of list) c.gone || isTrain() && !c.alive || (g.fillStyle = c === f ? "#fff" : c.isSC ? "#ffd23f" : c.color || "#7fb2ff", g.beginPath(), g.arc(cx + (c.x - mx) * s,
-   cy + (c.y - my) * s, (c === f ? 3.4 : 2.4) * dpr, 0, 6.2832), g.fill())
+   cy - (c.y - my) * s, (c === f ? 3.4 : 2.4) * dpr, 0, 6.2832), g.fill())
  } {
   let drag = null;
   cv3.addEventListener("pointerdown", e => {

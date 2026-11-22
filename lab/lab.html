@@ -155,6 +155,18 @@ button,select,input,.btn{transition:transform .12s ease,background-color .18s ea
 button:active:not(:disabled){transform:translateY(1px) scale(.98)}:focus-visible{outline:2px solid var(--accent,#ff6b1a);outline-offset:2px;border-radius:6px}
 @keyframes labIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}main>section:not([hidden]){animation:labIn .3s ease both}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+@media (max-width:700px){
+ header{gap:8px;position:sticky!important;top:0}header h1{font-size:19px;margin:0}
+ nav.tabs{flex-wrap:nowrap!important;overflow-x:auto;width:100%;scrollbar-width:none;scroll-snap-type:x proximity}nav.tabs::-webkit-scrollbar{display:none}nav.tabs>*{flex:none;scroll-snap-align:start;white-space:nowrap}
+ .modes{width:100%}.modes>*{flex:1}
+ .supBtn{margin-left:0!important;position:absolute;right:12px;top:8px;padding:6px 9px!important;font-size:11.5px!important}
+ .s3host{height:62vw;min-height:250px}.s3info{top:auto;bottom:0;left:0;right:0;padding:16px 8px 6px;background:linear-gradient(transparent,rgba(0,0,0,.8));font-size:10.5px;line-height:1.3}.s3info span{display:none}
+ .s3labels div{font-size:10px!important;padding:1px 4px!important}.s3pick{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-height:55%;overflow:auto}
+ .ctrl{flex-wrap:wrap;gap:6px}.ctrl .btn,.ctrl button{min-height:38px}
+ select,input[type=number]{font-size:16px;min-height:40px}
+ .labhead h2{font-size:24px}.checks{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body data-mode="easy">

@@ -13,5 +13,5 @@ Los scripts `*.py` son las pruebas con Playwright (capturas, IA, pit lane).
 R
 cd $F && git add -A && (git diff --cached --quiet || git commit -q -m "${1:-Copia del código fuente}
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01STvS6dZYAdk1XxZT5wKixQ") && git push -q origin fuente 2>&1 | tail -1; git log --format=%h -1

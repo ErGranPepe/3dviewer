@@ -30,6 +30,6 @@ echo "built a/app.$H.js"
 if [ -n "$1" ]; then
   cd $P && git add -A && git commit -q -m "$1
 
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Co-Authored-By: Claude Fable 5.2 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01STvS6dZYAdk1XxZT5wKixQ" && git push -q origin gh-pages && git log --format=%h -1
 fi
