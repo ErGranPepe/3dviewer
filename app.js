@@ -7174,7 +7174,11 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
     if (WD && WD.off != null) {
      const dm = wdDem(x, y),
       k2 = sstep((d - (S.WALL + (tr.street ? 4 : 12))) / (tr.street ? 60 : 110));
-     let hv = dm == null ? zt - .45 : (zt - .45) * (1 - k2) + (dm + WD.off - (dm + (WD.dem.h0 || 0) <= .25 ? 4 * k2 : 0)) * k2;
+     const lcS = wdLu(x, y),
+      seaOK = lcS === 0 || lcS === 6,
+      /* tierra cartografiada (cualquier uso del suelo): nunca por debajo del nivel del mar */
+      dmL = dm == null || seaOK ? dm : Math.max(dm, .9 - (WD.dem.h0 || 0));
+     let hv = dm == null ? zt - .45 : (zt - .45) * (1 - k2) + (dmL + WD.off - (seaOK && dm + (WD.dem.h0 || 0) <= .25 ? 4 * k2 : 0)) * k2;
      if (tr.street && d < 320) {
       /* en ciudad el relieve junto a la calle no puede levantar montículos: los restos de edificios del modelo de elevación se recortan con una pendiente máxima de calle (las cuestas reales siguen la pista) */
       const e = Math.max(0, d - S.WALL - 3),
@@ -7319,12 +7323,12 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
     Las mismas máscaras tiñen el terreno y deciden dónde crecen las matas y el matorral. */
  function wildMask(x, y) {
   const s = tr.seed || 0;
-  return .5 + .5 * (Math.sin(x * .0113 + s) * Math.cos(y * .0127 - s * .7) + .55 * Math.sin(x * .031 - y * .027 + 2.1) + .3 * Math.sin(x * .071 + y * .063))
+  return .5 + .5 * clamp((Math.sin(x * .0113 + s) * Math.cos(y * .0127 - s * .7) + .55 * Math.sin(x * .031 - y * .027 + 2.1)) / 1.2, -1, 1)
  }
 
  function mudMask(x, y) {
   const s = tr.seed || 0;
-  return .5 + .5 * (Math.sin(x * .043 - y * .019 + s * 1.3) * Math.cos(y * .051 + x * .013) + .6 * Math.sin(x * .12 + y * .1 + s))
+  return .5 + .5 * clamp((Math.sin(x * .043 - y * .019 + s * 1.3) * Math.cos(y * .051 + x * .013) + .5 * Math.sin(x * .027 + y * .033 + s)) / 1.2, -1, 1)
  }
 
  function groundTint(x, y, d, out) {
@@ -7364,10 +7368,11 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
   }
   if (BI.tex === "grass" && !tr.street && d > S.WALL + 3) {
    /* no todo es césped: hierba alta más clara y amarillenta, y tierra pisada (más cerca de las vallas, donde anda la gente) */
-   const kO = sstep((d - S.WALL - 3) / 14),
-    wl = sstep((wildMask(x, y) - .56) / .2) * kO,
-    md = sstep((mudMask(x, y) - (d < S.WALL + 45 ? .7 : .82)) / .1) * kO;
-   r *= 1 + .32 * wl, g *= 1 + .14 * wl, b *= 1 - .3 * wl, r *= 1 + .5 * md, g *= 1 - .26 * md, b *= 1 - .5 * md
+   /* solo en el entorno del circuito (se apaga a partir de 160 m) y con un cambio de tono discreto: de lejos sigue siendo un prado */
+   const kO = sstep((d - S.WALL - 3) / 14) * (1 - sstep((d - S.WALL - 90) / 70)),
+    wl = sstep((wildMask(x, y) - .6) / .25) * kO,
+    md = sstep((mudMask(x, y) - .8) / .15) * kO;
+   r *= 1 + .1 * wl, g *= 1 + .04 * wl, b *= 1 - .1 * wl, r *= 1 + .16 * md, g *= 1 - .07 * md, b *= 1 - .16 * md
   }
   if (WD && (tr.street || d > S.WALL + 8)) {
    let lc = wdLu(x, y);
@@ -7924,7 +7929,26 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
    /* hierba alta sin segar y matas detrás de los muros, en las mismas manchas que tiñen el terreno (no en edificios, agua ni asfalto) */
    const cnt2 = quality === "med" ? 7e3 : quality === "high" ? 2e4 : 32e3,
     im2 = new THREE.InstancedMesh(geo2, grassMat, cnt2),
-    b = tr.bounds;
+    RM = new Set,
+    rk = (x, y) => Math.round(x / 4) * 73856093 ^ Math.round(y / 4) * 19349663;
+   /* máscara de carreteras y calles reales (celdas de 4 m): ahí no crece nada */
+   if (WD && WD.r)
+    for (const r of WD.r) {
+     const hwid = clamp((r[0] || 5) * .5 + 2, 3, 9);
+     for (let q = 2; q + 3 < r.length; q += 2) {
+      const x0 = r[q] * .1,
+       y0 = r[q + 1] * .1,
+       x1 = r[q + 2] * .1,
+       y1 = r[q + 3] * .1,
+       n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 3));
+      for (let k = 0; k <= n; k++) {
+       const x = x0 + (x1 - x0) * k / n,
+        y = y0 + (y1 - y0) * k / n;
+       for (let dx = -hwid; dx <= hwid; dx += 4)
+        for (let dy = -hwid; dy <= hwid; dy += 4) RM.add(rk(x + dx, y + dy))
+      }
+     }
+    }
    let n2 = 0,
     t2 = 0;
    for (; n2 < cnt2 && t2 < cnt2 * 14;) {
@@ -7935,7 +7959,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
      x = p0[0] + (rr() - .5) * 8,
      y = p0[2] + (rr() - .5) * 8,
      d = terrainD(x, y);
-    if (d < WALL + 3 || wildMask(x, y) < .58 + rr() * .1 || inClear(x, y) || bldAt(x, y)) continue;
+    if (d < WALL + 3 || wildMask(x, y) < .6 + rr() * .12 || inClear(x, y) || bldAt(x, y) || RM.has(rk(x, y))) continue;
     if (WD) {
      const lc = wdLu(x, y);
      if (lc === 6 || lc === 9 || lc === 10 || lc === 4 || lc === 5) continue
@@ -15690,6 +15714,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
     mira hacia el sol para saber cuánta nube tiene delante (autosombra), con el borde plateado de la dispersión hacia delante.
     Tienen paralaje, se mueven con el viento y cambian con el tiempo y la hora. Solo en calidad alta y ultra. */
  const VCL = { mesh: null, off: !1, n: 0 };
+ let cockL = null;
  function vcloudNoise() {
   const P = 256, d = new Uint8Array(P * P * 4), rnd = S.rng(4711),
    lat = per => { const a = new Float32Array(per * per); for (let i = 0; i < a.length; i++) a[i] = rnd(); return a },
@@ -15737,7 +15762,7 @@ float dens(vec3 p){
 }
 void main(){
  vec3 rd=normalize(vW-uCam);
- if(rd.y<.012){gl_FragColor=vec4(0.);return;}
+ if(rd.y<.012||uCam.y>H1-20.){gl_FragColor=vec4(0.);return;}
  float t0=max(0.,(H0-uCam.y)/rd.y),t1=(H1-uCam.y)/rd.y;
  t1=min(t1,t0+7000.);
  float n=uSteps,dt=(t1-t0)/n;
@@ -15868,6 +15893,7 @@ void main(){
    }));
    lid.position.y = 5050, lid.visible = !1, clouds.add(lid), clouds.userData.lid = lid
   }
+  cockL = new THREE.PointLight(16774630, 0, 2.4, 1.5), cockL.castShadow = !1, scene.add(cockL);
   try {
    vcloudInit()
   } catch (e) {
@@ -17469,11 +17495,11 @@ void main(){
       onboard: [-.36, 1.27]
      };
     pos = (hel ? new THREE.Vector3(cp.helmet[0], cp.helmet[1] + sy * .6, lean + sx * .6) : new THREE.Vector3(cp.onboard[0], cp.onboard[1] + sy, sx)).applyMatrix4(o.root
-     .matrixWorld), look2 = (hel ? new THREE.Vector3(30, -.9 + sy * 12, lean * 10 + clamp((o.stV || 0) * 9, -7, 7)) : new THREE.Vector3(30, .35, 0)).applyMatrix4(o.root
+     .matrixWorld), look2 = (hel ? new THREE.Vector3(30, -.1 + sy * 12, lean * 10 + clamp((o.stV || 0) * 9, -7, 7)) : new THREE.Vector3(30, .35, 0)).applyMatrix4(o.root
      .matrixWorld)
    } else pos = P, look2 = P.clone().add(fwd);
    camera.position.copy(pos), camera.up.copy(up), hel && (up = new THREE.Vector3(0, 1, 0).applyAxisAngle(fwd, clamp(-(focus.u || 0) * (focus.r || 0) * .0015, -.035, .035)), camera
-    .up.copy(up)), camera.lookAt(look2), camera.fov = hel ? 76 : 62, cam.label = hel ? "Casco" : "Onboard (T-cam)"
+    .up.copy(up)), camera.lookAt(look2), camera.fov = hel ? 70 : 62, cam.label = hel ? "Casco" : "Onboard (T-cam)"
   } else if (mode === "nose") {
    const o = cars.get(focus.id);
    o ? (o.root.updateMatrixWorld(), pos = new THREE.Vector3(o.cp ? o.cp.nose[0] : 1.35, o.cp ? o.cp.nose[1] : .55, .32).applyMatrix4(o.root.matrixWorld), look2 = new THREE
@@ -17625,8 +17651,14 @@ void main(){
   if (windU.value = performance.now() / 1e3, debrisStep(Math.min(.05, dt || .016)), bpass && updateBroadcast(focus), geoUpdate(), ao && focus0) {
    const dc = camera.position.distanceTo(focus0),
     C = ao.configuration,
-    rr = clamp(dc * .055, 2.4, 14);
-   Math.abs(C.aoRadius - rr) > .25 && (C.aoRadius = rr, C.distanceFalloff = clamp(rr * .42, 1, 5))
+    inCar = cam.eff === "helmet" || cam.eff === "onboard",
+    rr = inCar ? .55 : clamp(dc * .055, 2.4, 14);
+   /* dentro del habitáculo la oclusión a escala de coche (2,4 m) lo deja todo negro: radio de manos y volante, y menos intensidad */
+   Math.abs(C.aoRadius - rr) > .25 && (C.aoRadius = rr, C.distanceFalloff = clamp(rr * .42, inCar ? .25 : 1, 5)), ao.userData || (ao.userData = { i0: C.intensity }), C.intensity = ao.userData.i0 * (inCar ? .45 : 1)
+  }
+  if (cockL) {
+   const hl = cam.eff === "helmet" && !THERM.on;
+   cockL.intensity += ((hl ? (lastTod === "night" ? .5 : 1.5) : 0) - cockL.intensity) * .2, hl && (cockL.position.copy(camera.position), cockL.position.y += .16)
   }
   try {
    mirrorStep(focus)
@@ -19973,7 +20005,8 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
 
  function windArrow() {
   const W = app.w.wind,
-   deg = Math.atan2(app.w.windY, app.w.windX) * 180 / Math.PI + 90 - (app.cam.a || 0);
+   /* norte arriba, como el minimapa y la vista 2D (que además puede girar con el coche) */
+   deg = -Math.atan2(app.w.windY, app.w.windX) * 180 / Math.PI + 90 + (app.cam.a || 0);
   return '<span class="wind" style="transform:rotate(' + Math.round(deg) + 'deg)"><i></i></span>'
  }
 
