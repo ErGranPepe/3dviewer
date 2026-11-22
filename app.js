@@ -7315,6 +7315,18 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
   GT = null,
   reach = null;
 
+ /* variedad del suelo fuera de la franja segada: manchas de hierba alta sin segar y calvas de tierra pisada.
+    Las mismas máscaras tiñen el terreno y deciden dónde crecen las matas y el matorral. */
+ function wildMask(x, y) {
+  const s = tr.seed || 0;
+  return .5 + .5 * (Math.sin(x * .0113 + s) * Math.cos(y * .0127 - s * .7) + .55 * Math.sin(x * .031 - y * .027 + 2.1) + .3 * Math.sin(x * .071 + y * .063))
+ }
+
+ function mudMask(x, y) {
+  const s = tr.seed || 0;
+  return .5 + .5 * (Math.sin(x * .043 - y * .019 + s * 1.3) * Math.cos(y * .051 + x * .013) + .6 * Math.sin(x * .12 + y * .1 + s))
+ }
+
  function groundTint(x, y, d, out) {
   const BI = biome();
   if (!GT || GT.bi !== BI) {
@@ -7349,6 +7361,13 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
   if (d > 200 && Math.sin(x * .01) * Math.cos(y * .012) > .55) {
    const C = GT.c;
    r += (C[0] - r) * .6, g += (C[1] - g) * .6, b += (C[2] - b) * .6
+  }
+  if (BI.tex === "grass" && !tr.street && d > S.WALL + 3) {
+   /* no todo es césped: hierba alta más clara y amarillenta, y tierra pisada (más cerca de las vallas, donde anda la gente) */
+   const kO = sstep((d - S.WALL - 3) / 14),
+    wl = sstep((wildMask(x, y) - .56) / .2) * kO,
+    md = sstep((mudMask(x, y) - (d < S.WALL + 45 ? .7 : .82)) / .1) * kO;
+   r *= 1 + .32 * wl, g *= 1 + .14 * wl, b *= 1 - .3 * wl, r *= 1 + .5 * md, g *= 1 - .26 * md, b *= 1 - .5 * md
   }
   if (WD && (tr.street || d > S.WALL + 8)) {
    let lc = wdLu(x, y);
@@ -7802,7 +7821,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
  let grassMat = null,
   gravMask = null;
 
- function buildGrass(group, ka) {
+ function buildGrass(group, ka, wildOnly) {
   const BI = biome();
   if (quality === "low" || BI.tex !== "grass" || tr.street) return;
   if (!TEX.tuft) {
@@ -7834,7 +7853,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
    HW = S.HW,
    WALL = S.WALL,
    rr = S.rng(tr.seed * 13 + 1),
-   cnt = quality === "ultra" ? 11e4 : 52e3,
+   cnt = wildOnly ? 0 : quality === "ultra" ? 11e4 : 52e3,
    P = [],
    U = [],
    I = [];
@@ -7900,7 +7919,33 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
     .04), im.setColorAt(n, C2), n++
   }
   im.count = n, im.instanceMatrix.needsUpdate = !0, im.instanceColor && (im.instanceColor.needsUpdate = !0), im.receiveShadow = !0, im.renderOrder = 1, im.frustumCulled = !1,
-   group.add(im)
+   n && group.add(im);
+  {
+   /* hierba alta sin segar y matas detrás de los muros, en las mismas manchas que tiñen el terreno (no en edificios, agua ni asfalto) */
+   const cnt2 = quality === "med" ? 7e3 : quality === "high" ? 2e4 : 32e3,
+    im2 = new THREE.InstancedMesh(geo2, grassMat, cnt2),
+    b = tr.bounds;
+   let n2 = 0,
+    t2 = 0;
+   for (; n2 < cnt2 && t2 < cnt2 * 14;) {
+    t2++;
+    const i = rr() * N | 0,
+     sd = rr() < .5 ? 1 : -1,
+     p0 = pt(i, sd * (WALL + 3 + Math.pow(rr(), 1.6) * 150), 0),
+     x = p0[0] + (rr() - .5) * 8,
+     y = p0[2] + (rr() - .5) * 8,
+     d = terrainD(x, y);
+    if (d < WALL + 3 || wildMask(x, y) < .58 + rr() * .1 || inClear(x, y) || bldAt(x, y)) continue;
+    if (WD) {
+     const lc = wdLu(x, y);
+     if (lc === 6 || lc === 9 || lc === 10 || lc === 4 || lc === 5) continue
+    }
+    const tall = rr() < .35,
+     sc = tall ? .9 + rr() * .8 : .5 + rr() * .5;
+    Pv.set(x, terrainH(x, y) - .03, y), E.set(0, rr() * 6.28, 0), Q.setFromEuler(E), Sv.set(sc, tall ? .55 + rr() * .6 : .2 + rr() * .28, sc), M2.compose(Pv, Q, Sv), im2.setMatrixAt(n2, M2), C2.copy(C).multiplyScalar(tall ? 1.7 : 2.1).offsetHSL(-.025 + (rr() - .5) * .04, (rr() - .5) * .1, (rr() - .5) * .06), im2.setColorAt(n2, C2), n2++
+   }
+   im2.count = n2, im2.instanceMatrix.needsUpdate = !0, im2.instanceColor && (im2.instanceColor.needsUpdate = !0), im2.receiveShadow = !0, im2.renderOrder = 1, im2.frustumCulled = !1, im2.userData.veg = 1, n2 && group.add(im2)
+  }
  }
 
  function buildExtras(group, ka) {
@@ -13073,6 +13118,11 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
   }
   buildVegetation(trackGroup);
   try {
+   buildGrass(trackGroup, null, !0)
+  } catch (e) {
+   console.warn("hierba alta", e)
+  }
+  try {
    placeModels(trackGroup)
   } catch (e) {
    console.warn(e)
@@ -15634,6 +15684,106 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
    n
   }
  }
+ /* ---------- nubes volumétricas ----------
+    Una capa de cúmulos entre 900 y 2300 m que se recorre rayo a rayo en el sombreador: cada píxel del cielo avanza por la
+    capa acumulando densidad (ruido periódico en 3D: dos lecturas en planta y una que cambia con la altura) y, en cada paso,
+    mira hacia el sol para saber cuánta nube tiene delante (autosombra), con el borde plateado de la dispersión hacia delante.
+    Tienen paralaje, se mueven con el viento y cambian con el tiempo y la hora. Solo en calidad alta y ultra. */
+ const VCL = { mesh: null, off: !1, n: 0 };
+ function vcloudNoise() {
+  const P = 256, d = new Uint8Array(P * P * 4), rnd = S.rng(4711),
+   lat = per => { const a = new Float32Array(per * per); for (let i = 0; i < a.length; i++) a[i] = rnd(); return a },
+   val = (L, per, x, y) => {
+    const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy),
+     a = L[(yi % per) * per + xi % per], b = L[(yi % per) * per + (xi + 1) % per], c = L[((yi + 1) % per) * per + xi % per], e = L[((yi + 1) % per) * per + (xi + 1) % per];
+    return a + (b - a) * u + (c - a) * v + (a - b - c + e) * u * v
+   };
+  for (let ch = 0; ch < 4; ch++) {
+   const base = [4, 6, 9, 14][ch], Ls = [lat(base), lat(base * 2), lat(base * 4), lat(base * 8)];
+   for (let y = 0; y < P; y++)
+    for (let x = 0; x < P; x++) {
+     let n = 0, am = .5, tot = 0;
+     for (let o = 0; o < 4; o++) n += val(Ls[o], base << o, x / P * (base << o), y / P * (base << o)) * am, tot += am, am *= .5;
+     d[(y * P + x) * 4 + ch] = Math.round(clamp(n / tot, 0, 1) * 255)
+    }
+  }
+  const t = new THREE.DataTexture(d, P, P, THREE.RGBAFormat);
+  return t.wrapS = t.wrapT = THREE.RepeatWrapping, t.magFilter = t.minFilter = THREE.LinearFilter, t.needsUpdate = !0, t
+ }
+ function vcloudInit() {
+  if (quality !== "high" && quality !== "ultra" || root.NOVCLOUD) return;
+  const mat = new THREE.ShaderMaterial({
+   transparent: !0,
+   depthWrite: !1,
+   side: THREE.BackSide,
+   fog: !1,
+   uniforms: {
+    tN: { value: vcloudNoise() }, uCam: { value: new THREE.Vector3 }, uSun: { value: new THREE.Vector3(0, 1, 0) }, uSunC: { value: new THREE.Color(1, 1, 1) },
+    uAmbT: { value: new THREE.Color(.5, .6, .8) }, uAmbB: { value: new THREE.Color(.4, .42, .46) }, uHor: { value: new THREE.Color(.8, .86, .92) },
+    uCov: { value: .45 }, uTime: { value: 0 }, uDark: { value: 0 }, uSteps: { value: quality === "ultra" ? 32 : 20 }
+   },
+   vertexShader: "varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}",
+   fragmentShader: `uniform sampler2D tN;uniform vec3 uCam,uSun,uSunC,uAmbT,uAmbB,uHor;uniform float uCov,uTime,uDark,uSteps;varying vec3 vW;
+const float H0=900.,H1=2300.;
+float dens(vec3 p){
+ float h=(p.y-H0)/(H1-H0);
+ float prof=smoothstep(0.,.12,h)*smoothstep(1.,.35,h);
+ vec2 w=p.xz*.000115+uTime*vec2(.0021,.0008);
+ float b=texture2D(tN,w).r*.5+texture2D(tN,w*2.3+vec2(.37,.11)+h*.035).g*.32+texture2D(tN,w*5.1+vec2(h*.11,-h*.07)).b*.18;
+ float thr=mix(.74,.36,uCov);
+ float d=smoothstep(thr,thr+.2,b*(.72+.28*prof));
+ float det=texture2D(tN,p.xz*.0011+vec2(p.y*.0009,-p.y*.0007)+uTime*.006).a;
+ return clamp(d-det*.42*(1.-d*.55),0.,1.)*prof;
+}
+void main(){
+ vec3 rd=normalize(vW-uCam);
+ if(rd.y<.012){gl_FragColor=vec4(0.);return;}
+ float t0=max(0.,(H0-uCam.y)/rd.y),t1=(H1-uCam.y)/rd.y;
+ t1=min(t1,t0+7000.);
+ float n=uSteps,dt=(t1-t0)/n;
+ float jit=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))));
+ float T=1.;vec3 col=vec3(0.);
+ float mu=dot(rd,uSun),ph=mix(.75,1.,.5+.5*mu)+.9*pow(max(mu,0.),14.);
+ for(float i=0.;i<32.;i++){
+  if(i>=n||T<.03)break;
+  vec3 p=uCam+rd*(t0+(i+jit)*dt);
+  float d=dens(p);
+  if(d>.01){
+   float dl=dens(p+uSun*230.)*1.45;
+   float h=(p.y-H0)/(H1-H0);
+   float sh=exp(-dl*3.4)*(1.-.35*exp(-d*8.));
+   vec3 L=(uSunC*sh*ph+mix(uAmbB,uAmbT,clamp(h*1.2,0.,1.)))*mix(.6,1.,h);
+   L*=1.-uDark*(.55-.25*h);
+   float a=1.-exp(-d*dt*.0105);
+   col+=T*a*L;T*=1.-a;
+  }
+ }
+ float al=1.-T;
+ /* perspectiva aérea: hacia el horizonte las nubes se funden con la bruma */
+ float far=smoothstep(.012,.16,rd.y);
+ col=mix(uHor*al,col,far*.85+.15);
+ al*=smoothstep(.012,.07,rd.y);
+ gl_FragColor=vec4(col/max(al,1e-3),al);
+ #include <tonemapping_fragment>
+ #include <colorspace_fragment>
+}`
+  });
+  VCL.mesh = new THREE.Mesh(new THREE.SphereGeometry(4650, 32, 20), mat), VCL.mesh.frustumCulled = !1, VCL.mesh.renderOrder = -1, VCL.mesh.visible = !1, VCL.mesh.userData.ground = 1, scene.add(VCL.mesh)
+ }
+ /* cada fotograma: posición, sol, color y cobertura según el tiempo y la hora */
+ function vcloudStep(sd) {
+  const m = VCL.mesh;
+  if (!m) return;
+  const on = !VCL.off && !THERM.on && !!VCL.env;
+  if (m.visible = on, !on) return;
+  /* si el equipo no puede con ellas (menos de 30 fotogramas por segundo sostenidos), vuelve el cielo fotográfico */
+  if (++VCL.n > 300 && frT > 33) {
+   VCL.off = !0, m.visible = !1, lastTod = "";
+   return
+  }
+  const U = m.material.uniforms, E = VCL.env;
+  m.position.copy(camera.position), U.uCam.value.copy(camera.position), U.uSun.value.set(sd[0], sd[1], sd[2]).normalize(), U.uTime.value = performance.now() / 1e3, U.uCov.value += (E.cov - U.uCov.value) * .02, U.uDark.value += (E.dark - U.uDark.value) * .02, U.uSunC.value.copy(E.sun), U.uAmbT.value.copy(E.at), U.uAmbB.value.copy(E.ab), U.uHor.value.copy(E.hor)
+ }
  R.init = function(cv, opts) {
   if (THREE = root.THREE, !THREE) return R.ok = !1, !1;
   canvas = cv, quality = opts && opts.quality || "high";
@@ -15717,6 +15867,11 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
     side: THREE.BackSide
    }));
    lid.position.y = 5050, lid.visible = !1, clouds.add(lid), clouds.userData.lid = lid
+  }
+  try {
+   vcloudInit()
+  } catch (e) {
+   console.warn("nubes volumétricas", e), VCL.mesh = null
   }
   sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({
    map: TEX.glow,
@@ -15865,6 +16020,11 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
    }, [1, 1]), TEX.skyFade.wrapT = THREE.ClampToEdgeWrapping);
   const cov = clamp(ov + (w && w.weather === "variable" ? .3 : 0), 0, 1),
    photoSky = !!TEX.skyPano && tod === "day" && ov < .6;
+  if (VCL.mesh) {
+   /* cobertura: cúmulos de buen tiempo en seco, más nube con tiempo variable y cielo cerrado con lluvia */
+   const E = VCL.env || (VCL.env = { sun: new THREE.Color, at: new THREE.Color, ab: new THREE.Color, hor: new THREE.Color });
+   E.cov = clamp(.34 + (w && w.weather === "variable" ? .16 : 0) + ov * .55, .2, .98), E.dark = clamp(ov * 1.1, 0, 1), tod === "night" ? (E.sun.setRGB(.05, .06, .09), E.at.setRGB(.035, .045, .075), E.ab.setRGB(.02, .025, .04)) : tod === "dusk" ? (E.sun.setRGB(2.1, 1.1, .55), E.at.setRGB(.36, .34, .46), E.ab.setRGB(.24, .18, .2)) : (E.sun.setRGB(1.75, 1.68, 1.55), E.at.setRGB(.5, .6, .8), E.ab.setRGB(.3, .33, .39)), E.hor.set(hor)
+  }
   if (clouds) {
    const cm0 = clouds.material;
    clouds.userData.lid && (clouds.userData.lid.visible = photoSky, photoSky && clouds.userData.lid.material.map !== TEX.skyPano && (clouds.userData.lid.material.map = TEX.skyPano,
@@ -16214,7 +16374,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
   })
  }
  const TH_PALS = ["Hierro", "Blanco caliente", "Negro caliente", "Arcoíris", "Ártico", "Lava"], TH_MODES = ["Temperatura medida (radiométrica)", "Temperatura real de cada superficie", "Emisividad de cada material", "Error de medida (medida − real)"];
- R.__therm = () => ({ THERM, THU, composer, ao, bloom, camera, scene, OCC, tvPosts, occluded, cam, occRC, trackGroup, MIR, cars });
+ R.__therm = () => ({ THERM, THU, composer, ao, bloom, camera, scene, OCC, tvPosts, occluded, cam, occRC, trackGroup, MIR, cars, VCL });
  R.setThermal = function(on) {
   THERM.on = on;
   if (THERM.pass && composer) {
@@ -17419,7 +17579,7 @@ varying float vOccY;`).replace("#include <lights_fragment_maps>", `#include <lig
    sd = tod === "dusk" ? [-260, 120, -80] : [-215, 195, -170];
   if (sun.position.set(tx + sd[0], ty + sd[1], tz + sd[2]), sun.target.position.set(tx, ty, tz), R.__shFoc && R.__shFoc.value.set(tx, ty, tz), sun.shadow.camera.left = sun.shadow
    .camera.bottom = cam.mode === "top" ? -400 : -70, sun.shadow.camera.right = sun.shadow.camera.top = cam.mode === "top" ? 400 : 70, sun.shadow.camera.updateProjectionMatrix(),
-   sky.position.copy(camera.position), clouds && (clouds.position.set(camera.position.x, 0, camera.position.z), TEX.clouds.offset.x = performance.now() / 1e3 * .0015 % 1),
+   sky.position.copy(camera.position), vcloudStep(sd), clouds && (clouds.position.set(camera.position.x, 0, camera.position.z), TEX.clouds.offset.x = performance.now() / 1e3 * .0015 % 1, VCL.mesh && VCL.mesh.visible && (clouds.visible = !1)),
    sunSpr && sunSpr.userData.hide && (sunSpr.visible = !1), sunSpr) {
    const v = new THREE.Vector3(sd[0], sd[1], sd[2]).normalize().multiplyScalar(4300);
    sunSpr.position.copy(camera.position).add(v)
