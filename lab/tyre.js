@@ -103,12 +103,12 @@ LAB.tyre = (() => {
     g3.spin = new T.Group(), g3.wheel.add(g3.spin);
     const tyreMat = new T.MeshPhysicalMaterial({ vertexColors: !0, roughness: .82, metalness: 0, sheen: .4, sheenColor: new T.Color("#555") }), tg = new T.TorusGeometry(.27, .09, 24, 96).scale(1, 1, 1.85), tn = tg.attributes.position.count;
     tg.setAttribute("color", new T.BufferAttribute(new Float32Array(tn * 3).fill(.1), 3));
-    g3.tyre = new T.Mesh(tg, tyreMat), g3.spin.add(g3.tyre);
+    g3.fb = new T.Group(), g3.spin.add(g3.fb), g3.tyre = new T.Mesh(tg, tyreMat), g3.fb.add(g3.tyre);
     /* qué vértices son banda de rodadura y de qué tercio */
     g3.tread = [];
     { const pa = tg.attributes.position.array; for (let i = 0; i < tn; i++) { const r = Math.hypot(pa[i * 3], pa[i * 3 + 1]), z = pa[i * 3 + 2]; r > .315 && g3.tread.push([i, z < -.055 ? 0 : z > .055 ? 2 : 1, clamp((r - .315) / .045, 0, 1)]) } }
-    const rim = new T.Mesh(new T.CylinderGeometry(.23, .23, .3, 48, 1, !0).rotateX(Math.PI / 2), new T.MeshStandardMaterial({ color: "#3a3f45", metalness: .9, roughness: .28, side: T.DoubleSide })); g3.spin.add(rim);
-    for (let k = 0; k < 10; k++) { const sp = new T.Mesh(new T.BoxGeometry(.03, .19, .02), new T.MeshStandardMaterial({ color: "#2b2f34", metalness: .85, roughness: .3 })); sp.position.set(0, .11, .13), sp.position.applyAxisAngle(new T.Vector3(0, 0, 1), k / 10 * TAU), sp.rotation.z = k / 10 * TAU, g3.spin.add(sp) }
+    const rim = new T.Mesh(new T.CylinderGeometry(.23, .23, .3, 48, 1, !0).rotateX(Math.PI / 2), new T.MeshStandardMaterial({ color: "#3a3f45", metalness: .9, roughness: .28, side: T.DoubleSide })); g3.fb.add(rim);
+    for (let k = 0; k < 10; k++) { const sp = new T.Mesh(new T.BoxGeometry(.03, .19, .02), new T.MeshStandardMaterial({ color: "#2b2f34", metalness: .85, roughness: .3 })); sp.position.set(0, .11, .13), sp.position.applyAxisAngle(new T.Vector3(0, 0, 1), k / 10 * TAU), sp.rotation.z = k / 10 * TAU, g3.fb.add(sp) }
     /* banda con sus tres zonas de temperatura (anillos de color) */
 
     /* asfalto de cristal */
@@ -125,7 +125,8 @@ LAB.tyre = (() => {
     /* corte de la banda: 3 capas × 3 bandas */
     g3.cut = [];
     for (let l = 0; l < 3; l++) for (let r = 0; r < 3; r++) { const m = new T.Mesh(new T.BoxGeometry(.012, .03, .105), new T.MeshBasicMaterial({ color: "#333", toneMapped: !1 })); m.position.set(-.45, .62 - l * .034, (r - 1) * .11), scene.add(m), g3.cut.push(m) }
-    st = { az: .55, el: .45, d: 1.6, t: new T.Vector3(0, .15, 0) };
+    LAB.carmesh && LAB.carmesh.load().then(d => { try { d && d.rig && d.rig.prof && realTyre(d.rig.prof.F, tyreMat) } catch (e) { console.warn("neumático real", e) } });
+    st = { az: .42, el: .26, d: 1.55, t: new T.Vector3(0, .3, 0) };
     const place = () => { const c = Math.cos(st.el); cam.position.set(st.t.x + st.d * c * Math.cos(st.az), st.t.y + st.d * Math.sin(st.el), st.t.z + st.d * c * Math.sin(st.az)), cam.lookAt(st.t) };
     let drag = null;
     const cv = R3.domElement;
@@ -133,10 +134,48 @@ LAB.tyre = (() => {
     cv.addEventListener("pointermove", e => { if (!drag) return; st.az += (e.clientX - drag[0]) * .007, st.el = clamp(st.el + (e.clientY - drag[1]) * .005, -1.4, 1.5), drag = [e.clientX, e.clientY], place() });
     cv.addEventListener("pointerup", () => drag = null), cv.addEventListener("wheel", e => { e.preventDefault(), st.d = clamp(st.d * Math.exp(e.deltaY * .001), .4, 6), place() }, { passive: !1 });
     try { if (T.EffectComposer) { comp3 = new T.EffectComposer(R3); comp3.addPass(new T.RenderPass(scene, cam)), comp3.addPass(new T.OutputPass()), T.SMAAPass && comp3.addPass(new T.SMAAPass(400, 300)) } } catch (e) { comp3 = null }
-    const fit = () => { const r = h.getBoundingClientRect(), w = Math.max(1, r.width), hh = Math.max(1, r.height); R3.setSize(w, hh, !1), comp3 && comp3.setSize(w, hh), cam.aspect = w / hh, cam.updateProjectionMatrix() };
+    const fit = () => { const r = h.getBoundingClientRect(), w = Math.max(1, r.width), hh = Math.max(1, r.height); R3.setSize(w, hh, !1), comp3 && comp3.setSize(w, hh), cam.aspect = w / hh, cam.filmOffset = w > 620 ? -4.6 : 0, st.t.y = w > 620 ? .3 : .37, cam.updateProjectionMatrix(), place() };
     new ResizeObserver(fit).observe(h), fit(), place();
-    h.view = v => { Object.assign(st, { iso: { az: .55, el: .45, d: 1.6 }, below: { az: .001, el: -1.35, d: .9 }, side: { az: Math.PI / 2, el: .05, d: 1.4 }, front: { az: 0, el: .15, d: 1.3 } }[v] || {}), place() };
+    h.view = v => { Object.assign(st, { iso: { az: .42, el: .26, d: 1.55 }, below: { az: .001, el: -1.35, d: .9 }, side: { az: Math.PI / 2, el: .05, d: 1.4 }, front: { az: 0, el: .15, d: 1.3 } }[v] || {}), place() };
     return !0
+  }
+  /* La rueda del propio coche: su perfil (el del modelo 3D) girado alrededor del eje, con un gajo abierto que enseña el corte.
+     Capas de fuera adentro: banda de rodadura (el compuesto que se gasta), subcapa, cinturones, carcasa radial y revestimiento
+     interior; en los flancos, goma de flanco sobre la carcasa; en cada talón, el aro de alambre de acero. Los espesores son valores
+     típicos de un neumático de competición de 18" (el fabricante no publica los suyos). Banda, subcapa y carcasa se colorean con las
+     tres capas del modelo térmico, tercio a tercio. */
+  function realTyre(prof, tyreMat) {
+    const raw = prof.filter(p => p[1] >= .2475), cv = new T.CatmullRomCurve3(raw.map(p => new T.Vector3(p[0], p[1], 0)), !1, "centripetal"), ty = cv.getPoints(72).map(v => [v.x, v.y]), n = ty.length, R0 = Math.max(...ty.map(p => p[1]));
+    const nrm = ty.map((p, k) => { const a = ty[Math.max(0, k - 1)], b = ty[Math.min(n - 1, k + 1)], tx = b[0] - a[0], tr = b[1] - a[1], L = Math.hypot(tx, tr) || 1; let nx = -tr / L, nr = tx / L; nx * -p[0] + nr * (.3 - p[1]) < 0 && (nx = -nx, nr = -nr); return [nx, nr] });
+    const trw = ty.map(p => { const t = clamp((p[1] - (R0 - .024)) / .013, 0, 1); return t * t * (3 - 2 * t) });
+    const bnd = k => { const t = trw[k], b1 = .0035 + .0005 * t, b2 = b1 + .0015 * t, b3 = b2 + .003 * t, b4 = b3 + .0023 + .0005 * t; return [0, b1, b2, b3, b4, b4 + .0012] };
+    const off = (k, d) => [ty[k][0] + nrm[k][0] * d, ty[k][1] + nrm[k][1] * d], TH0 = -12 * DEG, TH1 = 50 * DEG, at = (p, th) => [p[1] * Math.cos(th), p[1] * Math.sin(th), p[0]];
+    const NS = 96, ths = []; for (let i = 0; i <= NS; i++) ths.push(TH1 + (TAU - (TH1 - TH0)) * i / NS);
+    const lathe = (curve, angs) => { const pos = [], idx = [], m = angs.length; curve.forEach(p => angs.forEach(th => pos.push(...at(p, th)))); for (let k = 0; k < curve.length - 1; k++) for (let i = 0; i < m - 1; i++) { const a = k * m + i, c = a + m; idx.push(a, a + 1, c, a + 1, c + 1, c) } const g = new T.BufferGeometry(); g.setAttribute("position", new T.BufferAttribute(new Float32Array(pos), 3)), g.setIndex(idx), g.computeVertexNormals(); return g };
+    g3.spin.remove(g3.fb);
+    const W = new T.Group(); g3.wheel.add(W), g3.real = W;
+    /* cubierta por fuera (con el color de temperatura de la banda) y por dentro */
+    const og = lathe(ty, ths), on = og.attributes.position.count; og.setAttribute("color", new T.BufferAttribute(new Float32Array(on * 3).fill(.1), 3));
+    g3.tyre = new T.Mesh(og, tyreMat), tyreMat.side = T.DoubleSide, W.add(g3.tyre), g3.tread = [];
+    { const pa = og.attributes.position.array; for (let i = 0; i < on; i++) { const r = Math.hypot(pa[i * 3], pa[i * 3 + 1]), z = pa[i * 3 + 2]; r > R0 - .045 && g3.tread.push([i, z < -.055 ? 0 : z > .055 ? 2 : 1, clamp((r - (R0 - .045)) / .045, 0, 1)]) } }
+    W.add(new T.Mesh(lathe(ty.map((p, k) => off(k, bnd(k)[5])), ths), new T.MeshStandardMaterial({ color: "#3a2a57", roughness: .85, side: T.DoubleSide })));
+    /* caras del corte: una tira por capa entre dos fronteras, en los dos extremos del gajo */
+    const strip = (j, sel) => { const pos = [], idx = []; for (const th of [TH0, TH1]) for (let k = 0; k < n - 1; k++) { if (!sel(k)) continue; const b0 = bnd(k), b1 = bnd(k + 1), q = pos.length / 3; pos.push(...at(off(k, b0[j]), th), ...at(off(k + 1, b1[j]), th), ...at(off(k + 1, b1[j + 1]), th), ...at(off(k, b0[j + 1]), th)), idx.push(q, q + 1, q + 2, q, q + 2, q + 3) } const g = new T.BufferGeometry(); g.setAttribute("position", new T.BufferAttribute(new Float32Array(pos), 3)), g.setIndex(idx); return g };
+    const rib = k => { const z = (ty[k][0] + ty[k + 1][0]) / 2; return z < -.055 ? 0 : z > .055 ? 2 : 1 }, tread = k => (trw[k] + trw[k + 1]) / 2 > .5;
+    const flat = (g, col) => { const m = new T.Mesh(g, new T.MeshBasicMaterial({ color: col, side: T.DoubleSide, toneMapped: !1 })); W.add(m); return m };
+    for (const m of g3.cut) scene.remove(m);
+    g3.cut = [];
+    for (let l = 0; l < 3; l++) for (let r = 0; r < 3; r++) g3.cut.push(flat(strip([0, 1, 3][l], k => rib(k) === r && (l === 2 || tread(k))), "#333"));
+    flat(strip(0, k => !tread(k)), "#1b1c1f"), flat(strip(2, () => !0), "#8fa3bd"), flat(strip(4, () => !0), "#6a4a9a");
+    /* aro del talón (alambre de acero) en cada lado y cada cara */
+    for (const th of [TH0, TH1]) for (const k of [2, n - 3]) { const c = new T.Mesh(new T.CircleGeometry(.0042, 18), new T.MeshBasicMaterial({ color: "#d7dbe0", side: T.DoubleSide, toneMapped: !1 })), p = at(off(k, .0062), th), tn = new T.Vector3(-Math.sin(th), Math.cos(th), 0); c.position.set(p[0], p[1], p[2]).addScaledVector(tn, th === TH0 ? .0004 : -.0004), c.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), tn), W.add(c) }
+    /* llanta: pestañas y tapacubos del modelo, y la garganta entre los dos asientos del talón (no se ve desde fuera, se ve por el gajo) */
+    const full = []; for (let i = 0; i <= 64; i++) full.push(TAU * i / 64);
+    const metal = new T.MeshStandardMaterial({ color: "#2f3338", metalness: .9, roughness: .3, side: T.DoubleSide }), i0 = prof.findIndex(p => p[1] >= .2475), i1 = prof.length - 1 - [...prof].reverse().findIndex(p => p[1] >= .2475);
+    g3.spin.add(new T.Mesh(lathe(prof.slice(0, i0 + 1), full), metal)), g3.spin.add(new T.Mesh(lathe(prof.slice(i1).filter(p => p[1] >= .045), full), new T.MeshStandardMaterial({ color: "#101114", metalness: .3, roughness: .5, side: T.DoubleSide })));
+    g3.spin.add(new T.Mesh(lathe(prof.slice(i1).filter(p => p[1] <= .05), full), new T.MeshStandardMaterial({ color: "#b98a2c", metalness: 1, roughness: .25, side: T.DoubleSide })));
+    const zi = ty[0][0], zo = ty[n - 1][0];
+    g3.spin.add(new T.Mesh(lathe([[zi, .2475], [zi + .012, .2296], [zi + .07, .2296], [zi + .09, .218], [zo - .09, .218], [zo - .07, .2296], [zo - .012, .2296], [zo, .2475]], full), new T.MeshStandardMaterial({ color: "#a9afb6", metalness: .9, roughness: .36, side: T.DoubleSide })))
   }
   const heat = t => { t = clamp(t, 0, 1); const s = [[.1, .15, .35], [.2, .45, 1], [.15, .8, .5], [1, .85, .2], [1, .4, .1], [1, .15, .15]], x = t * (s.length - 1), i = Math.min(s.length - 2, x | 0), f = x - i; return [s[i][0] + (s[i + 1][0] - s[i][0]) * f, s[i][1] + (s[i + 1][1] - s[i][1]) * f, s[i][2] + (s[i + 1][2] - s[i][2]) * f] };
   function draw3d(dt) {
@@ -163,6 +202,18 @@ LAB.tyre = (() => {
     for (let r = 0; r < 3; r++) for (let l = 0; l < 3; l++) { const Tv = [S.Ts, S.Tb, S.Tc][l][2 - r], c2 = tc(Tv); g3.cut[l * 3 + r].material.color.setRGB(...c2) }
     comp3 ? comp3.render() : R3.render(scene, cam)
   }
+  /* corte ampliado: las capas de fuera adentro, con el espesor que se ha dibujado y, en las tres que calcula el modelo térmico, la
+     temperatura de cada tercio de la banda (mismos colores que el gajo de la rueda) */
+  function cutLegend() {
+    const h = $("tyCut"); if (!h || !S) return;
+    const C = TM().COMP[P().comp], col = Tv => { const c = heat((Tv - (C.Topt - 60)) / 100); return `rgb(${c.map(v => Math.round(v * 255)).join(",")})` };
+    const hot = (name, mm, A) => `<div class="tcr"><span>${name}<i>${mm}</i></span>${[0, 1, 2].map(r => `<b style="background:${col(A[r])}">${A[r].toFixed(0)}°</b>`).join("")}</div>`;
+    const cold = (name, mm, c, txt) => `<div class="tcr"><span>${name}<i>${mm}</i></span><em style="background:${c}">${txt || ""}</em></div>`;
+    const pHot = P().pin * (S.Tgas + 273) / (P().T0 + 273);
+    h.innerHTML = `<div class="tch"><span>Corte de la cubierta, de fuera adentro</span><b>int.</b><b>centro</b><b>ext.</b></div>` +
+      hot("Banda: superficie", "4 mm", S.Ts) + hot("Subcapa: goma por dentro", "1,5 mm", S.Tb) + cold("Cinturones", "3 mm", "#8fa3bd") +
+      hot("Carcasa radial", "2,8 mm", S.Tc) + cold("Butilo interior", "1,2 mm", "#6a4a9a") + cold("Aire", "", "#1b2733", `${S.Tgas.toFixed(0)} °C · ${pHot.toFixed(1)} psi`)
+  }
   let last = 0, fn = 0;
   function loop(now) {
     requestAnimationFrame(loop);
@@ -173,7 +224,8 @@ LAB.tyre = (() => {
     if (++fn % 8 === 0) {
       play && histPush(), readouts();
       fn % 24 === 0 && (histPlots(), verdict());
-      $("tyInfo").innerHTML = `<b>Huella ${(2 * B.a * 1e3).toFixed(0)} × ${(B.w * 1e3).toFixed(0)} mm</b> · Fy ${(B.Fy / 1e3).toFixed(2)} kN · Fx ${(B.Fx / 1e3).toFixed(2)} kN · ${Math.round(B.slide * 100)} % deslizando · ${simT.toFixed(0)} s<br><span>${{ slide: "verde: la goma se agarra · rojo: desliza", p: "presión de contacto", pw: "potencia de fricción (calor)", tau: "tensión tangencial" }[mapMode]} · flechas: fuerza de cada cerda · a la izquierda, el corte de la banda (superficie, goma, carcasa; interior a exterior)</span>`
+      $("tyInfo").innerHTML = `<b>Huella ${(2 * B.a * 1e3).toFixed(0)} × ${(B.w * 1e3).toFixed(0)} mm</b> · Fy ${(B.Fy / 1e3).toFixed(2)} kN · Fx ${(B.Fx / 1e3).toFixed(2)} kN · ${Math.round(B.slide * 100)} % deslizando · ${simT.toFixed(0)} s<br><span>${{ slide: "verde: la goma se agarra · rojo: desliza", p: "presión de contacto", pw: "potencia de fricción (calor)", tau: "tensión tangencial" }[mapMode]} · flechas: fuerza de cada cerda · el gajo abierto enseña las capas</span>`;
+      cutLegend()
     }
   }
   function init(el0) {
@@ -184,9 +236,10 @@ LAB.tyre = (() => {
     <div class="labgrid">
       <aside class="params" id="tyParams"></aside>
       <section class="views">
-        <div class="vrow"><div class="s3host" id="ty3d"><div class="s3info" id="tyInfo"></div></div><div class="verdict" id="tyVerdict"></div></div>
+        <div class="vrow"><div class="s3host" id="ty3d"><div class="s3info" id="tyInfo"></div><div class="tycut" id="tyCut"></div></div><div class="verdict" id="tyVerdict"></div></div>
         <div class="ctrl"><button class="btn on" id="tyRun">Pausa</button><button class="btn" id="tyReset">Volver a empezar</button><label>Tiempo <select id="tySpd"><option value="1">×1</option><option value="5">×5</option><option value="20" selected>×20</option><option value="60">×60</option></select></label></div>
         <div class="ctrl s3views"><span>Mapa</span><button class="btn on" data-tm="slide">Agarre y deslizamiento</button><button class="btn" data-tm="p">Presión</button><button class="btn" data-tm="tau">Tensión</button><button class="btn" data-tm="pw">Calor</button><span>Vista</span><button class="btn" data-tv="iso">3/4</button><button class="btn" data-tv="below">Desde abajo</button><button class="btn" data-tv="front">De frente</button></div>
+        <p class="sub" style="margin:6px 0 0">La rueda es la del coche. El gajo abierto enseña el corte, de fuera adentro: banda de rodadura, subcapa, cinturones (azul grisáceo), carcasa radial y revestimiento interior de butilo (morado); en los flancos, goma de flanco, y en cada talón el aro de alambre de acero. Por el gajo se ve la llanta (garganta y asientos del talón). Banda, subcapa y carcasa llevan el color de su temperatura en cada tercio, y la tabla del visor da las cifras; los espesores son valores típicos de un neumático de competición (el fabricante no publica los suyos).</p>
         <div class="readouts" id="tyRo"></div>
         <div class="pgrid"><canvas id="tyFy"></canvas><canvas id="tyTemp"></canvas><canvas id="tyWear"></canvas><canvas id="tyEll"></canvas></div>
         <h3 class="adv">Autoalineante y tracción</h3>

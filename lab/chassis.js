@@ -163,7 +163,7 @@ LAB.chassis = (() => {
   function buildCarSkin() {
     const S = res.S, car = LAB.car, sp = S.sp.slice(0, 14).map(n => S.nodes[n]), objs = [], parts = [];
     const xF = S.nodes[S.sp[3]].x, xR = S.nodes[S.sp[12]].x, wheelOf = (front, side) => S.wheels.findIndex(w => w.front === front && w.side === side);
-    const SOLID = /tyre|rim|disc|gold|visor|mirror|hot|white|afa8/;
+    const SOLID = /tyre|rim|disc|gold|visor|mirror|hot|white|stripe|satin/;
     for (const m of carData.meshes) {
       const grp = carData.groups[m.g] || { t: [0, 0, 0] }, src = m.geo.attributes.position.array, n = src.length / 3, base = new Float32Array(n * 3);
       for (let v = 0; v < n; v++) {
@@ -175,7 +175,7 @@ LAB.chassis = (() => {
         const x = base[v * 3], y = base[v * 3 + 1], z = base[v * 3 + 2];
         if (isW) { cls[v] = 3, wi[v] = wheelOf(grp.t[0] > 0, grp.t[2] > 0 ? 1 : -1), ww[v] = 1; continue }
         /* alerón delantero: planos y placas laterales (el morro y sus pilares siguen a la columna) */
-        if (m.g === "fwflap_0" || m.g === "fwflap_1" || (m.g === "static" && x > xF + .5 && z < .24 && Math.abs(y) > .16)) { cls[v] = 1; continue }
+        if (/^fwflap_/.test(m.g) || ((m.g === "static" || m.g === "nose") && x > xF + .5 && z < .24 && Math.abs(y) > .16)) { cls[v] = 1; continue }
         if (m.g === "rwflap" || (m.g === "static" && x < xR - .45 && z > .5)) { cls[v] = 2; continue }
         cls[v] = 0;
         /* brazos de suspensión y carenados de las manguetas: hacia la rueda */

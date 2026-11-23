@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf8"><style>html,body{margin:0;background:#8a9099}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script></head><body>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+const q = new URLSearchParams(location.search);
+const W = +q.get("w") || 1400, H = +q.get("h") || 800;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(W, H); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(q.get("bg") || "#9aa1ab");
+const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+const sun = new THREE.DirectionalLight("#fff", 2.2); sun.position.set(-3, 6, 4); scene.add(sun);
+const cam = new THREE.PerspectiveCamera(+q.get("fov") || 28, W / H, 0.02, 200);
+window.__state = "loading"; window.__err = null;
+window.setCam = (px, py, pz, tx, ty, tz, fov) => { if (fov) { cam.fov = fov; cam.updateProjectionMatrix(); } cam.position.set(px, py, pz); cam.lookAt(tx, ty, tz); renderer.render(scene, cam); };
+window.__THREE = THREE; window.__scene = scene;
+new GLTFLoader().load(q.get("m"), g => {
+  const root = g.scene; scene.add(root); window.__root = root;
+  const only = q.get("only"), hide = q.get("hide");
+  root.traverse(o => { if (o.isMesh) { if (only && !new RegExp(only).test(o.name + "|" + (o.parent && o.parent.name) + "|" + (o.material && o.material.name))) o.visible = false; if (hide && new RegExp(hide).test(o.name + "|" + (o.parent && o.parent.name) + "|" + (o.material && o.material.name))) o.visible = false; if (q.get("flat")) { o.material = new THREE.MeshStandardMaterial({ color: "#b9bdc4", roughness: .55, metalness: .1, side: THREE.DoubleSide }); } if (q.get("wire")) { o.material = new THREE.MeshBasicMaterial({ color: "#111", wireframe: true }); } } });
+  const grid = new THREE.GridHelper(8, 16, "#444", "#777"); if (q.get("grid")) scene.add(grid);
+  window.__state = "ok"; setCam(-5.2, 2.2, 4.6, 0, .45, 0);
+}, undefined, e => { window.__state = "err"; window.__err = String(e && e.message || e); });
+</script></body></html>

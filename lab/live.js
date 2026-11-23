@@ -9,11 +9,10 @@ window.SUSP_LIVE = (() => {
   function params() {
     let L = null;
     try { L = JSON.parse(localStorage.getItem("pn3-setup") || "null") } catch { }
-    setup = L && L.v === 1 ? L : null;
+    setup = L && L.v === 2 ? L : null;
     /* el coche del reglamento elegido en el simulador: vía y radio de rueda; los puntos exteriores siguen a la vía */
-    const CAR = window.Sim && Sim.CAR || {}, tf = Math.round((CAR.tf || 1.6) * 1e3), base = LAB.kin3d.toParams(LAB.kin3d.PUSH), dy = (tf - 1620) / 2;
-    for (const k of ["LO", "UO", "PO", "TO"]) base["hp_" + k + "_y"] += dy;
-    Object.assign(base, { rtyre: CAR.reg === "2026" ? 355 : 360, track: tf, camber: -3.2, toe: .1 }, setup && setup.hp || {});
+    const base = LAB.kin3d.toParams(LAB.kin3d.PUSH);
+    Object.assign(base, { rtyre: LAB.kin3d.PUSH.R, track: LAB.kin3d.PUSH.track, camber: -3.2, toe: .1 }, setup && setup.hp || {});
     return base
   }
   function table(P) {
@@ -55,8 +54,8 @@ window.SUSP_LIVE = (() => {
     LAB.carmesh && LAB.carmesh.load().then(d => {
       if (!d) return;
       const r26 = window.Sim && Sim.CAR && Sim.CAR.reg === "2026", mx = r26 ? 1 : 3.6 / 3.4;
-      const g = LAB.carmesh.build(T, d, { ghost: .14, filter: m => m.g === "static" && !/ti|tyre|rim|disc|gold/.test(m.m || "") });
-      g.children[0].scale.set(mx, 1, r26 ? .95 : 1), g.position.x = -1.7 * mx, scene.add(g), mono.visible = !1
+      const g = LAB.carmesh.build(T, d, { ghost: .14, filter: m => (m.g === "static" || m.g === "nose") && !/tyre|rim|disc|gold|mirror/.test(m.m || "") });
+      g.children[0].scale.set(mx, 1, r26 ? 1.01 : 1.0627), g.position.x = -1.7 * mx, scene.add(g), mono.visible = !1
     });
     rebuild();
     /* arrastrar para girar la vista */

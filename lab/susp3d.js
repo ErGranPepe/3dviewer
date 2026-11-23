@@ -41,9 +41,18 @@ LAB.susp3d = (() => {
     /* el coche del simulador en transparencia: la suspensión se ve dentro de su carrocería real */
     LAB.carmesh && LAB.carmesh.load().then(d => {
       if (!d) return;
-      const ghost = LAB.carmesh.build(T, d, { ghost: .14, filter: m => m.g === "static" && !/ti|tyre|rim|disc|gold/.test(m.m || "") });
+      const ghost = LAB.carmesh.build(T, d, { ghost: .2, filter: m => (m.g === "static" || m.g === "nose") && !/tyre|rim|disc|gold|mirror/.test(m.m || "") });
       ghost.position.x = -1.7 * LAB.car.mx, ghost.traverse(o => o.isMesh && (o.renderOrder = 2, o.userData.ghost = 1)), scene.add(ghost);
-      parts.car = ghost, mono.visible = nose.visible = !1, parts.mono = parts.nose = ghost
+      parts.car = ghost, mono.visible = nose.visible = !1, parts.mono = parts.nose = ghost;
+      /* los brazos del propio modelo del coche (sus carenados): la cinemática los mueve como piezas rígidas, cada uno sobre su anclaje.
+         Dentro van los tubos estructurales calculados aquí; si la geometría es coherente, tubo y carenado coinciden en todo el recorrido */
+      parts.fair = [];
+      if (d.rig) for (const a of d.rig.arms) {
+        const hold = new T.Group(), sc = new T.Group();
+        sc.scale.set(LAB.car.mx, 1, LAB.car.mz), hold.add(sc);
+        for (const m of d.meshes) if (m.g === a.g) { const me = new T.Mesh(LAB.carmesh.colorize(T, m), LAB.carmesh.material(T, m, .38)); me.renderOrder = 2, me.userData.ghost = 1, sc.add(me) }
+        hold.visible = !1, scene.add(hold), parts.fair.push({ hold, front: a.w < 2, side: Math.sign(d.rig.wheels[a.w].c[2]), mem: a.g.split("_")[2] })
+      }
     });
     for (const sd of ["L", "R"]) {
       parts.pads[sd] = new T.Mesh(new T.BoxGeometry(.55, .012, .42), new T.MeshStandardMaterial({ color: "#2c333b", roughness: .9 })), scene.add(parts.pads[sd]);
@@ -69,7 +78,7 @@ LAB.susp3d = (() => {
     cv.addEventListener("contextmenu", e => e.preventDefault()), cv.addEventListener("wheel", e => { e.preventDefault(), st.d = clamp(st.d * Math.exp(e.deltaY * .001), .25, 8), place() }, { passive: !1 });
     const fit = () => { const r = host.getBoundingClientRect(); R.setSize(r.width, r.height, !1), cam.aspect = r.width / Math.max(1, r.height), cam.fov = cam.aspect < 1.5 ? clamp(30 * 1.5 / cam.aspect, 30, 52) : 30, cam.updateProjectionMatrix() };
     new ResizeObserver(fit).observe(host), fit(), place();
-    host.view = (v) => { Object.assign(st, { all: { az: .55, el: .28, d: 2.9, t: new T.Vector3(.05, .32, 0) }, corner: { az: -.75, el: .22, d: 1.2, t: new T.Vector3(0, .3, .62) }, inside: { az: -2.45, el: .32, d: .62, t: new T.Vector3(-.02, .34, .62) }, brake: { az: -.98, el: .16, d: .56, t: new T.Vector3(0, .33, .7) }, rocker: { az: 2.3, el: .62, d: .62, t: new T.Vector3(-.06, .56, .12) }, top: { az: .01, el: 1.4, d: 2.6, t: new T.Vector3(0, .3, 0) }, steer: { az: Math.PI - .4, el: .5, d: 1.7, t: new T.Vector3(-.1, .36, 0) } }[v] || {}), st.t = st.t.clone(), place() };
+    host.view = (v) => { Object.assign(st, { all: { az: .55, el: .28, d: 2.9, t: new T.Vector3(.05, .32, 0) }, corner: { az: -.75, el: .22, d: 1.2, t: new T.Vector3(0, .3, .62) }, inside: { az: -2.45, el: .32, d: .62, t: new T.Vector3(-.02, .34, .62) }, brake: { az: -.98, el: .16, d: .56, t: new T.Vector3(0, .33, .7) }, rocker: { az: 2.2, el: .55, d: .7, t: new T.Vector3(-.03, .42, .04) }, top: { az: .01, el: 1.4, d: 2.6, t: new T.Vector3(0, .3, 0) }, steer: { az: Math.PI - .5, el: .42, d: 3, t: new T.Vector3(-.6, .42, 0) } }[v] || {}), st.t = st.t.clone(), place() };
     clip = new T.Plane(new T.Vector3(-1, 0, 0), 0);
     host.cam = (az, el, d, x, y, z) => { Object.assign(st, { az, el, d, t: new T.Vector3(x, y, z) }), place() };
     return !0
@@ -110,7 +119,9 @@ LAB.susp3d = (() => {
     A.boots = [-1, 1].map(() => add(S.lathe(bootProf, 20), M.boot, { name: "Fuelle de la cremallera", mat: "Elastómero", kg: .03, info: "Protege la cremallera del polvo de frenos y de los restos de goma." }));
     A.innerJ = [-1, 1].map(() => add(new T.SphereGeometry(.014, 16, 12), M.steel));
     A.pinion = add(S.put(S.cyl(.02, .07, 20), new T.Vector3(tiR.x - .02, tiR.y + .04, .03), new T.Vector3(-.4, 1, 0).normalize()), M.alu);
-    A.col = add(S.cyl(.012, 1, 16), M.steel, { name: "Columna de dirección", mat: "Acero con junta cardán", kg: .8, info: "" });
+    A.col = add(S.cyl(.012, 1, 16), M.steel, { name: "Columna de dirección (tramo del volante)", mat: "Acero", kg: .5, info: "Sale del volante con su misma inclinación y termina en una junta cardán." });
+    A.col2 = add(S.cyl(.011, 1, 16), M.steel, { name: "Columna de dirección (tramo inferior)", mat: "Acero con junta cardán", kg: .7, info: "Pasa por encima de las piernas del piloto, dentro del monocasco, hasta el piñón de la cremallera." });
+    A.ujoint = add(new T.SphereGeometry(.02, 16, 12), M.aluBlk || M.steel, { name: "Junta cardán", mat: "Acero", kg: .15, info: "Permite que el volante vaya inclinado hacia el piloto mientras la columna baja hacia la cremallera." });
     A.sw = new T.Group(); root.add(A.sw);
     A.sw.userData.part = { name: "Volante", mat: "Carbono con pantalla y mandos", kg: 1.3, info: "Giro de tope a tope ≈ 360°. Pantalla con marcha, revoluciones y batería; botones de radio, limitador de boxes y neutro; ruedas de reparto de frenada, diferencial y mapa de motor; levas de cambio y de embrague por detrás." };
     {
@@ -158,7 +169,7 @@ LAB.susp3d = (() => {
       addSw(new T.CylinderGeometry(.027, .024, .04, 24).rotateZ(Math.PI / 2).translate(.046, 0, 0), M.alu), addSw(new T.CylinderGeometry(.031, .031, .01, 24).rotateZ(Math.PI / 2).translate(.062, 0, 0), M.knobR)
     }
     /* barra estabilizadora de lámina: tubo transversal con láminas giratorias y bieletas a cada balancín */
-    const rpR = S.W(g.RP, 1), ax = rpR.x - .11, ay = rpR.y + .06, az = Math.abs(rpR.z) - .02;
+    const rpR = S.W(g.RP, 1), ax = rpR.x - .11, ay = rpR.y + .03, az = Math.abs(rpR.z) - .02;
     A.arbTube = add(S.put(S.cyl(.011, az * 2, 24), new T.Vector3(ax, ay, 0), new T.Vector3(0, 0, 1)), M.tiDark.clone(), { name: "Barra estabilizadora (tubo de torsión)", mat: "Titanio β", kg: .5, info: "Se retuerce solo cuando las dos ruedas suben distinto (balanceo); su rigidez reparte la transferencia de carga entre ejes." });
     A.arbC = new T.Vector3(ax, ay, 0), A.arbZ = az;
     A.blades = [-1, 1].map(sd => { const gr = new T.Group(); gr.position.set(ax, ay, sd * az), root.add(gr); const b = new T.Mesh(new T.BoxGeometry(.075, .007, .03).translate(.0375, 0, 0), M.aluBlk); b.castShadow = !0, b.userData.part = { name: "Lámina de la estabilizadora", mat: "Acero de muelle", kg: .08, info: "Girar la lámina de plano a canto cambia su rigidez a flexión: así se ajusta la barra sin desmontarla." }; gr.add(b, new T.Mesh(S.cyl(.016, .02, 20).rotateX(Math.PI / 2), M.ti)); return { gr, b } });
@@ -185,10 +196,14 @@ LAB.susp3d = (() => {
       const o = A.boots[i]; o.matrixAutoUpdate = !1, o.matrix.copy(S.basisM(new T.Vector3(1, 0, 0), new T.Vector3(0, 0, sd), e0)).multiply(new T.Matrix4().makeScale(1, Math.max(.005, L - .012), 1));
       A.innerJ[i].position.copy(p)
     });
-    const pin = tL.clone().lerp(tR, .5), swP = new T.Vector3(-.62, .62, 0);
-    /* el volante va perpendicular a la columna y gira sobre su eje */
-    const colA = pin.clone().add(new T.Vector3(-.02, .06, 0)), colD = colA.clone().sub(swP).normalize();
-    placeCyl(A.col, colA, swP.clone().addScaledVector(colD, .06)), A.sw.position.copy(swP), A.sw.quaternion.setFromUnitVectors(new T.Vector3(1, 0, 0), colD).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), -opts.steer * DEG));
+    /* el volante está donde en el coche del simulador: dentro del habitáculo, 1,37 m por detrás del eje delantero (escalado con la batalla)
+       y a 0,60 m del suelo, inclinado 24° hacia el piloto. Antes iba a 0,62 m del eje, en mitad del morro y fuera del habitáculo */
+    const pin = tL.clone().lerp(tR, .5), swP = new T.Vector3((.52 - 1.7) * (LAB.car ? LAB.car.mx : 1), .655, 0);
+    const swA = new T.Vector3(Math.cos(.38), -Math.sin(.38), 0), colA = pin.clone().add(new T.Vector3(-.02, .06, 0)), uj = swP.clone().addScaledVector(swA, .36);
+    placeCyl(A.col, swP.clone().addScaledVector(swA, .05), uj), placeCyl(A.col2, uj, colA), A.ujoint.position.copy(uj);
+    /* gira sobre su eje en el MISMO sentido que las ruedas: volante a derechas (positivo) = cremallera a la derecha = ruedas a la derecha.
+       El eje local x apunta hacia delante, así que el giro positivo es horario visto por el piloto (antes iba con el signo cambiado) */
+    A.sw.position.copy(swP), A.sw.quaternion.setFromUnitVectors(new T.Vector3(1, 0, 0), swA).multiply(new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), opts.steer * DEG));
     /* puntos de estabilizadora y tercer elemento fijos a cada balancín */
     const pts = [AL, AR].map(Ac => ({ arb: rockerPt(Ac, Ac.arb0), hv: rockerPt(Ac, Ac.hv0) }));
     [-1, 1].forEach((sd, i) => {
@@ -218,10 +233,32 @@ LAB.susp3d = (() => {
     const toIn = new T.Vector3(0, 0, -Math.sign(RP.z || 1));
     let dirArb = toIn.clone().multiplyScalar(.5).add(new T.Vector3(0, .8, 0)).normalize(); dirArb.addScaledVector(x, -dirArb.dot(x)).normalize();
     Ac.arb0 = RP.clone().addScaledVector(dirArb, .045).addScaledVector(x, -.02);
-    Ac.hv0 = RP.clone().addScaledVector(toIn, .035).addScaledVector(new T.Vector3(0, -1, 0), .02).addScaledVector(x, .022);
+    /* el tercer elemento va 7 cm por delante del plano de los amortiguadores, para no cruzarse con ellos */
+    Ac.hv0 = RP.clone().addScaledVector(toIn, .035).addScaledVector(new T.Vector3(0, -1, 0), .02).addScaledVector(x, .07);
     const g = Ac.groups.rk, mk = (a, b, w) => { const m = S.mesh(S.beam(a, b, w, .012, w * .8, .01, x, .45), M.ti, { name: "Balancín, palanca", mat: "Titanio", kg: .05, info: "Palanca para la bieleta de la estabilizadora o el tercer elemento." }); g.add(m), Ac.parts.push(m) };
-    mk(RP.clone().addScaledVector(x, -.02), Ac.arb0, .016), mk(RP.clone().addScaledVector(x, .022), Ac.hv0, .016);
+    mk(RP.clone().addScaledVector(x, -.02), Ac.arb0, .016), mk(RP.clone().addScaledVector(x, .07), Ac.hv0, .016);
     g.add(S.mesh(S.put(S.cyl(.008, .014, 16), Ac.arb0, x), M.steel)), g.add(S.mesh(S.put(S.cyl(.009, .014, 16), Ac.hv0, x), M.steel))
+  }
+  /* carenados del modelo: trapecios girados sobre su eje interior hasta su rótula; tirante y bieleta, de su anclaje a su rótula */
+  function poseFair(K, sL, sR) {
+    const g = K.g3, rear = g.type === "pull", W = CAD().W;
+    parts.car && (parts.car.position.x = (rear ? 1.7 : -1.7) * LAB.car.mx);
+    if (axle) for (const k of ["col", "col2", "ujoint", "sw", "pinion"]) axle[k] && (axle[k].visible = !rear);
+    if (!parts.fair) return;
+    const v0 = new T.Vector3(), v1 = new T.Vector3(), ax = new T.Vector3();
+    for (const f of parts.fair) {
+      const on = f.front !== rear;
+      f.hold.visible = on && parts.car.visible !== !1;
+      if (!on) continue;
+      const sd = f.side, sol = sd > 0 ? sR : sL, h = f.hold;
+      const hinge = (A, B, O0, O1) => {
+        const a = W(A, sd); ax.copy(W(B, sd)).sub(a).normalize();
+        v0.copy(W(O0, sd)).sub(a), v0.addScaledVector(ax, -v0.dot(ax)).normalize(), v1.copy(W(O1, sd)).sub(a), v1.addScaledVector(ax, -v1.dot(ax)).normalize();
+        h.quaternion.setFromUnitVectors(v0, v1)
+      };
+      const aim = (I0, O0, I1, O1) => { h.position.copy(W(I1, sd)), v0.copy(W(O0, sd)).sub(W(I0, sd)).normalize(), v1.copy(W(O1, sd)).sub(h.position).normalize(), h.quaternion.setFromUnitVectors(v0, v1) };
+      f.mem === "uw" ? (h.position.copy(W(g.UF, sd)), hinge(g.UF, g.UR, g.UO, sol.UO)) : f.mem === "lw" ? (h.position.copy(W(g.LF, sd)), hinge(g.LF, g.LR, g.LO, sol.LO)) : f.mem === "shr" ? (h.position.copy(W(g.LR, sd)), hinge(g.LF, g.LR, g.LO, sol.LO)) : f.mem === "rod" ? aim(g.RA0, g.PO, sol.RA, sol.PO) : f.mem === "tie" && aim(g.TI, g.TO, sol.TI, sol.TO)
+    }
   }
   function rebuild(m) {
     const K = m.K;
@@ -302,6 +339,7 @@ LAB.susp3d = (() => {
     const opt = side => ({ explode: opts.explode, spin: spin, load: side > 0 ? aux.FtR || 0 : aux.FtL || 0, discT: opts.discT, ex, kt: K.kt || 3e5 });
     CAD().update(C.L, sL, opt(-1)), CAD().update(C.R, sR, opt(1));
     updateAxle(K, sL, sR, rack);
+    poseFair(K, sL, sR);
     clip.constant = CAD().W(sR.WC, 1).x;
     /* firme, pianos y flechas de fuerza */
     const FR = live.FR || [0, 0, aux.FtR || 0], FL = live.FL || [0, 0, aux.FtL || 0];

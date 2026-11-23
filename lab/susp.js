@@ -224,13 +224,9 @@ LAB.susp = (() => {
     kerb: { name: "Salchicha a 200 km/h", v: { road: "salchicha", speed: 200 } }
   };
   /* los puntos exteriores (rótulas, bieleta, dirección) siguen a la vía del reglamento elegido en el simulador */
-  {
-    const dy = (Math.round(LAB.car.tf * 1e3) - 1620) / 2;
-    for (const H of [LAB.kin3d.PUSH, LAB.kin3d.PULL]) if (!H._dy) { for (const k of ["LO", "UO", "PO", "TO"]) H[k] = [H[k][0], H[k][1] + dy, H[k][2]]; H.track = Math.round(LAB.car.tf * 1e3), H._dy = 1 }
-  }
   const DEF = [
     { title: "Lo esencial", open: !0, help: "Empieza por aquí. Cambia un valor y mira cómo responde la rueda en tiempo real.", items: [
-      { id: "type", label: "Tipo de bieleta", v: "push", opts: [["push", "Pushrod (empuja)"], ["pull", "Pullrod (tira)"]], help: "Pushrod: la bieleta sube desde abajo de la mangueta y empuja el balancín. Pullrod: baja desde arriba y tira; deja el muelle más bajo (centro de gravedad) pero empaqueta peor." },
+      { id: "type", label: "Eje del coche", v: "push", opts: [["push", "Delantero (pushrod)"], ["pull", "Trasero (pullrod)"]], help: "Los dos ejes del coche del simulador, con los brazos de su modelo 3D. Delante la bieleta sube desde la mangueta y empuja el balancín (pushrod); detrás baja desde arriba de la mangueta y tira de un balancín que va bajo, junto a la caja de cambios (pullrod)." },
       { id: "speed", label: "Velocidad", unit: "km/h", min: 40, max: 340, step: 1, v: 230 },
       { id: "road", label: "Firme", v: "isoB", opts: [["liso", "Liso"], ["isoB", "Asfalto bueno (ISO B)"], ["isoC", "Asfalto bacheado (ISO C)"], ["salchicha", "Salchicha amarilla (derecha)"], ["pianos", "Pianos dentados"], ["bache", "Bache y escalón"], ["monaco", "Calles de Mónaco"], ["barrido", "Barrido de frecuencia 0,5–30 Hz"]] },
       { id: "kspr", label: "Muelle (en el amortiguador)", unit: "N/mm", min: 100, max: 3000, step: 10, v: 1000, help: "Más duro: menos balanceo y menos cambio de altura (mejor para el suelo aerodinámico), pero la rueda rebota más en baches y pianos." },
@@ -261,7 +257,7 @@ LAB.susp = (() => {
       { id: "inerter", label: "Inerter (J-damper)", unit: "kg", min: 0, max: 60, step: .5, v: 0, help: "Masa aparente entre carrocería y rueda; se usaba para calmar el rebote del neumático (wheel hop)." }
     ]},
     { title: "Rueda: vía, caída y convergencia", adv: !0, items: [
-      { id: "track", label: "Vía", unit: "mm", min: 1400, max: 2000, step: 1, v: Math.round(LAB.car.tf * 1e3) }, { id: "rtyre", label: "Radio del neumático", unit: "mm", min: 300, max: 400, step: 1, v: Math.round(LAB.car.R * 1e3) },
+      { id: "track", label: "Vía", unit: "mm", min: 1400, max: 2000, step: 1, v: LAB.kin3d.PUSH.track }, { id: "rtyre", label: "Radio del neumático", unit: "mm", min: 300, max: 400, step: 1, v: Math.round(LAB.car.R * 1e3) },
       { id: "camber", label: "Caída estática", unit: "°", min: -5, max: 1, step: .05, v: -3.2 }, { id: "toe", label: "Convergencia estática (+ abierta)", unit: "°", min: -1.5, max: 1.5, step: .01, v: .1 }
     ]},
     { title: "Puntos duros 3D (mm)", adv: !0, help: "x adelante desde el eje delantero, y hacia fuera desde el eje del coche, z altura sobre el suelo, rueda derecha en estático. La izquierda es simétrica.", items: [
@@ -502,7 +498,7 @@ LAB.susp = (() => {
     const ser = (k, kt) => k * 2 * kt / (k + 2 * kt), kH = ser(2 * P.kspr * MR * MR + P.kheave * MR * MR, P.ktyre), kH0 = ser(2 * ref.kspr * MRref * MRref + ref.kheave * MRref * MRref, ref.ktyre);
     const damp = (Q, mr) => { const kw = Q.kspr * 1e3 * mr * mr + Q.kheave * 1e3 * mr * mr / 2, kt = Q.ktyre * 1e3, mc = Q.mass * Q.wdist / 100 / 2, kr = kw * kt / (kw + kt), cw = Q.cbl * mr * mr; return [cw / (2 * Math.sqrt(kr * mc)), cw / (2 * Math.sqrt((kw + kt) * Q.munspr))] };
     const [zb, zw] = damp(P, MR), [zb0, zw0] = damp(ref, MRref), pen = (b, w) => ((b - .45) / .3) ** 2 + Math.max(0, .2 - w) / .2 * .6;
-    const o = { v: 1, t: Date.now(), kspr: P.kspr, karb: P.karb, kheave: P.kheave, cbl: P.cbl, crl: P.crl, rh: P.rh, camber: P.camber, toe: P.toe, discD: P.discD, pad: P.pad, duct: P.duct, bias: P.bbias / 100,
+    const o = { v: 2, t: Date.now(), kspr: P.kspr, karb: P.karb, kheave: P.kheave, cbl: P.cbl, crl: P.crl, rh: P.rh, camber: P.camber, toe: P.toe, discD: P.discD, pad: P.pad, duct: P.duct, bias: P.bbias / 100,
       hp: Object.fromEntries(Object.keys(P).filter(k => k.startsWith("hp_") || ["type", "rtyre", "track", "camber", "toe"].includes(k)).map(k => [k, P[k]])),
       lltd: kF / (kF + kR0), kHrel: kH / kH0, rhF: P.rh, bumpPen: clamp(pen(zb, zw) - pen(zb0, zw0), -.3, 1.5), hopK: clamp(zw0 / Math.max(.03, zw), .5, 2.5), zH: clamp(P.cheave / ref.cheave, .25, 2.5), zb, zw, MR, reg: LAB.car.reg };
     try { localStorage.setItem("pn3-setup", JSON.stringify(o)) } catch {}
@@ -519,7 +515,7 @@ LAB.susp = (() => {
   function init(el0) {
     host = el0;
     host.innerHTML = `
-    <div class="labhead"><div><h2>Suspensión delantera</h2><p class="sub">Medio coche en tiempo real: geometría pushrod / pullrod, amortiguador de 4 vías, tercer muelle, inerter, neumático y suelo aerodinámico.</p></div>
+    <div class="labhead"><div><h2>Suspensión</h2><p class="sub">Los dos ejes del coche del simulador, con los brazos de su propio modelo 3D: delantero con pushrod y trasero con pullrod. Medio coche en tiempo real: geometría, amortiguador de 4 vías, tercer muelle, inerter, neumático y suelo aerodinámico. Los carenados translúcidos son los brazos del modelo; dentro van los tubos que aquí se calculan.</p></div>
       <div class="presets" id="susPre"></div></div>
     <div class="labgrid">
       <aside class="params" id="susParams"></aside>
@@ -537,7 +533,7 @@ LAB.susp = (() => {
       </section></div>`;
     let lastType = "push";
     prm = new Params($("susParams"), DEF, id => {
-      if (prm.v.type !== lastType) { lastType = prm.v.type; const H = lastType === "pull" ? LAB.kin3d.PULL : LAB.kin3d.PUSH, o = {}; for (const k of LAB.kin3d.PTS) ["x", "y", "z"].forEach((a, i) => o["hp_" + k + "_" + a] = H[k][i]); o.hp_r1 = H.r1, o.hp_r2 = H.r2, o.hp_rbeta = H.rbeta, o.hp_ralpha = H.ralpha, prm.set(o, !0) }
+      if (prm.v.type !== lastType) { lastType = prm.v.type; const H = lastType === "pull" ? LAB.kin3d.PULL : LAB.kin3d.PUSH, o = {}; for (const k of LAB.kin3d.PTS) ["x", "y", "z"].forEach((a, i) => o["hp_" + k + "_" + a] = H[k][i]); o.hp_r1 = H.r1, o.hp_r2 = H.r2, o.hp_rbeta = H.rbeta, o.hp_ralpha = H.ralpha, o.track = H.track, o.camber = H.camber, prm.set(o, !0) }
       clearTimeout(init.t), init.t = setTimeout(reset, id === "speed" || id === "road" ? 10 : 120)
     });
     const pre = $("susPre");

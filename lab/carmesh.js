@@ -8,10 +8,10 @@ LAB.car = (() => {
   /* mismas cifras que la tabla de reglamentos del simulador */
   const R = {
     "2025": { reg: "2025", wb: 3.6, a: 1.98, b: 1.62, tf: 1.6, trr: 1.55, mass: 798, R: .36, rhF: 32, rhR: 52, name: "Reglamento 2025 (efecto suelo, MGU-H)" },
-    "2026": { reg: "2026", wb: 3.4, a: 1.87, b: 1.53, tf: 1.55, trr: 1.5, mass: 768, R: .355, rhF: 32, rhR: 52, name: "Reglamento 2026 (aero activa, 350 kW eléctricos)" }
+    "2026": { reg: "2026", wb: 3.4, a: 1.87, b: 1.53, tf: 1.55, trr: 1.5, mass: 768, R: .36, rhF: 32, rhR: 52, name: "Reglamento 2026 (aero activa, 350 kW eléctricos)" }
   }[reg];
-  /* el modelo tiene 3,4 m de batalla y 1,62 m de vía delantera: escala como el simulador */
-  R.mx = R.wb / 3.4, R.mz = reg === "2026" ? .95 : 1, R.wdist = R.b / R.wb;
+  /* el modelo es un coche de 2026 (3,4 m de batalla, 1,88 m de ancho): el simulador lo lleva a 1,90 m, o a 3,6 m y 2,00 m con el reglamento de 2025 */
+  R.mx = R.wb / 3.4, R.mz = reg === "2026" ? 1.01 : 1.0627, R.wdist = R.b / R.wb;
   return R
 })();
 LAB.carmesh = (() => {
@@ -28,7 +28,7 @@ LAB.carmesh = (() => {
       if (e.c != null) { const tg = new Uint8Array(buf, base + e.c, n), I = g.index.array, keep = []; for (let q = 0; q < I.length; q += 3) tg[I[q]] === 4 && tg[I[q + 1]] === 4 && tg[I[q + 2]] === 4 || keep.push(I[q], I[q + 1], I[q + 2]); keep.length < I.length && g.setIndex(new T.BufferAttribute(I.BYTES_PER_ELEMENT === 4 ? new Uint32Array(keep) : new Uint16Array(keep), 1)) }
       out.push({ g: e.g, m: e.m, geo: g, tags: e.c != null ? new Uint8Array(buf.slice(base + e.c, base + e.c + n)) : null, col: e.col || [.5, .5, .5], met: e.met ?? 0, rou: e.rou ?? .5 })
     }
-    return { meshes: out, groups: hdr.groups }
+    return { meshes: out, groups: hdr.groups, rig: hdr.rig }
   }
   function load() {
     if (P) return P;
@@ -64,5 +64,5 @@ LAB.carmesh = (() => {
     }
     return root
   }
-  return { load, build, parse, PAL }
+  return { load, build, parse, PAL, material, colorize }
 })();

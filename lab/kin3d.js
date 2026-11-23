@@ -21,9 +21,17 @@ LAB.kin3d = (() => {
     const k = mul(c, 1 / s), t = Math.atan2(s, d);
     return p => rotAx(p, [0, 0, 0], k, t)
   }
-  const PUSH = { type: "push", LF: [210, 235, 150], LR: [-200, 225, 140], LO: [-5, 705, 170], UF: [175, 310, 380], UR: [-215, 300, 370], UO: [-35, 660, 505], PO: [-15, 650, 222], TI: [95, 255, 198], TO: [92, 668, 252], RP: [-30, 115, 560], SD: [-30, -150, 600], r1: 75, r2: 55, rbeta: 50, ralpha: 40, track: 1620, R: 360, camber: -3.2, toe: 0 };
-  const PULL = { ...PUSH, type: "pull", PO: [-25, 640, 468], RP: [-30, 150, 120], SD: [-30, -120, 65], r1: 75, r2: 80, rbeta: 4, ralpha: 124 };
+  /* Puntos duros: son los del modelo 3D del coche (F1 2026 concept de Qvist_designs, CC BY 4.0), medidos sobre sus propios brazos.
+     Anclajes al chasis: donde acaba cada tubo del modelo bajo la carrocería. Rótulas de la mangueta: el vértice donde convergen los dos
+     brazos de cada trapecio. En el modelo original ese vértice daba un eje de dirección con avance negativo (un coche real no gira así):
+     las dos rótulas delanteras se han llevado a un eje con 6° de avance, 9,5° de salida, 18 mm de avance en el suelo y 45 mm de radio de
+     pivotamiento, y los trapecios del modelo se han recolocado para acabar en ellas. Balancín, amortiguador, bieleta de convergencia
+     trasera y palier no existen en el modelo: están diseñados aquí dentro de su carrocería.
+     PUSH = eje delantero (pushrod). PULL = eje trasero (pullrod; x se mide desde el eje trasero). */
+  const PUSH = { type: "push", LF: [32.8, 168, 328.8], LR: [-398.8, 212, 307.6], LO: [-15, 666, 313.7], UF: [83.6, 160, 522.7], UR: [-346.6, 204, 449.1], UO: [-35.7, 633, 510.7], PO: [49.3, 640, 359.1], TI: [134.8, 156, 346.6], TO: [123.4, 645, 338.2], RP: [-91.1, 108.8, 521], SD: [-91.1, 58, 330], r1: 55, r2: 65, rbeta: 67.4, ralpha: 100, track: 1527, R: 359.7, camber: -3.2, toe: 0 };
+  const PULL = { type: "pull", LF: [392.2, 288, 293.8], LR: [-6.5, 140, 328.3], LO: [-10, 660, 335], UF: [317.3, 252, 470.5], UR: [-134.9, 84, 501.7], UO: [-29.2, 530, 514], PO: [.4, 560, 494.1], TI: [-90, 150, 314], TO: [-105, 640, 320], RP: [390.3, 182.5, 359.1], SD: [390.3, 110, 540], r1: 55, r2: 65, rbeta: -62.4, ralpha: 260, track: 1455.6, R: 359.7, camber: -1.8, toe: 0 };
   const PTS = ["LF", "LR", "LO", "UF", "UR", "UO", "PO", "TI", "TO", "RP", "SD"];
+  { const c = LAB.car || { mx: 1, mz: 1 }; for (const H of [PUSH, PULL]) { for (const k of PTS) H[k] = [H[k][0] * c.mx, H[k][1] * c.mz, H[k][2]]; H.track = Math.round(H.track * c.mz * 10) / 10 } }
   const NAMES = { LF: "Trapecio inferior, anclaje delantero", LR: "Trapecio inferior, anclaje trasero", LO: "Rótula inferior", UF: "Trapecio superior, anclaje delantero", UR: "Trapecio superior, anclaje trasero", UO: "Rótula superior", PO: "Bieleta en la mangueta", TI: "Extremo de la cremallera", TO: "Brazo de dirección", RP: "Eje del balancín", SD: "Anclaje del amortiguador" };
   /* convierte parámetros planos (hp_LF_x…) en puntos en metros */
   function fromParams(P) {
