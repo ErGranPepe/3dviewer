@@ -25,14 +25,14 @@ LAB.kit = (() => {
     const anyN = t => { const a = Math.abs(t.y) < .9 ? V(0, 1, 0) : V(1, 0, 0); return a.addScaledVector(t, -a.dot(t)).normalize() };
     let N = o.n0 ? o.n0.clone().addScaledVector(tan[0], -o.n0.dot(tan[0])) : anyN(tan[0]);
     N.lengthSq() < 1e-10 ? N = anyN(tan[0]) : N.normalize();
-    const rf = typeof rad === "function" ? rad : () => rad, ring = [];
+    const rf = typeof rad === "function" ? rad : () => rad, ring = [], pw = o.pow || 1, sq = v => pw === 1 ? v : Math.sign(v) * Math.pow(Math.abs(v), pw);
     for (let i = 0; i < n; i++) {
       const t = tan[i];
       N.addScaledVector(t, -N.dot(t)), N.lengthSq() < 1e-10 ? N = anyN(t) : N.normalize();
       const B = new T.Vector3().crossVectors(t, N), r = rf(i / (n - 1)), ra = Array.isArray(r) ? r[0] : r, rb = Array.isArray(r) ? r[1] : r;
       ring.push([N.clone(), B, ra, rb]);
       for (let j = 0; j <= M; j++) {
-        const a = j / M * Math.PI * 2, c = Math.cos(a), s = Math.sin(a), nx = N.x * c * rb + B.x * s * ra, ny = N.y * c * rb + B.y * s * ra, nz = N.z * c * rb + B.z * s * ra, nl = Math.hypot(nx, ny, nz) || 1;
+        const a = j / M * Math.PI * 2, c0 = Math.cos(a), s0 = Math.sin(a), c = sq(c0), s = sq(s0), q1 = pw === 1 ? c0 : Math.sign(c0) * Math.pow(Math.abs(c0), 2 - pw), q2 = pw === 1 ? s0 : Math.sign(s0) * Math.pow(Math.abs(s0), 2 - pw), nx = N.x * q1 * rb + B.x * q2 * ra, ny = N.y * q1 * rb + B.y * q2 * ra, nz = N.z * q1 * rb + B.z * q2 * ra, nl = Math.hypot(nx, ny, nz) || 1;
         pos.push(P[i].x + N.x * ra * c + B.x * rb * s, P[i].y + N.y * ra * c + B.y * rb * s, P[i].z + N.z * ra * c + B.z * rb * s), nor.push(nx / nl, ny / nl, nz / nl), uv.push(i / (n - 1), j / M)
       }
     }
@@ -40,7 +40,7 @@ LAB.kit = (() => {
     const cap = (i, sgn) => {
       const c0 = pos.length / 3, [Nn, B, ra, rb] = ring[i], t = tan[i];
       pos.push(P[i].x, P[i].y, P[i].z), nor.push(t.x * sgn, t.y * sgn, t.z * sgn), uv.push(.5, .5);
-      for (let j = 0; j <= M; j++) { const a = j / M * Math.PI * 2, c = Math.cos(a), s = Math.sin(a); pos.push(P[i].x + Nn.x * ra * c + B.x * rb * s, P[i].y + Nn.y * ra * c + B.y * rb * s, P[i].z + Nn.z * ra * c + B.z * rb * s), nor.push(t.x * sgn, t.y * sgn, t.z * sgn), uv.push(.5 + c * .5, .5 + s * .5) }
+      for (let j = 0; j <= M; j++) { const a = j / M * Math.PI * 2, c = sq(Math.cos(a)), s = sq(Math.sin(a)); pos.push(P[i].x + Nn.x * ra * c + B.x * rb * s, P[i].y + Nn.y * ra * c + B.y * rb * s, P[i].z + Nn.z * ra * c + B.z * rb * s), nor.push(t.x * sgn, t.y * sgn, t.z * sgn), uv.push(.5 + c * .5, .5 + s * .5) }
       for (let j = 0; j < M; j++) sgn < 0 ? idx.push(c0, c0 + 2 + j, c0 + 1 + j) : idx.push(c0, c0 + 1 + j, c0 + 2 + j)
     };
     o.cap0 && cap(0, -1), o.cap1 && cap(n - 1, 1);
@@ -49,9 +49,16 @@ LAB.kit = (() => {
       const b0 = pos.length / 3;
       for (let i = 0; i < n; i++) {
         const [Nn, B, ra, rb] = ring[i], ia = Math.max(1e-4, ra - o.wall), ib = Math.max(1e-4, rb - o.wall);
-        for (let j = 0; j <= M; j++) { const a = j / M * Math.PI * 2, c = Math.cos(a), s = Math.sin(a), nx = Nn.x * c * ib + B.x * s * ia, ny = Nn.y * c * ib + B.y * s * ia, nz = Nn.z * c * ib + B.z * s * ia, nl = Math.hypot(nx, ny, nz) || 1; pos.push(P[i].x + Nn.x * ia * c + B.x * ib * s, P[i].y + Nn.y * ia * c + B.y * ib * s, P[i].z + Nn.z * ia * c + B.z * ib * s), nor.push(-nx / nl, -ny / nl, -nz / nl), uv.push(i / (n - 1), j / M) }
+        for (let j = 0; j <= M; j++) { const a = j / M * Math.PI * 2, c0 = Math.cos(a), s0 = Math.sin(a), c = sq(c0), s = sq(s0), q1 = pw === 1 ? c0 : Math.sign(c0) * Math.pow(Math.abs(c0), 2 - pw), q2 = pw === 1 ? s0 : Math.sign(s0) * Math.pow(Math.abs(s0), 2 - pw), nx = Nn.x * q1 * ib + B.x * q2 * ia, ny = Nn.y * q1 * ib + B.y * q2 * ia, nz = Nn.z * q1 * ib + B.z * q2 * ia, nl = Math.hypot(nx, ny, nz) || 1; pos.push(P[i].x + Nn.x * ia * c + B.x * ib * s, P[i].y + Nn.y * ia * c + B.y * ib * s, P[i].z + Nn.z * ia * c + B.z * ib * s), nor.push(-nx / nl, -ny / nl, -nz / nl), uv.push(i / (n - 1), j / M) }
       }
       for (let i = 0; i < n - 1; i++) for (let j = 0; j < M; j++) { const a = b0 + i * (M + 1) + j, b = a + M + 1; idx.push(a, b, a + 1, b, b + 1, a + 1) }
+      /* canto de la boca: une las dos pieles en el extremo abierto (o.rim0: el inicial; o.rim1: el final) */
+      for (const [on, i, sgn] of [[o.rim0, 0, -1], [o.rim1, n - 1, 1]]) {
+        if (!on) continue;
+        const c0 = pos.length / 3, t = tan[i];
+        for (const base of [i * (M + 1), b0 + i * (M + 1)]) for (let j = 0; j <= M; j++) pos.push(pos[(base + j) * 3], pos[(base + j) * 3 + 1], pos[(base + j) * 3 + 2]), nor.push(t.x * sgn, t.y * sgn, t.z * sgn), uv.push(0, j / M);
+        for (let j = 0; j < M; j++) { const a = c0 + j, b = c0 + M + 1 + j; sgn < 0 ? idx.push(a, b, a + 1, b, b + 1, a + 1) : idx.push(a, a + 1, b, b, a + 1, b + 1) }
+      }
     }
     const g = new T.BufferGeometry;
     return g.setAttribute("position", new T.Float32BufferAttribute(pos, 3)), g.setAttribute("normal", new T.Float32BufferAttribute(nor, 3)), g.setAttribute("uv", new T.Float32BufferAttribute(uv, 2)), g.setIndex(idx), g

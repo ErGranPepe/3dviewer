@@ -57,7 +57,19 @@ LAB.tyre = (() => {
     B = TM().brush(p, S.Ts);
     if (play) { const n = Math.max(1, Math.round(dt / .05)); for (let k = 0; k < n; k++) TM().thermal(p, S, B, dt / n), simT += dt / n }
   }
+  /* lo que se puede contrastar: las ventanas de temperatura que publica Pirelli y las medidas del reglamento */
+  function bench() {
+    const p = P(), C = TM().COMP[p.comp], Sx = LAB.SRC, f = LAB.nf, lo = C.Topt - C.dT * .6, hi = C.Topt + C.dT * .6, PW = { S: [85, 120, "C5: 85–115 °C · C4: 90–120 °C"], M: [90, 135, "C4: 90–120 °C · C3: 105–135 °C"], H: [105, 140, "C3: 105–135 °C · C2: 110–135 °C · C1: 110–140 °C"] }[p.comp], dia = 2 * p.R, pHot = p.pin * (S.Tgas + 273) / (p.T0 + 273);
+    LAB.bench($("tyBench"), [
+      { k: "Ventana de temperatura del compuesto", lab: f(lo) + "–" + f(hi) + " °C (óptimo " + f(C.Topt) + " °C)", real: PW ? PW[2] : "Pirelli no publica la ventana de los de lluvia", s: PW ? 1 : "", ok: PW ? C.Topt >= PW[0] && C.Topt <= PW[1] : null },
+      { k: "Diámetro", lab: f(dia) + " mm", real: "máx. 725 mm en seco (735 mm en lluvia), medido a 1,4 bar", s: 2, ok: dia <= (/[IW]/.test(p.comp) ? 735 : 725) },
+      { k: "Llanta", lab: "18 pulgadas", real: "18 pulgadas; labio exterior de 490,6 mm; magnesio AZ70 o AZ80", s: 2, ok: !0 },
+      { k: "Ancho de la rueda completa", lab: "banda de " + f(p.width) + " mm", real: "delante 345–375 mm · detrás 440–470 mm (incluye los flancos)", s: 2, ok: null },
+      { k: "Gas de inflado", lab: "gas ideal: " + f(p.pin, 1) + " psi en frío, " + f(pHot, 1) + " en caliente", real: "solo aire o nitrógeno", s: 2, ok: !0 }
+    ], [Sx.pirelli19, Sx.fia22])
+  }
   function readouts() {
+    (readouts.n = (readouts.n || 0) + 1) % 120 === 1 && bench();
     const p = P(), avg = a => (a[0] + a[1] + a[2]) / 3, pHot = p.pin * (S.Tgas + 273) / (p.T0 + 273), C = TM().COMP[p.comp];
     ro.set("fy", B.Fy / 1e3, 2), ro.set("fx", B.Fx / 1e3, 2), ro.set("mu", Math.hypot(B.Fx, B.Fy) / p.Fz, 2), ro.set("mz", B.Mz, 0), ro.set("trail", B.trail * 1e3, 1);
     ro.set("slide", B.slide * 100, 0), ro.set("area", B.A * 1e4, 0), ro.set("plen", 2 * B.a * 1e3, 0), ro.set("pmax", B.pmax / 1e5, 2), ro.set("pf", B.Pf / 1e3, 2);
@@ -241,6 +253,7 @@ LAB.tyre = (() => {
         <div class="ctrl s3views"><span>Mapa</span><button class="btn on" data-tm="slide">Agarre y deslizamiento</button><button class="btn" data-tm="p">Presión</button><button class="btn" data-tm="tau">Tensión</button><button class="btn" data-tm="pw">Calor</button><span>Vista</span><button class="btn" data-tv="iso">3/4</button><button class="btn" data-tv="below">Desde abajo</button><button class="btn" data-tv="front">De frente</button></div>
         <p class="sub" style="margin:6px 0 0">La rueda es la del coche. El gajo abierto enseña el corte, de fuera adentro: banda de rodadura, subcapa, cinturones (azul grisáceo), carcasa radial y revestimiento interior de butilo (morado); en los flancos, goma de flanco, y en cada talón el aro de alambre de acero. Por el gajo se ve la llanta (garganta y asientos del talón). Banda, subcapa y carcasa llevan el color de su temperatura en cada tercio, y la tabla del visor da las cifras; los espesores son valores típicos de un neumático de competición (el fabricante no publica los suyos).</p>
         <div class="readouts" id="tyRo"></div>
+        <div class="benchbox" id="tyBench"></div>
         <div class="pgrid"><canvas id="tyFy"></canvas><canvas id="tyTemp"></canvas><canvas id="tyWear"></canvas><canvas id="tyEll"></canvas></div>
         <h3 class="adv">Autoalineante y tracción</h3>
         <div class="pgrid adv"><canvas id="tyMz"></canvas><canvas id="tyFx"></canvas></div>

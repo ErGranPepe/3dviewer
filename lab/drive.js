@@ -78,6 +78,26 @@ LAB.drive = (() => {
     play.t = Math.min(play.t, L.lapT);
     const worst = D.shifts.reduce((a, s) => s.shock > (a ? a.shock : -1) ? s : a, null), life = G.filter(g => g.time > .2).reduce((a, g) => g.lifeKm < a.lifeKm ? g : a, { lifeKm: 1e9, g: 0 });
     res.worst = worst;
+    {
+      /* lo que se puede contrastar con datos públicos: reglamento de la FIA (transmisión) y cifras de Mercedes y Honda (ERS) */
+      const S = LAB.SRC, y26 = p.era === "2026", rec = (E.recK) / 1e6, len = (8 * p.face + 4 * (2 * 3 + 14) + 3 * 8), kLim = y26 ? 350 : 120, recLim = y26 ? 9 : 2, f = LAB.nf, ptot = p.pice + 120;
+      LAB.bench($("drvBench"), [
+        { k: "Marchas", lab: "8 hacia delante y marcha atrás", real: "8 hacia delante; marcha atrás obligatoria", s: 1, ok: !0 },
+        { k: "Distancia entre los dos ejes", lab: f(p.center) + " mm", real: "entre 90 y 100 mm", s: 1, ok: p.center >= 90 && p.center <= 100 },
+        { k: "Ancho de cada engranaje", lab: f(p.face, 1) + " mm", real: "mín. 12 mm en el pie del diente", s: 1, ok: p.face >= 12 },
+        { k: "Largo del tren (de la 1ª a la 8ª)", lab: f(len) + " mm", real: "mín. 175 mm", s: 1, ok: len >= 175 },
+        { k: "Diámetro de la corona", lab: (($("drv3d") || {}).crownTip || 211).toFixed(0) + " mm", real: "mín. 205 mm", s: 1, ok: !0 },
+        { k: "Engranajes", lab: "acero, dientes rectos", real: "de acero; cada pareja, mín. 600 g", s: 1, ok: !0 },
+        { k: "Duración del cambio", lab: f(p.tshift) + " ms", real: "máx. 200 ms al subir y 300 ms al reducir", s: 1, ok: p.tshift <= 200 },
+        { k: "Reparto de par entre ruedas", lab: "diferencial con bloqueo hidráulico", real: "prohibido pasar par de la rueda lenta a la rápida", s: 1, ok: !0 },
+        { k: "Potencia del MGU-K", lab: f(p.kmax) + " kW", real: y26 ? "350 kW (2026)" : "120 kW (2014-2025)", s: y26 ? 3 : 2, ok: p.kmax <= kLim },
+        { k: "Recuperado por el MGU-K en la vuelta", lab: f(rec, 2) + " MJ", real: y26 ? "hasta 9 MJ por vuelta según Mercedes (≈8,5 MJ según Honda)" : "máx. 2 MJ por vuelta", s: y26 ? "3, 4" : 2, ok: rec <= recLim + .05 },
+        ...(y26 ? [] : [{ k: "Desplegado desde la batería en la vuelta", lab: f(E.dep / 1e6, 2) + " MJ", real: "máx. 4 MJ por vuelta (33,3 s a plena potencia)", s: 2, ok: E.dep / 1e6 <= 4.05 }]),
+        { k: "Ventana útil de la batería", lab: f(p.socwin, 1) + " MJ", real: "4 MJ", s: 2, ok: p.socwin <= 4.001 },
+        { k: "Potencia del motor térmico", lab: f(p.pice) + " kW", real: y26 ? "≈400 kW (2026, Honda)" : "más de 700 kW en total con el MGU-K (2025, Mercedes)", s: y26 ? 4 : 3, ok: y26 ? (p.pice >= 380 && p.pice <= 420 ? !0 : p.pice >= 360 && p.pice <= 440 ? "near" : !1) : (ptot >= 700 && ptot <= 800 ? !0 : ptot >= 630 && ptot <= 880 ? "near" : !1) },
+        { k: "Masa mínima del coche", lab: f(p.mass) + " kg", real: y26 ? "768 kg (2026)" : "790 kg en la edición de 2022 (subió después)", s: y26 ? 5 : 1, ok: y26 ? p.mass >= 768 : p.mass >= 790 }
+      ], [S.fia22, S.mbw16, S.mbpu26, S.honda26, S.mbch26])
+    }
     const lt = L.lapT, mm = Math.floor(lt / 60);
     const TG = DM().trackGrid(p.track), fl = t => `${Math.floor(t / 60)}:${(t - Math.floor(t / 60) * 60).toFixed(2).padStart(5, "0")}`;
     ro.set("real", TG.real ? `${fl(TG.real.pole.t)} ${TG.real.pole.drv} ${TG.real.pole.year}` : "—");
@@ -178,7 +198,7 @@ LAB.drive = (() => {
   function geo() {
     const p = P(), m = p.module * 1e-3, a = p.center * 1e-3, rs = DM().ratios(p), z1 = [], z2 = [];
     for (const u of rs) { const zs = Math.round(2 * a / m), a1 = Math.max(12, Math.round(zs / (1 + u))); z1.push(a1), z2.push(zs - a1) }
-    return { z1, z2, module: Math.min(m, .0034), face: p.face * 1e-3 }
+    return { z1, z2, module: m, face: p.face * 1e-3, fd: p.fd }
   }
   function init(el0) {
     host = el0;
@@ -190,17 +210,19 @@ LAB.drive = (() => {
       <section class="views">
         <div class="vrow"><div class="s3host" id="drv3d"><div class="s3info" id="drvInfo"></div></div><div class="verdict" id="drvVerdict"></div></div>
         <div class="ctrl"><button id="drvRun" class="btn on">Pausa</button><label>Reproducción <select id="drvSpd"><option value=".02">×0,02 (ver el cambio)</option><option value=".1">×0,1</option><option value=".25">×0,25</option><option value="1" selected>×1 (tiempo real)</option><option value="4">×4</option></select></label><label>Ir a <select id="drvJump"><option value="">—</option><option value="worst">peor cambio</option><option value="brake">frenada más fuerte</option><option value="vmax">velocidad máxima</option></select></label></div>
-        <div class="ctrl s3views"><span>Vista</span><button class="btn" data-dv="box">Caja</button><button class="btn" data-dv="diff">Diferencial</button><button class="btn" data-dv="ers">ERS</button><button class="btn" data-dv="all">Todo</button></div>
+        <div class="ctrl s3views"><span>Vista</span><button class="btn" data-dv="box">Caja</button><button class="btn" data-dv="clutch">Embrague</button><button class="btn" data-dv="diff">Diferencial</button><button class="btn" data-dv="ers">ERS</button><button class="btn" data-dv="all">Todo</button></div>
+        <div class="ctrl s3views"><span>Carcasa</span><button class="btn on" data-dc="cut">Seccionada</button><button class="btn" data-dc="full">Entera</button><button class="btn" data-dc="off">Oculta</button><span>Motor</span><button class="btn" data-de="full">Completo</button><button class="btn on" data-de="bare">Sin conductos</button><button class="btn" id="drvNames">Nombres</button></div>
         <div class="readouts" id="drvRo"></div>
         <div class="pgrid"><canvas id="drvSp"></canvas><canvas id="drvErs"></canvas><canvas id="drvSoc"></canvas><canvas id="drvZoom"></canvas></div>
         <div class="drvc" id="drvCorners"></div>
         <div class="geartbl" id="drvGears"></div>
+        <div class="benchbox" id="drvBench"></div>
         <h3 class="adv">Régimen, línea motriz y diferencial</h3>
         <div class="pgrid adv"><canvas id="drvRpm"></canvas><canvas id="drvTds"></canvas><canvas id="drvDiff"></canvas><canvas id="drvMz"></canvas></div>
       </section></div>`;
     prm = new Params($("drvParams"), DEF, id => {
       if (prm.v.era !== lastEra) { lastEra = prm.v.era, prm.set(ERA[lastEra], !0) }
-      clearTimeout(init.t), init.t = setTimeout(() => { compute(), use3d && /^(g\d|module|face|center)$/.test(id) && LAB.drive3d.rebuild(geo()) }, 150)
+      clearTimeout(init.t), init.t = setTimeout(() => { compute(), use3d && /^(g\d|module|face|center|fd|\*)$/.test(id) && LAB.drive3d.rebuild(geo()) }, 150)
     });
     const pre = $("drvPre");
     for (const k in PRESETS) pre.appendChild(el("button", { class: "btn", text: PRESETS[k].name, onclick: () => { prm.set(Object.fromEntries(DEF.flatMap(g => g.items.map(i => [i.id, i.v]))), !0), lastEra = PRESETS[k].v.era || "2026", prm.set(PRESETS[k].v) } }));
@@ -222,7 +244,11 @@ LAB.drive = (() => {
       else if (k === "vmax") { let b = 0; for (let i = 0; i < L.n; i++) L.v[i] > L.v[b] && (b = i); play.t = L.t[b] }
       e.target.value = ""
     };
-    document.querySelectorAll("[data-dv]").forEach(b => b.onclick = () => $("drv3d").view && $("drv3d").view(b.dataset.dv));
+    const setEng = m => { document.querySelectorAll("[data-de]").forEach(x => x.classList.toggle("on", x.dataset.de === m)), $("drv3d").engine && $("drv3d").engine(m) };
+    document.querySelectorAll("[data-dv]").forEach(b => b.onclick = () => { $("drv3d").view && $("drv3d").view(b.dataset.dv), setEng(/ers|all/.test(b.dataset.dv) ? "full" : "bare") });
+    document.querySelectorAll("[data-de]").forEach(b => b.onclick = () => setEng(b.dataset.de));
+    $("drvNames").onclick = e => { e.target.classList.toggle("on"), $("drv3d").names && $("drv3d").names(e.target.classList.contains("on")) };
+    document.querySelectorAll("[data-dc]").forEach(b => b.onclick = () => { document.querySelectorAll("[data-dc]").forEach(x => x.classList.toggle("on", x === b)), $("drv3d").casing && $("drv3d").casing(b.dataset.dc) });
     window.addEventListener("labmode", () => setTimeout(() => { for (const p of Object.values(plots)) p.fit(); res && drawPlots() }, 50));
     /* si en otra pestaña terminas una vuelta rápida en el simulador, aparece aquí al momento */
     window.addEventListener("storage", e => { e.key === "pn3-simlap" && res && compute() });

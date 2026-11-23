@@ -3,8 +3,9 @@
    el plano del cilindro 1 (la sección se ve en rojo) con las cámaras de agua, los alojamientos de levas y los conductos
    de admisión y escape; dentro, el cigüeñal con muñequillas desfasadas 30°, brazos y contrapesos, las bielas en H con
    tapa y tornillos, los pistones torneados con la falda recubierta, segmentos y bulón, 4 válvulas por cilindro con taqué
-   y muelle neumático (o metálico), árboles de levas a media velocidad, precámara con chorros de llama, turbo partido
-   (compresor delante, turbina detrás y MGU-H en el eje dentro de la V), MGU-K engranado al cigüeñal y embrague.
+   y muelle neumático (o metálico), árboles de levas a media velocidad, precámara con chorros de llama. Todo lo que va por
+   fuera (turbo partido con sus carcasas, escape y admisión completos, distribución por engranajes, MGU-K, embrague,
+   encendido, inyección y bombas) se monta en enginecad.js.
    Todo se mueve con la cinemática exacta y se colorea con los resultados del cálculo. Las averías no están programadas:
    salen de los números (fatiga de Basquin acumulada con la regla de Miner, flotación de válvulas por inercia contra el
    muelle, holgura válvula-pistón por geometría y calado, detonación, presión en el cojinete). */
@@ -302,7 +303,7 @@ LAB.engine3d = (() => {
       const arc = (p0, p1, out) => { let a0 = ang(p0), a1 = ang(p1); while (a1 > a0) a1 -= TAU; for (let i = 1; i < 48; i++) { const a = a0 + (a1 - a0) * i / 48; out.push([rc0 * Math.cos(a), rc0 * Math.sin(a)]) } };
       const P1 = pt(aL, nL, d0, w), P6 = pt(aR, nR, d0, -w);
       const A = [pt(aL, nL, d0, wb), pt(aL, nL, tc, wb)], A3 = pt(aR, nR, tc, -wb);
-      arc(A[1], A3, A), A.push(A3, pt(aR, nR, d0, -wb), P6, [P6[0] - .012, -.045], [P6[0] - .004, -.088], [P6[0] + .012, -.098], [P1[0] - .012, -.098], [P1[0] + .004, -.088], [P1[0] + .012, -.045], P1);
+      arc(A[1], A3, A), A.push(A3, pt(aR, nR, d0, -wb), P6, [P6[0] - .012, -.042], [P6[0] - .004, -.079], [P6[0] + .012, -.088], [P1[0] - .012, -.088], [P1[0] + .004, -.079], [P1[0] + .012, -.042], P1);
       const B5 = pt(aR, nR, tc, wb), B6 = pt(aL, nL, tc, -wb), Bq = [pt(aL, nL, d0, -wb), pt(aL, nL, d0, -w), pt(aR, nR, d0, w), pt(aR, nR, d0, wb), B5];
       arc(B5, B6, Bq), Bq.push(B6);
       for (const poly of [A, Bq]) { const sh = new THREE.Shape(); sh.moveTo(...poly[0]); for (let i = 1; i < poly.length; i++) sh.lineTo(...poly[i]); sh.closePath(), shell(extrude(sh, xmax - xmin + .01, V3(0, 0, -1), V3(0, 1, 0), V3(xmin - .005, 0, 0)), MAT3.alu, "crankcase") }
@@ -614,5 +615,5 @@ LAB.engine3d = (() => {
     res.VT.over > 0 || (update.warned = 0)
   }
   const angle = k => cyl.length ? local(cyl[k || 0]) : 0;
-  return { init, update, angle, _test: { life, info: () => R && ({ tris: R.info.render.triangles, calls: R.info.render.calls, geos: R.info.memory.geometries }) }, cam: a => { ctrl && (ctrl.st.az = a[0], ctrl.st.el = a[1], ctrl.st.d = a[2], ctrl.st.t.set(a[3], a[4], a[5]), ctrl.apply()) } }
+  return { init, update, angle, _test: { life, info: () => { let t = 0, n = 0; root && root.traverse(o => { if (o.isMesh && o.visible) { let v = !0; o.traverseAncestors(a => a.visible || (v = !1)); if (!v) return; const g = o.geometry; t += (g.index ? g.index.count : g.attributes.position.count) / 3, n++ } }); return { tris: Math.round(t), meshes: n } } }, cam: a => { ctrl && (ctrl.st.az = a[0], ctrl.st.el = a[1], ctrl.st.d = a[2], ctrl.st.t.set(a[3], a[4], a[5]), ctrl.apply()) } }
 })();

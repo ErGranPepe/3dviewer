@@ -168,7 +168,7 @@ LAB.enginecad = (() => {
     const f = (d, o, u, v) => { const p = d.clone().multiplyScalar(v).addScaledVector(o, u); return [-p.z, p.y] };
     const half = (d, o) => [f(d, o, hwB, d0), f(d, o, hwB, deckD), f(d, o, hw, deckD), f(d, o, hw, deckD + vc), f(d, o, hw - .008, deckD + vtop - .004), f(d, o, hw - .02, deckD + vtop), f(d, o, -(hw - .02), deckD + vtop), f(d, o, -(hw - .008), deckD + vtop - .004), f(d, o, -hw, deckD + vc), f(d, o, -hw, deckD), f(d, o, -hwB, deckD)];
     const hl = half(dL, oL), hr = half(dR, oR).reverse(), P1 = hl[0], P6 = hr[hr.length - 1];
-    const outline = [...hl, [0, hwB / sb], ...hr, [P6[0] - .012, -.045], [P6[0] - .004, -.088], [P6[0] + .012, -.098], [P1[0] - .012, -.098], [P1[0] + .004, -.088], [P1[0] + .012, -.045]];
+    const outline = [...hl, [0, hwB / sb], ...hr, [P6[0] - .012, -.042], [P6[0] - .004, -.079], [P6[0] + .012, -.088], [P1[0] - .012, -.088], [P1[0] + .004, -.079], [P1[0] + .012, -.042]];
     const toX = (g, x) => g.applyMatrix4(new THREE.Matrix4().makeBasis(V(0, 0, -1), V(0, 1, 0), V(1, 0, 0)).setPosition(V(x, 0, 0)));
     const xF = xmax + .005, depF = .046, xB = xF + .008, xA = [xF + .022, xF + .036], camPts = [];
     for (const [d, o] of [[dL, oL], [dR, oR]]) for (const u of [-uc, uc]) camPts.push(f(d, o, u, deckD + vc));
@@ -179,7 +179,7 @@ LAB.enginecad = (() => {
     /* MGU-K: en el costado izquierdo del cárter, atornillado por detrás a la caja de engranajes; lo mueve el cigüeñal con una rueda
        intermedia (30 y 9 dientes: 3,33 vueltas del motor eléctrico por cada vuelta del cigüeñal) */
     const mG = .0024, zg = 30, zi2 = 44, zp2 = Math.max(9, Math.round(zg / (ratioK || 3.333))), rg = zg * mG / 2, ri2 = zi2 * mG / 2, rp2 = zp2 * mG / 2;
-    const ud = V(0, -.3, -1).normalize(), pI = ud.clone().multiplyScalar(rg + ri2), pK = ud.clone().multiplyScalar(rg + 2 * ri2 + rp2);
+    const ud = V(0, -.22, -1).normalize(), pI = ud.clone().multiplyScalar(rg + ri2), pK = ud.clone().multiplyScalar(rg + 2 * ri2 + rp2);
     {
       const g0 = { c: V(0, 0, 0), z: zg, ph: 0 }, gi = mesh(g0, { c: pI, z: zi2 }), gp = mesh(gi, { c: pK, z: zp2 });
       const gm = new THREE.Mesh(G(zg, mG, .011).translate(xB, 0, 0), mGear); crank.add(gm), picks.push([gm, "mguk", 0]);
@@ -188,6 +188,10 @@ LAB.enginecad = (() => {
       const ribs = [-.1, -.08, -.06, -.04].map(x => latheX([[.046, x - .003], [.0485, x - .003], [.0485, x + .003], [.046, x + .003]], 40));
       out.mguk = mk(K.merge([latheX([[0, -.135], [.03, -.135], [.04, -.128], [.046, -.118], [.046, -.012], [.05, -.012], [.05, 0], [0, 0]]), ...ribs, new THREE.BoxGeometry(.05, .024, .03).translate(-.07, .052, 0), new THREE.CylinderGeometry(.008, .008, .03, 14).rotateZ(HP).translate(-.11, .056, 0)]).translate(xF - .001, pK.y, pK.z), M.motor, "mguk");
       out.lab.mguk = V(xF - .07, pK.y - .065, pK.z)
+    }
+    if (c.solid) {
+      shell(toX(K.plate(outline, xmax - xmin + .01), xmin - .005), M.alu, "block");
+      for (const [d, o] of [[dL, oL], [dR, oR]]) { const w = hw + .0012, t = vtop + .0012; shell(toX(K.plate([f(d, o, w, deckD + vc), f(d, o, w - .008, deckD + t - .004), f(d, o, w - .02, deckD + t), f(d, o, -(w - .02), deckD + t), f(d, o, -(w - .008), deckD + t - .004), f(d, o, -w, deckD + vc)], xmax - xmin + .006), xmin - .003), M.carbon, "head") }
     }
     /* caja de la distribución: aloja los engranajes de las levas y la toma del MGU-K; por fuera, los salientes de cada eje y los tornillos */
     {
@@ -227,8 +231,8 @@ LAB.enginecad = (() => {
     /* bombas de aceite de cárter seco: una fila de etapas a lo largo del costado derecho del cárter, movidas desde la caja delantera */
     {
       const n = 6, L = xmax - xmin - .05, st = L / n, gs = [latheX([[0, -L], [.012, -L], [.02, -L + .006], [.02, 0], [0, 0]], 28)];
-      for (let i = 0; i < n; i++) gs.push(latheX([[.02, -.004], [.0235, -.004], [.0235, .004], [.02, .004]], 28).translate(-(i + .5) * st, 0, 0), new THREE.CylinderGeometry(.007, .007, .014, 12).translate(-(i + .5) * st, -.024, 0), K.hex(.0085, .005).translate(-(i + .5) * st, -.033, 0));
-      const wy = -.07, wz = -(P6[0] - .012 + .008 * ((-.045 - wy) / .043)) + .017;
+      for (let i = 0; i < n; i++) gs.push(latheX([[.02, -.004], [.0235, -.004], [.0235, .004], [.02, .004]], 28).translate(-(i + .5) * st, 0, 0), new THREE.CylinderGeometry(.007, .007, .014, 12).rotateX(HP).translate(-(i + .5) * st, 0, .024), K.hex(.0085, .005).rotateX(HP).translate(-(i + .5) * st, 0, .033));
+      const wy = -.06, wz = -(P6[0] - .012 + .008 * ((-.042 - wy) / .037)) + .017;
       shell(K.merge(gs).translate(xF, wy, wz), mFl, "oil"), out.lab.oil = V(xc, wy - .03, wz + .03)
     }
 
@@ -236,13 +240,13 @@ LAB.enginecad = (() => {
     {
       const det = [], xs = cyl.map(q => q.x), sp = Math.abs(cyl[0].x - cyl[1].x), x0 = Math.min(...xs), offB = Math.abs(cyl[3].x - cyl[0].x);
       for (const q of cyl) for (const su of [-1, 1]) for (const sx of [-1, 1]) det.push(K.put(K.hex(.0042, .004), q.dir.clone().multiplyScalar(deckD + vtop + .001).addScaledVector(q.side, su * (hw - .03)).setX(q.x + sx * B * .52), q.dir));
-      for (let m = -1; m <= 2; m++) { const x = x0 + (m + .5) * sp + offB / 2; if (x < xmin + .004 || x > xmax - .004) continue; for (const sg of [-1, 1]) for (const [y, dX] of [[-.012, .0036], [-.036, .0098]]) det.push(K.put(K.hex(.0058, .005), V(x, y, sg * (Math.abs(P1[0]) + dX + .001)), V(0, 0, sg))) }
-      for (let x = xmin + .02; x < xmax - .01; x += .042) for (const sg of [-1, 1]) det.push(K.put(K.hex(.004, .004), V(x, -.0995, sg * (Math.abs(P1[0]) - .024)), V(0, -1, 0)));
+      for (let m = -1; m <= 2; m++) { const x = x0 + (m + .5) * sp + offB / 2; if (x < xmin + .004 || x > xmax - .004) continue; for (const sg of [-1, 1]) for (const [y, dX] of [[-.011, .0036], [-.033, .0098]]) det.push(K.put(K.hex(.0058, .005), V(x, y, sg * (Math.abs(P1[0]) + dX + .001)), V(0, 0, sg))) }
+      for (let x = xmin + .02; x < xmax - .01; x += .042) for (const sg of [-1, 1]) det.push(K.put(K.hex(.004, .004), V(x, -.0895, sg * (Math.abs(P1[0]) - .024)), V(0, -1, 0)));
       mk(K.merge(det), mFl, "block")
     }
 
     /* ================= EMBRAGUE (gira con el cigüeñal) ================= */
-    {
+    if (!c.noClutch) {
       const xcl = xmin - .03, R2 = (a, b) => new THREE.Vector2(a, b), gs = [], sp = [];
       for (let k = 0; k < 12; k++) gs.push(new THREE.LatheGeometry([R2(.0505, -.03), R2(.0545, -.03), R2(.0545, .004), R2(.0505, .004), R2(.0505, -.03)], 5, k / 12 * TAU, TAU / 12 * .6).rotateZ(-HP));
       gs.push(latheX([[.018, .004], [.0545, .004], [.0545, .008], [.018, .008], [.018, .004]], 48), latheX([[.026, -.0245], [.05, -.0245], [.05, -.0208], [.026, -.0208], [.026, -.0245]], 48), latheX([[.043, -.034], [.0545, -.034], [.0545, -.03], [.043, -.03], [.043, -.034]], 48));

@@ -170,3 +170,21 @@ class Readouts {
     r.b.textContent = typeof val === "string" ? val : fmt(val, d), r.c.dataset.state = state || ""
   }
 }
+
+/* ---------- comparación con datos reales publicados ----------
+   Cada fila pone al lado el valor del Laboratorio y el dato real (un límite del reglamento o una cifra que el fabricante ha hecho
+   pública) con su fuente. ok: true = dentro, false = fuera, null = no hay dato real con el que comparar. */
+LAB.bench = (host, rows, srcs) => {
+  if (!host) return;
+  host.innerHTML = `<b>Comparado con datos reales</b><div class="bh"><span>Magnitud</span><span>Laboratorio</span><span>Dato real publicado</span></div>` + rows.map(r => `<div class="br ${r.ok === !0 ? "ok" : r.ok === !1 ? "bad" : r.ok === "near" ? "near" : ""}"><span>${r.k}</span><span>${r.lab}</span><span>${r.real}${r.s ? ` <sup>${r.s}</sup>` : ""}</span></div>`).join("") + `<small>✓ dentro del límite o del dato publicado · ≈ cerca (a menos de un 10 %) · ✗ fuera. Solo se compara lo que es público: los límites del reglamento y las cifras que han dado los fabricantes. Presiones, temperaturas y tensiones internas no se publican.<br>Fuentes: ` + srcs.map((q, i) => `<sup>${i + 1}</sup> <a href="${q[1]}" target="_blank" rel="noopener">${q[0]}</a>`).join(" · ") + `</small>`
+};
+LAB.nf = (v, d = 0) => v.toFixed(d).replace(".", ",");
+LAB.SRC = {
+  fia22: ["FIA, Reglamento Técnico de F1 2022 (ed. 5)", "https://api.fia.com/sites/default/files/2022_formula_1_technical_regulations_-_iss_5_-_2021-07-08.pdf"],
+  mbw16: ["Mercedes-AMG F1, ficha técnica del W16", "https://www.mercedesamgf1.com/f1-w16-2025-technical-specifications"],
+  mb50: ["Motorsport.com, 13-9-2017: Mercedes supera el 50 % en banco", "https://www.motorsport.com/f1/news/mercedes-f1-engine-hits-new-benchmark-on-dyno-952330/"],
+  mbpu26: ["Mercedes-AMG F1, cambios de la unidad de potencia en 2026", "https://www.mercedesamgf1.com/facts-and-stats-power-unit-regulation-changes"],
+  mbch26: ["Mercedes-AMG F1, cambios del chasis en 2026", "https://www.mercedesamgf1.com/facts-and-stats-chassis-regulation-changes"],
+  honda26: ["Honda, el reglamento de 2026", "https://global.honda/en/F1/features/2026_Commentary/regulations/"],
+  pirelli19: ["Pirelli, gama de 2019 (ventanas de temperatura)", "https://press.pirelli.com/whats-new-with-pirellis-2019-formula-1-tyres/"]
+};

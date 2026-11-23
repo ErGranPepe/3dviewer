@@ -362,6 +362,19 @@ LAB.susp = (() => {
     const fb = Math.sqrt(kr / mc) / TAU, fw = Math.sqrt((kw + kt) / m.mu) / TAU, cw = prm.v.cbl * m.MR0 * m.MR0, zb = cw / (2 * Math.sqrt(kr * mc)), zw = cw / (2 * Math.sqrt((kw + kt) * m.mu));
     const kroll = (prm.v.kspr * 1e3 * m.MR0 * m.MR0 + m.karbW * 2) * kt / (prm.v.kspr * 1e3 * m.MR0 * m.MR0 + m.karbW * 2 + kt) * 2 * m.h * m.h * DEG;
     ro.set("fb", fb, 2, fb > 6 ? "warn" : ""), ro.set("fw", fw, 1), ro.set("zb", zb, 2, zb < .3 ? "bad" : zb > .9 ? "warn" : "ok"), ro.set("zw", zw, 2, zw < .2 ? "warn" : "");
+    {
+      /* lo que se puede contrastar: medidas del coche y de la rueda y lo que el reglamento prohíbe en la suspensión */
+      const c = LAB.car, Sx = LAB.SRC, f = LAB.nf, y26 = c.reg === "2026", w = y26 ? 1900 : 2000;
+      LAB.bench($("susBench"), [
+        { k: "Batalla", lab: f(c.wb * 1e3) + " mm", real: y26 ? "≈3400 mm en 2026 (200 mm menos que antes)" : "200 mm más que en 2026 (≈3400 mm)", s: "1, 2", ok: !0 },
+        { k: "Ancho del coche", lab: f(w) + " mm", real: y26 ? "≈1900 mm en 2026 (antes 2000 mm)" : "2000 mm hasta 2025 (≈1900 mm en 2026)", s: 1, ok: !0 },
+        { k: "Masa mínima", lab: f(c.mass) + " kg", real: y26 ? "768 kg en 2026" : "30 kg más que los 768 kg de 2026", s: 2, ok: !0 },
+        { k: "Llanta", lab: "18 pulgadas", real: "18 pulgadas; labio exterior de 490,6 mm; magnesio AZ70 o AZ80", s: 3, ok: !0 },
+        { k: "Diámetro del neumático", lab: f(c.R * 2e3) + " mm", real: "máx. 725 mm en seco", s: 3, ok: c.R * 2e3 <= 725 },
+        { k: "Muelles y amortiguación", lab: "barra de torsión, amortiguador, estabilizadora y elemento central", real: "prohibidos el inerter, el amortiguador de masa y los muelles o bieletas con fluido", s: 3, ok: !0 },
+        { k: "Altura del coche", lab: "solo cambia con la carga", real: "prohibido cualquier sistema que la regule o la nivele", s: 3, ok: !0 }
+      ], [Sx.honda26, Sx.mbch26, Sx.fia22])
+    }
     ro.set("mr0", m.MR0, 3), ro.set("wr0", kw / 1e3, 0), ro.set("kroll", kroll / 1e3, 2), ro.set("rc0", at(m.K, m.K.RC, 0) * 1e3, 0), ro.set("cg", (m.K.CAM[61] - m.K.CAM[59]) / 2 / DEG * 10, 3);
     const bs = (m.K.TOE[70] - m.K.TOE[50]) / 2 / DEG * 60, ad = Math.tan(at(m.K, m.K.SVA, 0)) * 3.6 / .3 * .57 * 100;
     ro.set("cas", at(m.K, m.K.CAS, 0) / DEG, 2), ro.set("kpi", at(m.K, m.K.KPI, 0) / DEG, 2), ro.set("scr", at(m.K, m.K.SCR, 0) * 1e3, 1), ro.set("trl", at(m.K, m.K.TRL, 0) * 1e3, 1);
@@ -526,6 +539,7 @@ LAB.susp = (() => {
         <div class="ctrl s3tools"><label>Vista explosionada <input type="range" id="susExpl" min="0" max="1" step="0.01" value="0" style="width:140px;vertical-align:middle"></label><label class="ck"><input type="checkbox" id="susXray"> Rayos X</label><label class="ck"><input type="checkbox" id="susCut"> Corte por la rueda</label><label class="ck"><input type="checkbox" id="susDuct" checked> Conducto de freno</label><label class="ck"><input type="checkbox" id="susLoadsCk" checked> Fuerzas</label><span class="hint">Pulsa una pieza para ver su ficha</span></div>
         <div class="checks" id="susChecks"></div>
         <div class="readouts" id="susRo"></div>
+        <div class="benchbox" id="susBench"></div>
         <div class="loadtbl" id="susLoads"></div>
         <div class="pgrid"><canvas id="susLoad"></canvas><canvas id="susTrav"></canvas><canvas id="susHist"></canvas><canvas id="susFft"></canvas></div>
         <h3 class="adv">Cinemática 3D, dirección y amortiguador</h3>

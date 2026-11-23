@@ -48,6 +48,26 @@ async def run():
                 if chk: bad.append([name,chk])
                 if name in ('V60','V120','largo','corto','d60','d100','desf40'): await pg.screenshot(path=OUT+'eng_%s.png'%name)
             rep['motor 3D a fondo']={'errs':list(errs)+[json.dumps(x,ensure_ascii=False)[:300] for x in bad],'info':info};await pg.close()
+        if 'drive' in tabs and not os.environ.get('QUICK'):
+            pg,errs=await page({'width':1280,'height':800})
+            await pg.goto('http://localhost:8791/lab.html#drive',wait_until='load');await pg.wait_for_timeout(7000)
+            await pg.evaluate("(()=>{const b=document.querySelector('[data-setmode=pro]');b&&b.click()})()");await pg.wait_for_timeout(800)
+            bad=[]
+            for sel in ['[data-dc=full]','[data-dc=off]','[data-dc=cut]','[data-de=full]','[data-de=bare]','#drvNames','[data-dv=clutch]','[data-dv=diff]','[data-dv=ers]','[data-dv=all]','[data-dv=box]']:
+                ok=await pg.evaluate("(()=>{const b=document.querySelector('%s');if(!b)return false;b.click();return true})()"%sel)
+                if not ok: bad.append('sin botón: '+sel)
+                await pg.wait_for_timeout(1300)
+            cases=[('m2',{'Módulo de los dientes':2}),('m4',{'Módulo de los dientes':4}),('m3',{'Módulo de los dientes':3}),('a8',{'Ancho de dentado':8}),('a30',{'Ancho de dentado':30}),('a18',{'Ancho de dentado':18}),('c70',{'Distancia entre ejes':70}),('c120',{'Distancia entre ejes':120}),('c90',{'Distancia entre ejes':90}),('fd25',{'Grupo cónico':2.5}),('fd45',{'Grupo cónico':4.5}),('g18',{'1ª':4.5,'8ª':0.8})]
+            for name,vals in cases:
+                for k,v in vals.items():
+                    ok=await pg.evaluate("(%s)(%s,%s)"%(SETP,json.dumps(k),json.dumps(v)))
+                    if not ok: bad.append('sin control: '+k)
+                await pg.wait_for_timeout(3200)
+                if name in ('m2','m4','a30','c70','c120','fd45'): await pg.screenshot(path=OUT+'drv_%s.png'%name)
+            n=await pg.evaluate("document.querySelectorAll('#drvPre button').length")
+            for i in range(n):
+                await pg.evaluate("document.querySelectorAll('#drvPre button')[%d].click()"%i);await pg.wait_for_timeout(3000)
+            rep['transmisión 3D a fondo']={'errs':list(errs)+bad};await pg.close()
         await b.close()
     srv.kill()
     json.dump(rep,open(OUT+'report.json','w'),indent=1,ensure_ascii=False)

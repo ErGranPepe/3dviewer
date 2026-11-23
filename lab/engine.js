@@ -434,7 +434,27 @@ LAB.engine = (() => {
       plots.pw.draw([{ x, y: Float32Array.from(pw), n: xs.length, col: "#2fd16c", label: "Potencia al freno (kW)" }], { title: "Curva de potencia del motor térmico", xlabel: "rpm", ymin: 0, vlines: [{ x: P.rpm, col: "rgba(255,255,255,.4)" }] })
     }, 160)
   }
+  /* lo que se puede contrastar con datos públicos: reglamento de la FIA y cifras de Mercedes */
+  function bench() {
+    const { C, P, TB } = res, es = n => Math.round(n).toLocaleString("es-ES"), cc = C.Vd * NC * 1e6, qlim = Math.min(100, .009 * P.rpm + 5.5), nk = P.rpm * res.MK.ratio, etaPU = (C.Pb + Math.max(0, TB.Wh)) / (C.Pb / C.etaB) * 100, S = LAB.SRC, f = LAB.nf, pt = C.Pb + 120e3;
+    LAB.bench($("engBench"), [
+      { k: "Cilindrada", lab: f(cc) + " cm³", real: "1600 cm³ (+0/−10)", s: 1, ok: cc <= 1600.5 && cc >= 1589.5 },
+      { k: "Cilindros y ángulo de la V", lab: "6 en V a " + P.bank + "°", real: "6 en V a 90°", s: 1, ok: P.bank === 90 },
+      { k: "Diámetro del cilindro", lab: f(P.bore, 1) + " mm", real: "80 ± 0,1 mm", s: 1, ok: Math.abs(P.bore - 80) <= .1001 },
+      { k: "Relación de compresión", lab: f(P.cr, 1) + " : 1", real: "máx. 18,0 : 1 (16 : 1 en 2026)", s: "1, 5", ok: P.cr <= 18 },
+      { k: "Régimen", lab: es(P.rpm) + " rpm", real: "máx. 15 000 rpm", s: 2, ok: P.rpm <= 15000 },
+      { k: "Caudal de combustible a este régimen", lab: f(C.fuelKgh, 1) + " kg/h", real: "máx. " + f(qlim, 1) + " kg/h (100 kg/h; por debajo de 10 500 rpm, 0,009·rpm + 5,5)", s: 1, ok: C.fuelKgh <= qlim + .05 },
+      { k: "Inyección", lab: "directa, un inyector por cilindro", real: "un inyector por cilindro, máx. 500 bar", s: 1, ok: !0 },
+      { k: "Turbo", lab: es(TB.Nt) + " rpm", real: "máx. 125 000 rpm", s: 2, ok: TB.Nt <= 125e3 },
+      { k: "MGU-K a este régimen", lab: es(nk) + " rpm", real: "máx. 50 000 rpm · 120 kW · 200 N·m, relación fija con el cigüeñal", s: 1, ok: nk <= 50000 },
+      { k: "Rendimiento térmico, solo el motor", lab: f(C.etaB * 100, 1) + " %", real: "no se publica por separado", ok: null },
+      { k: "Rendimiento contando lo que recupera el MGU-H", lab: f(etaPU, 1) + " %", real: "44 % en 2014; más del 50 % en banco en 2017 (Mercedes)", s: 3, ok: etaPU >= 42 && etaPU <= 56 },
+      { k: "Potencia total (térmico + 120 kW del MGU-K)", lab: es((C.Pb + 120e3) / 1e3) + " kW", real: "más de 700 kW (Mercedes, 2025)", s: 4, ok: pt >= 700e3 && pt <= 800e3 ? !0 : pt >= 630e3 && pt <= 880e3 ? "near" : !1 },
+      { k: "Fondo del cárter bajo el eje del cigüeñal", lab: "88 mm", real: "el eje del cigüeñal va a 90 mm del plano de referencia", s: 1, ok: !0 }
+    ], [S.fia22, S.mbw16, S.mb50, S.mbpu26, S.honda26])
+  }
   function readouts() {
+    bench();
     const { C, Sx, Th, V6, TS, TR, P } = res, mp = MAT[P.pmat];
     const st = (sf, lo = 1.2, hi = 1.6) => sf < lo ? "bad" : sf < hi ? "warn" : "ok";
     ro.set("pw", C.Pb / 1e3, 0), ro.set("cv", C.Pb / 735.5, 0), ro.set("tq", C.Tq, 0), ro.set("eta", C.etaB * 100, 1, C.etaB > .45 ? "ok" : ""), ro.set("lam", C.lambda, 2);
@@ -476,6 +496,7 @@ LAB.engine = (() => {
         <div class="verdict vgrid" id="engVerdict"></div>
         <div class="ctrl adv"><button id="engCsv" class="btn">Exportar CSV del ciclo</button></div>
         <div class="readouts" id="engRo"></div>
+        <div class="benchbox" id="engBench"></div>
         <div class="pgrid"><canvas id="engP"></canvas><canvas id="engF"></canvas><canvas id="engTq"></canvas><canvas id="engTh"></canvas></div>
         <h3 class="adv">Ingeniería a fondo</h3>
         <div class="pgrid adv"><canvas id="engPV"></canvas><canvas id="engBrg"></canvas><canvas id="engVib"></canvas><canvas id="engCamp"></canvas><canvas id="engSw"></canvas><canvas id="engPw"></canvas></div>
