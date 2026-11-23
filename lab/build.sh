@@ -2,7 +2,7 @@
 # Construye el laboratorio: concatena, minifica y publica en pages/lab.html + a/lab.<hash>.js
 set -e
 cd /home/claude/src/lab
-cat core.js carmesh.js kin3d.js suspcad.js susp.js susp3d.js engine.js engine3d.js limits.js drivemodel.js drive3d.js drive.js chassismodel.js chassis.js tyremodel.js tyre.js > /tmp/lab.all.js
+cat core.js cadkit.js carmesh.js kin3d.js suspcad.js susp.js susp3d.js engine.js enginecad.js engine3d.js limits.js drivemodel.js drive3d.js drive.js chassismodel.js chassis.js tyremodel.js tyre.js > /tmp/lab.all.js
 npx --yes esbuild@0.24.0 /tmp/lab.all.js --minify --target=es2020 --outfile=/tmp/lab.min.js --log-level=warning
 H=$(sha256sum /tmp/lab.min.js | cut -c1-10)
 P=/home/claude/pages

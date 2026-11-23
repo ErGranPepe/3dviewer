@@ -71,7 +71,7 @@ LAB.drive3d = (() => {
       cell: S({ color: "#2fd16c", emissive: "#2fd16c", emissiveIntensity: .6, roughness: .5 }), ground: S({ color: "#14191f", roughness: .95 })
     }
   }
-  let M;
+  let M, camSet = null;
   /* ---------- montaje ---------- */
   function build() {
     const g = { gears: [], dogs: [], forks: [], flows: [] }, q = P.geo;
@@ -195,6 +195,7 @@ LAB.drive3d = (() => {
     labelsEl = document.createElement("div"), labelsEl.className = "s3labels", host.appendChild(labelsEl);
     st = { az: .9, el: .32, d: 1.25, t: new T.Vector3(-.2, 0, 0) };
     const place = () => { const c = Math.cos(st.el); cam.position.set(st.t.x + st.d * c * Math.cos(st.az), st.t.y + st.d * Math.sin(st.el), st.t.z + st.d * c * Math.sin(st.az)), cam.lookAt(st.t) };
+    camSet = a => { st.az = a[0], st.el = a[1], st.d = a[2], st.t.set(a[3], a[4], a[5]), place() };
     let drag = null, pinch = null;
     const cv = R.domElement, ptr = new Map;
     cv.addEventListener("pointerdown", e => { ptr.set(e.pointerId, [e.clientX, e.clientY]), drag = [e.clientX, e.clientY, e.button], cv.setPointerCapture(e.pointerId) });
@@ -285,5 +286,5 @@ LAB.drive3d = (() => {
     });
     comp ? comp.render() : R.render(scene, cam)
   }
-  return { init, frame, rebuild }
+  return { init, frame, rebuild, cam: a => camSet && camSet(a) }
 })();

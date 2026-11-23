@@ -22,6 +22,10 @@ Todas usan Playwright con Chromium y sirven el sitio desde una carpeta local.
 - `valve.py` / `stuck.py`: abandonos con el estado del coche justo antes, y coches que se quedan parados en pista.
 - `pitstop.py`, `pitview.py`, `carview.py`, `ovshot.py`, `labshot.py`: capturas de la parada en boxes, la calle de boxes, el coche de
   cerca, la cámara térmica y la suspensión en vivo, y el Laboratorio.
+- `labqa.py`: las seis pestañas del Laboratorio en escritorio y móvil y, a fondo, el motor 3D: las tres vistas, las capas, la geometría
+  llevada a sus extremos (V de 60° a 120°, carrera, biela, diámetro, separación y desfase) y la comprobación de que ningún tubo
+  atraviesa a otro (`LAB.enginecad.check`).
+- `labcam.py`: capturas de cualquier visor 3D del Laboratorio desde las cámaras que se le pidan (para revisar las piezas de cerca).
 R
 cat > $F/coche/LEEME.md <<'R'
 # El coche

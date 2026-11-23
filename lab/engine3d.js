@@ -9,7 +9,7 @@
    salen de los números (fatiga de Basquin acumulada con la regla de Miner, flotación de válvulas por inercia contra el
    muelle, holgura válvula-pistón por geometría y calado, detonación, presión en el cojinete). */
 LAB.engine3d = (() => {
-  let THREE, R, scene, cam, ctrl, host, res, root, crank, cyl = [], turbo, mguk, exh = [], cams = [], picks = [], labels = [], caps = [], shellMats = [], sel = null, mode = "real", view = "cut";
+  let THREE, R, scene, cam, ctrl, host, res, root, crank, cyl = [], turbo, ecad = null, clipT, exh = [], cams = [], picks = [], labels = [], caps = [], shellMats = [], sel = null, mode = "real", view = "cut";
   let hidden = new Set, Theta = 0, slow = 1 / 300, ageMul = 1, lastT = 0, rpmNow = 0, stopped = null, events = [], dmg = {}, composer = null, running = !0, cyclesTotal = 0, engTime = 0, nFrame = 0, built = "", lastMode = "", clip, TX = null, MAT3 = null;
   const FIRE = [0, 3, 1, 4, 2, 5], SCAT = [1.035, .975, 1.012, .992, 1.041, .962]; /* dispersión de fabricación de la resistencia a fatiga */
   const V3 = (x, y, z) => new THREE.Vector3(x, y, z), UP = () => V3(0, 1, 0);
@@ -91,7 +91,7 @@ LAB.engine3d = (() => {
     return pm.dispose(), t
   }
   /* ---------- órbita con ratón y táctil ---------- */
-  const HOME = () => ({ az: .78, el: .3, d: 1.12, t: V3(-.03, .07, 0) });
+  const HOME = () => ({ az: .78, el: .3, d: 1.5, t: V3(-.07, .08, -.03) });
   function orbit(el, camera) {
     const st = { ...HOME() }, pts = new Map;
     let moved = 0, pinch = null, goal = null;
@@ -202,7 +202,7 @@ LAB.engine3d = (() => {
     const ch = .021, pr = P.pinD / 2e3, pw = P.pinW / 1e3, jr = P.journal / 2e3, tw = .0085;
     const add = (m, kind, k, parent = root) => (parent.add(m), kind && picks.push([m, kind, k]), m);
     /* pieza seccionable: cara exterior en aluminio (recortada por el plano) y caras traseras en rojo que hacen de sección */
-    const shell = (geo, mat, kind) => { const m = add(new THREE.Mesh(geo, mat), kind); m.userData.shell = 1; const c = new THREE.Mesh(geo, M.cap); c.userData.cap = 1, root.add(c), caps.push(c); return m };
+    const shell = (geo, mat, kind, layer) => { const m = add(new THREE.Mesh(geo, mat), kind); m.userData.shell = 1; const c = new THREE.Mesh(geo, M.cap); c.userData.cap = 1, root.add(c), caps.push(c), layer && (m.userData.layer = c.userData.layer = layer); return m };
     const xs = [2, 1, 0, 2, 1, 0].map((q, k) => q * sp + (k < 3 ? 0 : off)), xmin = Math.min(...xs) - .045, xmax = Math.max(...xs) + .045, xc = (xmin + xmax) / 2;
     root.position.x = -xc, clip.constant = xs[0] - xc + .0015;
     for (let k = 0; k < 6; k++) {
@@ -223,21 +223,12 @@ LAB.engine3d = (() => {
     }
     const jg = new THREE.CylinderGeometry(jr, jr, 1, 40).rotateZ(Math.PI / 2);
     ends.sort((a, b) => a[0] - b[0]);
-    for (const [a, b] of [[xmin - .02, ends[0][0]], [ends[0][1], ends[1][0]], [ends[1][1], ends[2][0]], [ends[2][1], xmax + .03]]) { if (b - a < .002) continue; const j = new THREE.Mesh(jg, M.polish); j.scale.x = b - a, j.position.x = (a + b) / 2, add(j, "crank", 0, crank) }
-    /* engranaje del MGU-K delante y embrague multidisco de carbono detrás */
-    const gR = .034, ratio = res.MK.ratio, pR = gR / ratio;
-    const gear = new THREE.Mesh(new THREE.CylinderGeometry(gR, gR, .012, 48).rotateZ(Math.PI / 2), M.steel);
-    gear.position.x = xmax + .012, add(gear, "mguk", 0, crank);
+    for (const [a, b] of [[xmin - .02, ends[0][0]], [ends[0][1], ends[1][0]], [ends[1][1], ends[2][0]], [ends[2][1], xmax + .005]]) { if (b - a < .002) continue; const j = new THREE.Mesh(jg, M.polish); j.scale.x = b - a, j.position.x = (a + b) / 2, add(j, "crank", 0, crank) }
+    /* morro del cigüeñal (lleva los engranajes de la distribución y del MGU-K) y discos de carbono del embrague detrás */
+    add(new THREE.Mesh(new THREE.CylinderGeometry(.014, .014, .05, 28).rotateZ(Math.PI / 2).translate(xmax + .03, 0, 0), M.polish), "crank", 0, crank);
     const clutch = new THREE.Group;
     for (let q = 0; q < 7; q++) { const d = new THREE.Mesh(new THREE.CylinderGeometry(.0485, .0485, .0024, 48).rotateZ(Math.PI / 2), q % 2 ? M.cf : M.steel); d.position.x = -q * .0032, clutch.add(d), picks.push([d, "clutch"]) }
     clutch.position.x = xmin - .03, crank.add(clutch);
-    /* MGU-K en el costado izquierdo, bajo el escape, movido por un piñón intermedio desde la punta del cigüeñal */
-    mguk = new THREE.Group;
-    const mk = new THREE.Mesh(new THREE.CylinderGeometry(.046, .046, .13, 48).rotateZ(Math.PI / 2), M.motor), Ri = .036;
-    const pin2 = new THREE.Mesh(new THREE.CylinderGeometry(pR, pR, .012, 24).rotateZ(Math.PI / 2), M.steel), idl = new THREE.Mesh(new THREE.CylinderGeometry(Ri, Ri, .012, 48).rotateZ(Math.PI / 2), M.steel);
-    const ud = V3(0, -.42, -1).normalize(), pI = ud.clone().multiplyScalar(gR + Ri), pK = ud.clone().multiplyScalar(gR + 2 * Ri + pR);
-    pin2.position.set(.075, 0, 0), mguk.add(mk, pin2), mguk.position.set(xmax + .012 - .075, pK.y, pK.z), idl.position.set(xmax + .012, pI.y, pI.z);
-    root.add(mguk, idl), mguk.userData.p = pin2, mguk.userData.i = idl, mguk.userData.ri = Ri, picks.push([mk, "mguk"], [pin2, "mguk"], [idl, "mguk"]);
     /* ---- cilindros ---- */
     const deckD = r + l + ch + C.Vc / C.Ap + .0012, pg = pistonGeo(B, ch, P.crown / 1e3, P.ringland / 1e3), rodG = rodGeo(l, pr, P.pin / 2e3);
     const vIn = valveGeo(.0285, .1), vEx = valveGeo(.0245, .1), sprG = springGeo(.0118, .0016, 6, .04), va = 11 * DEG, seatV = .0055, camA = .1238, base = .0155;
@@ -316,45 +307,28 @@ LAB.engine3d = (() => {
       arc(B5, B6, Bq), Bq.push(B6);
       for (const poly of [A, Bq]) { const sh = new THREE.Shape(); sh.moveTo(...poly[0]); for (let i = 1; i < poly.length; i++) sh.lineTo(...poly[i]); sh.closePath(), shell(extrude(sh, xmax - xmin + .01, V3(0, 0, -1), V3(0, 1, 0), V3(xmin - .005, 0, 0)), MAT3.alu, "crankcase") }
     }
-    /* turbo partido: compresor delante, turbina detrás, MGU-H en el centro del eje dentro de la V */
-    const ty = (r + l) * .9, shaftL = (xmax - xmin) + .2;
-    turbo = new THREE.Group;
-    turbo.add(new THREE.Mesh(new THREE.CylinderGeometry(.0055, .0055, shaftL, 16).rotateZ(Math.PI / 2), M.steel));
-    const comp = new THREE.Mesh(wheelGeo(.046, 12, .034, -1), M.wheelC), turb = new THREE.Mesh(wheelGeo(.04, 11, .03, 1), new THREE.MeshStandardMaterial({ color: "#72665c", metalness: .9, roughness: .35, emissive: "#000", side: THREE.DoubleSide }));
-    comp.position.x = shaftL / 2 - .02, turb.position.x = -shaftL / 2 + .02, turbo.add(comp, turb);
-    const mguh = new THREE.Mesh(new THREE.CylinderGeometry(.034, .034, .1, 40).rotateZ(Math.PI / 2), M.motor);
-    turbo.add(mguh), turbo.position.set(xc, ty, 0), turbo.userData = { comp, turb, ang: 0, layer: "tb" }, root.add(turbo), picks.push([comp, "turbo"], [turb, "turbine"], [mguh, "mguh"]);
-    const volute = (rad, tube, mat) => { const m = new THREE.Mesh(new THREE.TorusGeometry(rad, tube, 14, 48, Math.PI * 1.75), mat); m.rotation.y = Math.PI / 2; return m };
-    const cv = volute(.06, .018, new THREE.MeshStandardMaterial({ color: "#c3c9cf", metalness: .6, roughness: .4, transparent: !0, opacity: .3, depthWrite: !1 })), tv = volute(.054, .017, new THREE.MeshStandardMaterial({ color: "#5a4a40", metalness: .6, roughness: .45, transparent: !0, opacity: .55, depthWrite: !1, emissive: "#000" }));
-    cv.position.set(xc + shaftL / 2 - .02, ty, 0), tv.position.set(xc - shaftL / 2 + .02, ty, 0), cv.userData.layer = tv.userData.layer = "tb", root.add(cv, tv), turbo.userData.tv = tv, picks.push([cv, "turbo"], [tv, "turbine"]);
-    const tin = V3(xc - shaftL / 2 + .02, ty - .045, 0);
-    /* conductos: nacen en la cámara (encima de las válvulas), atraviesan la culata y salen al colector */
-    const exMat = new THREE.MeshStandardMaterial({ map: TX.tint, color: "#ffffff", metalness: .7, roughness: .45, emissive: "#000", emissiveMap: TX.hot, side: THREE.DoubleSide });
-    shellMats.push(exMat);
-    for (const c of cyl) {
-      const sgn = c.left ? -1 : 1, P0 = (v, u) => c.dir.clone().multiplyScalar(deckD + v).addScaledVector(c.side, sgn * u).setX(c.x);
-      const out = P0(.05, hw + .045).add(V3(0, -.03, 0)), zo = out.z * 1.05;
-      const pts = [P0(.013, .012), P0(.028, .045), P0(.045, hw + .004), out, V3(c.x - .03, out.y - .06, zo * 1.02), V3(xmin - .005, ty - .1 + c.k % 3 * .012, zo * .8), V3(tin.x + .06, tin.y - .03, sgn * .05), tin.clone().setZ(sgn * .012)];
-      const tube = add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 110, .0155, 16, !1), exMat.clone()), "exhaust", c.k);
-      tube.userData.layer = "exh", tube.userData.shell = 1, shellMats.push(tube.material), exh.push({ m: tube, c })
+    /* las bancadas van desfasadas: se prolonga cada una hasta la caja delantera o la placa trasera para que no quede hueco */
+    {
+      const bankPoly = c0 => { const o = c0.side.clone().multiplyScalar(c0.left ? -1 : 1), q = (u, v) => { const p = c0.dir.clone().multiplyScalar(v).addScaledVector(o, u); return [-p.z, p.y] }, d0 = deckD - H; return [q(hwB, d0), q(hwB, deckD), q(hw, deckD), q(hw, deckD + vc), q(hw - .008, deckD + vtop - .004), q(hw - .02, deckD + vtop), q(-(hw - .02), deckD + vtop), q(-(hw - .008), deckD + vtop - .004), q(-hw, deckD + vc), q(-hw, deckD), q(-hwB, deckD), q(-hwB, d0)] };
+      for (const left of [!0, !1]) {
+        const cs = cyl.filter(c => c.left === left), x0 = Math.min(...cs.map(c => c.x)) - hwB, x1 = Math.max(...cs.map(c => c.x)) + hwB, toX = (g, x) => g.applyMatrix4(new THREE.Matrix4().makeBasis(V3(0, 0, -1), V3(0, 1, 0), V3(1, 0, 0)).setPosition(V3(x, 0, 0)));
+        xmax + .005 - x1 > .0015 && shell(toX(LAB.kit.plate(bankPoly(cs[0]), xmax + .007 - x1), x1 - .001), M.alu, "head");
+        x0 - (xmin - .005) > .0015 && shell(toX(LAB.kit.plate(bankPoly(cs[0]), x0 - xmin + .007), xmin - .006), M.alu, "head")
+      }
     }
-    /* admisión: plenum de carbono sobre la V y trompetas hasta cada conducto */
-    const plen = add(new THREE.Mesh(new THREE.BoxGeometry(xmax - xmin - .02, .045, .085), M.carbon), "intake");
-    plen.position.set(xc, deckD * .72 + .17, 0), plen.userData.layer = "in", plen.userData.shell = 1;
-    const mTr = M.carbon.clone();
-    mTr.side = THREE.DoubleSide, shellMats.push(mTr);
-    for (const c of cyl) {
-      const sgn = c.left ? 1 : -1, P0 = (v, u) => c.dir.clone().multiplyScalar(deckD + v).addScaledVector(c.side, sgn * u).setX(c.x), top = V3(c.x, plen.position.y - .025, sgn * .026), ex0 = P0(.06, hw + .004);
-      const t = add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([P0(.014, .012), P0(.034, .045), ex0, ex0.clone().lerp(top, .55).add(V3(0, .012, 0)), top]), 40, .0165, 18, !1), mTr), "intake");
-      t.userData.layer = "in", t.userData.shell = 1
-    }
+    /* todo lo que va por fuera: turbo con sus carcasas, escape completo, admisión completa, distribución, MGU-K, embrague, encendido e inyección */
+    ecad = LAB.enginecad.build({ THREE, root, M, TX, cyl, xmin, xmax, xc, deckD, hw, hwB, vc, vtop, uc, B, r, l, picks, exh, shellMats, shell, crank, cams, H, ratioK: res.MK.ratio });
+    turbo = ecad.turbo, clipT.constant = ecad.ty;
+    for (const o of ecad.front) o.userData.cutHide = 1;
     root.traverse(o => { if (o.isMesh && !o.material.transparent && !o.userData.cap) o.castShadow = o.receiveShadow = !0 });
     /* etiquetas para quien no conoce las piezas */
     const lab = (txt, obj, off, inner) => { const e = document.createElement("div"); e.className = "e3lab", e.textContent = txt, $("e3View").appendChild(e), labels.push({ el: e, obj, off: off || V3(0, 0, 0), inner }) };
-    const anchor = p => { const o = new THREE.Object3D; o.position.copy(p), root.add(o); return o };
-    const c1 = cyl[0], xcut = clip.constant + xc, onCut = (v, u) => c1.dir.clone().multiplyScalar(deckD + v).addScaledVector(c1.side, u).setX(xcut);
-    lab("Compresor", comp, V3(0, .075, 0)), lab("MGU-H", mguh, V3(0, .05, 0)), lab("MGU-K", mk, V3(0, -.06, 0)), lab("Pistón", c1.piston, V3(.03, 0, 0), 1), lab("Biela", c1.rod, V3(.03, .05, 0), 1);
-    lab("Cigüeñal", anchor(V3(xs[0] + .03, -.05, .02)), 0, 1), lab("Colector de escape", anchor(exh[3].m.geometry.parameters.path.getPoint(.45))), lab("Culata", anchor(onCut(.06, -hw * .55))), lab("Cámara de agua", anchor(onCut(-.03, -(B / 2 + .0095))), 0, 1);
+    const anchor = (p, layer, front) => { const o = new THREE.Object3D; o.position.copy(p), root.add(o), layer && (o.userData.layer = layer), front && (o.userData.cutHide = 1); return o };
+    const c1 = cyl[0], xcut = clip.constant + xc, onCut = (v, u) => c1.dir.clone().multiplyScalar(deckD + v).addScaledVector(c1.side, u).setX(xcut), EL = ecad.lab;
+    lab("Compresor", anchor(V3(ecad.Xc, ecad.ty + .115, 0), "tb", 1)), lab("Turbina", anchor(V3(ecad.Xt, ecad.ty + .105, 0), "tb")), lab("MGU-H", anchor(V3(xc, ecad.ty + .055, 0), "tb")), lab("MGU-K", anchor(EL.mguk)), lab("Pistón", c1.piston, V3(.03, 0, 0), 1), lab("Biela", c1.rod, V3(.03, .05, 0), 1);
+    lab("Cigüeñal", anchor(V3(xs[0] + .03, -.05, .02)), 0, 1), lab("Primarios de escape", anchor(EL.exh, "exh")), lab("Colector 3 en 1", anchor(EL.col, "exh")), lab("Válvula de descarga", anchor(EL.wg, "exh")), lab("Tubo de escape", anchor(EL.tail, "exh"));
+    lab("Intercooler", anchor(EL.ic, "in")), lab("Plenum", anchor(EL.plen, "in")), lab("Toma de aire", anchor(EL.inlet, "in", 1)), lab("Caja de la distribución", anchor(EL.timing, 0, 1)), lab("Bombas de aceite", anchor(EL.oil)), lab("Embrague", anchor(EL.clutch)), lab("Bomba de gasolina", anchor(EL.pump)), lab("Bobinas", anchor(EL.coil));
+    lab("Culata", anchor(onCut(.06, -hw * .55))), lab("Cámara de agua", anchor(onCut(-.03, -(B / 2 + .0095))), 0, 1);
     lab("Árbol de levas", anchor(onCut(vc, -uc)), 0, 1), lab("Precámara", anchor(onCut(.032, 0)), 0, 1), lab(P.vsys === "neum" ? "Muelle neumático" : "Muelle", anchor(c1.valves[0].seat.clone().addScaledVector(c1.valves[0].axis, .075)), 0, 1);
     setView(view), applyLayers(), built = sig()
   }
@@ -363,10 +337,17 @@ LAB.engine3d = (() => {
     const mats = new Set([MAT3.alu, MAT3.carbon, ...shellMats]);
     for (const m of mats) { const x = v === "xray"; m.clippingPlanes = v === "cut" ? [clip] : null, m.transparent = x, m.opacity = x ? .14 : 1, m.depthWrite = !x, m.needsUpdate = !0 }
     MAT3.cap.clippingPlanes = [clip];
-    for (const c of caps) c.visible = v === "cut";
+    /* la turbina se secciona con su propio plano (se quita la mitad de arriba) y el eje del turbo, con el plano del motor */
+    if (ecad) ecad.mTH.clippingPlanes = v === "cut" ? [clipT] : null, ecad.capT.material.clippingPlanes = [clipT], ecad.mShaft.clippingPlanes = v === "cut" ? [clip] : null, ecad.mTH.needsUpdate = ecad.mShaft.needsUpdate = !0;
     applyLayers()
   }
-  function applyLayers() { root && root.children.forEach(o => o.userData.layer && (o.visible = !hidden.has(o.userData.layer))) }
+  function applyLayers() {
+    if (!root) return;
+    const cut = view === "cut";
+    root.children.forEach(o => { const u = o.userData; (u.layer || u.cap || u.cutHide) && (o.visible = !(u.layer && hidden.has(u.layer)) && !(u.cap && !cut) && !(u.cutHide && cut)) });
+    /* lo que queda por delante del plano de corte y no se recorta solo (ruedas dentadas, rueda del compresor) */
+    if (ecad) for (const o of ecad.front) o.parent !== root && (o.visible = !cut)
+  }
   const sig = () => { const P = res.P; return [P.bore, P.stroke, P.rod, P.bank, P.spacing, P.offset, P.pinD, P.pinW, P.pin, P.journal, P.cr, P.crown, P.ringland, P.vlin, P.vlex, P.ivo, P.ivc, P.evo, P.evc, P.vsys].join() };
 
   /* ---------- daño acumulado: Basquin + Miner ---------- */
@@ -464,7 +445,7 @@ LAB.engine3d = (() => {
     }
     const tu = turbo.userData;
     tu.ang += res.TB.Nt / 60 * TAU * dt * slow * (rpmNow / Math.max(1, P.rpm)), tu.comp.rotation.x = tu.turb.rotation.x = tu.ang;
-    mguk.userData.p.rotation.x = Theta * DEG * res.MK.ratio, mguk.userData.i.rotation.x = -Theta * DEG * .034 / mguk.userData.ri
+    for (const g of ecad.train) g.m.rotation.x = g.ph + Theta * DEG * g.k
   }
   const logLife = d => clamp(Math.log10(Math.max(1e-9, d || 0)) / 4.5 + 1, 0, 1) * 2 - 1;
   function colorize() {
@@ -491,7 +472,8 @@ LAB.engine3d = (() => {
       mt.emissive.setRGB(g[0] * .45, g[1] * .45, g[2] * .45), mode === "temp" ? (mt.map = null, mt.color.setRGB(...inferno((T - 333) / 1000))) : (mt.map = TX.tint, mt.color.set("#ffffff")), mode !== lastMode && (mt.needsUpdate = !0)
     }
     const gt = glow(TB.T3 * run + 300 * (1 - run) + 40);
-    turbo.userData.tv.material.emissive.setRGB(gt[0] * .25, gt[1] * .25, gt[2] * .25), turbo.userData.turb.material.emissive.setRGB(gt[0] * .2, gt[1] * .2, gt[2] * .2);
+    for (const m of ecad.hot) m.emissive.setRGB(gt[0] * .22, gt[1] * .22, gt[2] * .22);
+    turbo.userData.turb.material.emissive.setRGB(gt[0] * .2, gt[1] * .2, gt[2] * .2);
     if (mode === "stress") { const t = coolwarm(clamp(res.TR.tau / 220e6, 0, 1) * 2 - 1); MAT3.polish.color.setRGB(...t), MAT3.forged.color.setRGB(...t) }
     else if (lastMode === "stress") MAT3.polish.color.set("#c4c9cf"), MAT3.forged.color.set("#6e757c");
     mode !== lastMode && ($("e3Legend").innerHTML = LEG[mode]), lastMode = mode
@@ -530,7 +512,7 @@ LAB.engine3d = (() => {
     h += `<div class="e3cyl">` + cyl.map(c => { const t = local(c), ph = t < -180 ? ["Admisión", "#3d8bff"] : t < 0 ? ["Compresión", "#8b97a4"] : t < 180 ? ["Expansión", "#ff6b1a"] : ["Escape", "#b45cff"]; return `<div style="--c:${c.dead || c.misfire ? "#ff3b3b" : ph[1]}"><b>${c.k + 1}</b><span>${c.dead ? "ROTO" : c.misfire ? "sin compresión" : ph[0]}</span></div>` }).join("") + `</div>`;
     if (sel) {
       const [, kind, k0] = sel, k = k0 == null ? 0 : k0, c = cyl[k], thd = local(c), i = idxOf(thd);
-      const N = { piston: "Pistón", rod: "Biela", valve: "Válvulas, taqués y muelles", cam: "Árbol de levas", crank: "Cigüeñal", turbo: "Compresor del turbo", turbine: "Turbina", mguh: "MGU-H", mguk: "MGU-K", exhaust: "Colector de escape", intake: "Admisión", block: "Bloque y camisas", crankcase: "Cárter", head: "Culata", plug: "Precámara (TJI)", clutch: "Embrague" }[kind] || kind;
+      const N = { piston: "Pistón", rod: "Biela", valve: "Válvulas, taqués y muelles", cam: "Árbol de levas", crank: "Cigüeñal", turbo: "Compresor del turbo", turbine: "Turbina", mguh: "MGU-H", mguk: "MGU-K", exhaust: "Colector de escape", intake: "Admisión", ic: "Intercooler", wg: "Válvula de descarga (wastegate)", fuel: "Inyección directa", coil: "Bobinas de encendido", oil: "Bombas de aceite (cárter seco)", timing: "Distribución por engranajes", block: "Bloque y camisas", crankcase: "Cárter", head: "Culata", plug: "Precámara (TJI)", clutch: "Embrague" }[kind] || kind;
       const perCyl = ["piston", "rod", "valve", "cam", "exhaust", "plug"].includes(kind), pc = x => (x * 100 < .001 ? (x * 100).toExponential(1) : (x * 100).toFixed(3)) + " %";
       h += `<h4>${N}${perCyl ? " · cilindro " + (k + 1) : ""}</h4><table>`;
       if (kind === "piston") h += row("Ángulo del ciclo", thd.toFixed(0) + "°") + row("Distancia al PMS", (C.xPis(thd * DEG) * 1e3).toFixed(2) + " mm") + row("Velocidad", F.vel[i].toFixed(1) + " m/s") + row("Aceleración", es(F.acc[i] / 9.81) + " g") + row("Presión sobre la corona", (C.p[i] / 1e5).toFixed(1) + " bar") + row("Fuerza del gas", (F.Fg[i] / 1e3).toFixed(1) + " kN") + row("Fuerza de inercia", (F.Fi[i] / 1e3).toFixed(1) + " kN") + row("Empuje contra la camisa", (F.Fn[i] / 1e3).toFixed(2) + " kN") + row("Temperatura de la corona", Th.Tpis.toFixed(0) + " °C") + row("Seguridad a fatiga", Sx.sfCrown.toFixed(2)) + row("Vida consumida", pc(dmg["pis" + k] || 0));
@@ -542,6 +524,12 @@ LAB.engine3d = (() => {
       else if (kind === "mguk") h += row("Régimen del MGU-K", es(rpmNow * res.MK.ratio) + " rpm") + row("Relación de engranajes", res.MK.ratio.toFixed(2) + " : 1") + row("Límite reglamentario", "120 kW · 50 000 rpm") + row("Par en el cigüeñal a 120 kW", (120e3 / Math.max(1, P.rpm / 60 * TAU)).toFixed(0) + " N·m");
       else if (kind === "exhaust") h += row("Gas a la turbina", (TB.T3 - 273).toFixed(0) + " °C") + row("Contrapresión", P.pexh.toFixed(2) + " bar") + row("Pulsos por segundo", es(P.rpm / 120 * 6) + " (uno por cilindro)") + row("Apertura de escape", 180 - P.evo + "° tras el PMS") + row("Material", "Inconel 625 (colores de revenido por el calor)");
       else if (kind === "intake") h += row("Presión en el plenum", P.boost.toFixed(2) + " bar abs") + row("Temperatura de admisión", P.tim + " °C") + row("Caudal de combustible", C.fuelKgh.toFixed(1) + " kg/h") + row("Lambda", C.lambda.toFixed(2));
+      else if (kind === "ic") h += row("Aire que entra (del compresor)", (TB.T2 - 273).toFixed(0) + " °C") + row("Aire que sale (al plenum)", P.tim + " °C") + row("Calor que evacúa", (TB.mdot * 1005 * Math.max(0, TB.T2 - 273 - P.tim) / 1e3).toFixed(0) + " kW") + row("Caudal de aire", (TB.mdot * 1e3).toFixed(0) + " g/s") + row("Presión de carga", P.boost.toFixed(2) + " bar abs");
+      else if (kind === "wg") h += row("Potencia de la turbina", (TB.Wt / 1e3).toFixed(0) + " kW") + row("Potencia que pide el compresor", (TB.Wc / 1e3).toFixed(0) + " kW") + row("MGU-H", (TB.Wh >= 0 ? "recupera " : "empuja ") + Math.abs(TB.Wh / 1e3).toFixed(0) + " kW") + row("Estado", "cerradas en este cálculo: lo que sobra en la turbina se lo lleva el MGU-H") + row("Contrapresión de escape", P.pexh.toFixed(2) + " bar abs") + row("Una por bancada", "cada una con su tubo propio");
+      else if (kind === "fuel") h += row("Caudal de combustible", C.fuelKgh.toFixed(1) + " kg/h") + row("Por cilindro y ciclo", (C.fuelKgh / 3.6 / Math.max(1, P.rpm / 120) / 6 * 1e3).toFixed(1) + " mg") + row("Lambda", C.lambda.toFixed(2)) + row("Inyectores", "uno por cilindro, directo a la cámara") + row("Presión máx. (reglamento)", "500 bar");
+      else if (kind === "coil") h += row("Chispas por segundo", es(P.rpm / 120 * 6)) + row("Inicio de combustión", P.soc + "°") + row("Sistema", P.tji === "si" ? "precámara con chorros de llama" : "bujía convencional");
+      else if (kind === "oil") h += row("Aceite", P.toil + " °C") + row("Sistema", "cárter seco: bombas de vaciado en fila") + row("Presión máx. en el cojinete de biela", (Sx.bearP / 1e6).toFixed(0) + " MPa");
+      else if (kind === "timing") h += row("Árboles de levas", es(rpmNow / 2) + " rpm") + row("Reducción", "24/32 × 16/24 = 1/2") + row("Cadena de engranajes", "cigüeñal → intermedio → rueda doble → intermedio → levas") + row("Dientes", "24 · 36 · 32/16 · 36 · 24") + row("MGU-K", "30 dientes del cigüeñal contra 9: " + res.MK.ratio.toFixed(2) + " : 1");
       else if (kind === "plug") h += row("Inicio de combustión", P.soc + "°") + row("Sistema", P.tji === "si" ? "precámara con chorros de llama" : "bujía convencional") + row("Quemado ahora", (C.xb[i] * 100).toFixed(0) + " %") + row("Detonación", C.knockAt != null ? "SÍ, a " + C.knockAt.toFixed(0) + "°" : "margen " + ((1 - C.ki) * 100).toFixed(0) + " %");
       h += "</table>"
     } else h += `<p class="e3hint">Toca cualquier pieza para ver sus datos en vivo. Arrastra para girar, rueda o pellizco para acercar, botón derecho o Mayús para desplazar.</p>`;
@@ -577,10 +565,10 @@ LAB.engine3d = (() => {
     R = new THREE.WebGLRenderer({ antialias: !1, powerPreference: "high-performance" }), R.setPixelRatio(Math.min(small ? 1.5 : 2, devicePixelRatio || 1)), R.outputColorSpace = THREE.SRGBColorSpace, R.toneMapping = THREE.ACESFilmicToneMapping, R.toneMappingExposure = 1.15, R.localClippingEnabled = !0;
     R.shadowMap.enabled = !0, R.shadowMap.type = THREE.PCFSoftShadowMap, view0.prepend(R.domElement);
     scene = new THREE.Scene, scene.background = new THREE.Color("#0b0e12"), scene.environment = studioEnv(R), scene.environmentIntensity = .85;
-    clip = new THREE.Plane(V3(-1, 0, 0), 0), TX = textures(), MAT3 = materials();
+    clip = new THREE.Plane(V3(-1, 0, 0), 0), clipT = new THREE.Plane(V3(0, -1, 0), 0), TX = textures(), MAT3 = materials();
     cam = new THREE.PerspectiveCamera(34, 1, .01, 20);
     const key = new THREE.DirectionalLight("#fff4e6", 2.4);
-    key.position.set(1.1, 1.3, .55), key.castShadow = !0, key.shadow.mapSize.set(2048, 2048), key.shadow.bias = -.0003, key.shadow.normalBias = .003, Object.assign(key.shadow.camera, { left: -.45, right: .45, top: .45, bottom: -.45, near: .3, far: 3.5 }), scene.add(key);
+    key.position.set(1.1, 1.3, .55), key.castShadow = !0, key.shadow.mapSize.set(2048, 2048), key.shadow.bias = -.0003, key.shadow.normalBias = .003, Object.assign(key.shadow.camera, { left: -.85, right: .85, top: .6, bottom: -.6, near: .3, far: 4 }), scene.add(key);
     const rim = new THREE.DirectionalLight("#9cc3ff", 1.2);
     rim.position.set(-.9, .6, -1), scene.add(rim);
     const fill = new THREE.DirectionalLight("#ffe2c4", .5);
@@ -596,7 +584,7 @@ LAB.engine3d = (() => {
       composer = new THREE.EffectComposer(R);
       if (THREE.N8AOPass) { ao = new THREE.N8AOPass(scene, cam, W0, H0); const c = ao.configuration; c.gammaCorrection = !1, c.aoRadius = .028, c.distanceFalloff = .6, c.intensity = 2.6, c.color = new THREE.Color(0, 0, 0), ao.setQualityMode(small ? "Low" : "Medium"), c.halfRes = small, composer.addPass(ao) }
       else composer.addPass(new THREE.RenderPass(scene, cam));
-      composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(512, 512), .45, .4, 3)), composer.addPass(new THREE.OutputPass()), THREE.SMAAPass && composer.addPass(smaa = new THREE.SMAAPass(W0, H0))
+      composer.addPass(new THREE.UnrealBloomPass(new THREE.Vector2(512, 512), .16, .3, 4.2)), composer.addPass(new THREE.OutputPass()), THREE.SMAAPass && composer.addPass(smaa = new THREE.SMAAPass(W0, H0))
     } catch (e) { composer = null, console.warn(e) }
     const fit = () => { const r = view0.getBoundingClientRect(); R.setSize(r.width, r.height, !1), composer && composer.setSize(r.width, r.height), ao && ao.setSize && ao.setSize(r.width, r.height), cam.aspect = r.width / Math.max(1, r.height), cam.updateProjectionMatrix() };
     new ResizeObserver(fit).observe(view0), fit();
@@ -626,5 +614,5 @@ LAB.engine3d = (() => {
     res.VT.over > 0 || (update.warned = 0)
   }
   const angle = k => cyl.length ? local(cyl[k || 0]) : 0;
-  return { init, update, angle, _test: { life } }
+  return { init, update, angle, _test: { life, info: () => R && ({ tris: R.info.render.triangles, calls: R.info.render.calls, geos: R.info.memory.geometries }) }, cam: a => { ctrl && (ctrl.st.az = a[0], ctrl.st.el = a[1], ctrl.st.d = a[2], ctrl.st.t.set(a[3], a[4], a[5]), ctrl.apply()) } }
 })();

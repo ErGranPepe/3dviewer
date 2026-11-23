@@ -392,7 +392,8 @@ LAB.suspcad = (() => {
     const TB = grp("tb", new T.Vector3(-.18, 0, 0)), tbL = .38, tbA = RP.clone().addScaledVector(xAx, -.02), tbB = RP.clone().addScaledVector(xAx, -.02 - tbL);
     A.tbar = add(TB, put(cyl(.0085, tbL, 20), tbA.clone().lerp(tbB, .5), xAx, Y3()), M.tiDark.clone(), { name: "Barra de torsión", mat: "Titanio β (Ti-3Al-8V-6Cr-4Mo-4Zr) o acero de muelle", kg: .4, info: "Es el muelle principal: se retuerce con el giro del balancín. Rigidez ∝ d⁴/L." });
     for (const pt of [tbA, tbB]) add(TB, put(new T.CylinderGeometry(.012, .012, .03, 24), pt, xAx, Y3()), M.steel, { name: "Estriado de la barra de torsión", mat: "Acero", kg: .05, info: "Estrías finas: permiten precargar la barra un diente para corregir la altura sin cambiar la rigidez." });
-    const anchor = put(new T.BoxGeometry(.05, .03, .05), tbB.clone().addScaledVector(xAx, -.01), xAx, Y3());
+    /* casquillo estriado con su brida de cuatro tornillos: es lo que sujeta el extremo que no gira */
+    const anchor = put(LAB.kit.merge([LAB.kit.latheHard([[.0125, -.004], [.0195, -.004], [.0195, .03], [.0125, .03], [.0125, -.004]], 28), LAB.kit.flange(.0195, .035, .006, 4, .0042).translate(0, -.007, 0), LAB.kit.latheHard([[0, -.01], [.0195, -.01], [.0195, -.004]], 28)]), tbB.clone().addScaledVector(xAx, -.012), xAx, Y3());
     add(TB, anchor, M.bracket, { name: "Anclaje fijo de la barra de torsión", mat: "Acero", kg: .15, info: "El extremo trasero no gira: todo el giro del balancín se convierte en torsión." });
     /* raya pintada: se enrosca con el giro real de la barra */
     const stG = new T.BoxGeometry(.0024, 1, .0024, 1, 24, 1); A.stripeBase = stG.attributes.position.array.slice();
