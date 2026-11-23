@@ -15,3 +15,10 @@ Todas usan Playwright con Chromium y sirven el sitio desde una carpeta local.
   llevada a sus extremos (V de 60° a 120°, carrera, biela, diámetro, separación y desfase) y la comprobación de que ningún tubo
   atraviesa a otro (`LAB.enginecad.check`).
 - `labcam.py`: capturas de cualquier visor 3D del Laboratorio desde las cámaras que se le pidan (para revisar las piezas de cerca).
+- `valtest.js` (Node, sin navegador): ejecuta el banco de validación del Laboratorio (`LAB.validate.run()`): química frente a Cantera,
+  NO frente a GRI-Mech 3.0, autoencendido frente a medidas, ciclo del motor frente a principios de conservación, elementos finitos
+  frente a resistencia de materiales, suspensión por trabajos virtuales y neumático frente a la solución analítica. `deploy.sh` lo pasa
+  antes de construir: si una sola comprobación se sale de su tolerancia, no se publica. `labqa.py` lo repite dentro del navegador
+  (ahí entra además la vuelta completa frente a las vueltas reales) y somete la química del motor a todos los preajustes,
+  combustibles y parámetros extremos.
+- `shot.py`: captura de los elementos que se le pidan de cualquier pestaña del Laboratorio, en escritorio o móvil.

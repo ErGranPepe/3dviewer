@@ -6,6 +6,27 @@ cp /home/claude/src/app.js /home/claude/src/deploy.sh /home/claude/src/backup.sh
 cp /home/claude/src/package.json $F/; mkdir -p $F/lab && cp /home/claude/src/lab/*.js /home/claude/src/lab/*.html /home/claude/src/lab/*.sh $F/lab/; cp /home/claude/src/xf.json $F/ 2>/dev/null || true
 # herramientas con las que se construye el coche a partir del modelo 3D original (CC BY 4.0) y su ficha de procedencia
 mkdir -p $F/coche && cp /home/claude/tools/car/*.py /home/claude/tools/viewer/simp.mjs /home/claude/tools/viewer/view.html /home/claude/tools/viewer/shot.py $F/coche/ 2>/dev/null || true
+# química: generadores de los datos termoquímicos, de los casos de referencia de Cantera y de la tabla de autoencendido
+mkdir -p $F/quimica && cp /home/claude/tools/chem/*.py /home/claude/tools/chem/*.json $F/quimica/ 2>/dev/null || true
+cat > $F/quimica/LEEME.md <<'R'
+# Química de la combustión: de dónde sale cada dato
+
+Requiere Python con Cantera 3.2 (`pip install cantera`).
+
+- `gen.py <carpeta>`: escribe `chemdata.js` (coeficientes NASA de 7 términos de cada especie, de la base de NASA Glenn que distribuye
+  Cantera en `nasa_gas.yaml`) y `chemref.js` (casos de referencia resueltos con Cantera: equilibrios a presión y volumen constantes,
+  poderes caloríficos, ciclo Otto con gases reales, saltos de turbina y compresor, y NO con el mecanismo completo GRI-Mech 3.0).
+- `igndelay.py <mecanismo.yaml> <salida.json> [procesos]`: tabla de retrasos de autoencendido del isooctano (756 casos) con el
+  mecanismo reducido de 143 especies de Yoo, Luo, Lu, Kim y Chen (Proc. Combust. Inst. 34, 2013), derivado del detallado de LLNL.
+  El mecanismo se toma de https://github.com/jiweiqi/CollectionOfMechanisms (i-Octane_C8H18/llnl_version3/ReducedByTianfengLu/sk143)
+  y se convierte con `python3 -m cantera.ck2yaml --input=chem.inp --thermo=therm.dat --permissive`.
+- `ignval.py`: el mismo mecanismo frente a los retrasos medidos por He et al., Combustion and Flame 142 (2005) 266-275 (tabla 1), y
+  puntos fuera de la malla para medir el error de interpolar.
+- `knockgen.py`: junta los dos JSON en `knockdata.js`.
+- `tau_sk143.json`, `ignval.json`: los resultados con los que se generó lo publicado.
+
+El Laboratorio (`lab/chem.js`) repite esos cálculos en JavaScript y `lab/validate.js` compara cada uno con su referencia.
+R
 # pruebas automáticas: barrido de la pista (objetos sobre el asfalto), regresión completa, movimiento, averías, parada en boxes
 mkdir -p $F/pruebas && cp /home/claude/tools/tests/* $F/pruebas/ 2>/dev/null || true
 cat > $F/pruebas/LEEME.md <<'R'
@@ -26,6 +47,13 @@ Todas usan Playwright con Chromium y sirven el sitio desde una carpeta local.
   llevada a sus extremos (V de 60° a 120°, carrera, biela, diámetro, separación y desfase) y la comprobación de que ningún tubo
   atraviesa a otro (`LAB.enginecad.check`).
 - `labcam.py`: capturas de cualquier visor 3D del Laboratorio desde las cámaras que se le pidan (para revisar las piezas de cerca).
+- `valtest.js` (Node, sin navegador): ejecuta el banco de validación del Laboratorio (`LAB.validate.run()`): química frente a Cantera,
+  NO frente a GRI-Mech 3.0, autoencendido frente a medidas, ciclo del motor frente a principios de conservación, elementos finitos
+  frente a resistencia de materiales, suspensión por trabajos virtuales y neumático frente a la solución analítica. `deploy.sh` lo pasa
+  antes de construir: si una sola comprobación se sale de su tolerancia, no se publica. `labqa.py` lo repite dentro del navegador
+  (ahí entra además la vuelta completa frente a las vueltas reales) y somete la química del motor a todos los preajustes,
+  combustibles y parámetros extremos.
+- `shot.py`: captura de los elementos que se le pidan de cualquier pestaña del Laboratorio, en escritorio o móvil.
 R
 cat > $F/coche/LEEME.md <<'R'
 # El coche

@@ -17189,7 +17189,7 @@ void main(){
   const st = o.stV * .5 / (1 + u / 30);
   if (o.rg) rigPose(o, c, dt || .016, heave + vib * .6 - o.aeroS, o.rollS + vib, o.pitchS + vib * .5);
   else for (const s of o.steer) s.rotation.y = -st;
-  if (o.wheel && (o.wheel.rotation.x = o.rg ? (o.dlV || 0) * 9.5 : o.stV * 1.6), o.hrG && (o.hrG.visible = !(cam.eff === "helmet" && cam.focusId === c.id)), SWD.tex && cam.focusId === c.id && (cam.eff ===
+  if (o.wheel && (o.wheel.rotation.x = o.rg ? (o.dlV || 0) * 8.1 : o.stV * 1.6), o.hrG && (o.hrG.visible = !(cam.eff === "helmet" && cam.focusId === c.id)), SWD.tex && cam.focusId === c.id && (cam.eff ===
     "helmet" || cam.eff === "onboard")) {
    const now = performance.now();
    if (now - SWD.t > 100) {

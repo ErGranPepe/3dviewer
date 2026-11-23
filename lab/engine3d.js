@@ -430,11 +430,14 @@ LAB.engine3d = (() => {
       const i = idxOf(thd), Tg = C.T[i], xb = C.xb[i], crownTop = xp + .021 + .0012, gap = Math.max(.0004, deckD + .004 - crownTop);
       c.gas.scale.set(1, gap, 1), c.gas.position.copy(c.dir.clone().multiplyScalar(crownTop + gap / 2).setX(c.x));
       let col = [0, 0, 0], op = 0;
-      if (!c.misfire && thd > P.soc - 1) { col = glow(Tg), op = clamp(Math.max(...col) * .5, 0, .85) }
+      /* dos zonas del ciclo: mientras arde, el fondo es el gas sin quemar (apenas brilla) y el disco de llama es el gas quemado, con el
+         radio que le da su volumen y el color de su temperatura; al acabar, toda la cámara es gas quemado */
+      const vb = C.vbf ? C.vbf[i] : xb, Tbz = C.Tb && C.Tb[i] > 0 ? C.Tb[i] : Tg;
+      if (!c.misfire && thd > P.soc - 1) { col = glow(vb > .97 ? Tbz : lerp(C.Tu ? C.Tu[i] : Tg, Tbz, vb * vb)), op = clamp(Math.max(...col) * .5, 0, .85) }
       else if (thd < -200) col = [.05, .16, .45], op = .35 * clamp((thd + 360) / 40, 0, 1); /* carga fresca entrando */
       c.gas.material.color.setRGB(...col), c.gas.material.opacity = op;
-      const burning = !c.misfire && thd > P.soc - .5 && thd < P.soc + P.dur * 1.6 && xb < .995, fr = burning ? clamp(Math.sqrt(xb) * 1.05, .08, 1) * (C.B / 2 - .0005) : 0;
-      c.front.visible = fr > 0, fr > 0 && (c.front.scale.set(fr, gap * .98, fr), c.front.position.copy(c.gas.position), c.front.material.opacity = .55 * (1 - xb) + .15);
+      const burning = !c.misfire && thd > P.soc - .5 && thd < P.soc + P.dur * 1.6 && xb < .995, fr = burning ? clamp(Math.sqrt(vb), .08, 1) * (C.B / 2 - .0005) : 0;
+      c.front.visible = fr > 0, fr > 0 && (c.front.scale.set(fr, gap * .98, fr), c.front.position.copy(c.gas.position), c.front.material.color.setRGB(...glow(Tbz).map(v => Math.min(1, v * .9 + .1))), c.front.material.opacity = .6 * (1 - vb) + .2);
       const jt = thd - P.soc, jetOn = P.tji === "si" && !c.misfire && jt > -.5 && jt < 9, pen = clamp((jt + .5) / 3.5, 0, 1) * C.B * .42;
       for (const j of c.jets.children) j.visible = jetOn, jetOn && (j.scale.set(1, pen, 1), j.position.copy(j.userData.d).multiplyScalar(pen / 2), j.material.opacity = .9 * (1 - clamp((jt - 4) / 5, 0, 1)));
       /* válvulas con la alzada de la leva (y la flotación, si la hay); el muelle se comprime, el taqué sigue a la leva */

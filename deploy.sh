@@ -4,6 +4,9 @@ set -e
 cd /home/claude/src
 E=./node_modules/.bin/esbuild
 P=/home/claude/pages
+# banco de validación de los modelos del Laboratorio: si alguna comprobación se sale de su tolerancia, no se construye ni se publica
+node /home/claude/tools/tests/valtest.js > /tmp/valtest.log 2>&1 || { echo "VALIDACIÓN FALLIDA:"; grep -v "^ok" /tmp/valtest.log | head -20; exit 1; }
+tail -1 /tmp/valtest.log
 # conjunto CAD de suspensión para la vista en vivo (cinemática 3D + piezas + bucle), cargado bajo demanda
 { echo '(()=>{"use strict";const LAB=window.LAB||(window.LAB={});const clamp=(v,a,b)=>v<a?a:v>b?b:v,lerp=(a,b,t)=>a+(b-a)*t,TAU=Math.PI*2,DEG=Math.PI/180;'; cat lab/cadkit.js lab/carmesh.js lab/kin3d.js lab/suspcad.js lab/live.js; echo '})();'; } > /tmp/cad.all.js
 $E /tmp/cad.all.js --minify --target=es2020 --log-level=error > /tmp/cad.min.js

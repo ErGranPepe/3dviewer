@@ -88,8 +88,18 @@ class Plot {
   /* series: [{x:Float32Array|null, y:Float32Array, n, col, label, w, dash, fill}] */
   draw(series, o = {}) {
     this.last = [series, o];
-    const g = this.g, W = this.W, H = this.H, O = { ...this.o, ...o }, L = 46, R = 10, T = 18, B = 22;
+    const g = this.g, W = this.W, H = this.H, O = { ...this.o, ...o }, L = 46, R = 10, B = 22, fb = css("--body") || "sans-serif";
     g.clearRect(0, 0, W, H);
+    /* leyenda y título: si no caben en una línea, el título va arriba y la leyenda debajo, partida en las líneas que haga falta */
+    g.font = "600 11px " + fb;
+    const tw = O.title ? g.measureText(O.title).width : 0, leg = [];
+    g.font = "600 10px " + fb;
+    let lw = 0;
+    for (const s of series) if (s.label) { const w = g.measureText(s.label).width + 26; leg.push([s, w]), lw += w }
+    const one = lw + tw + 18 <= W - L - R;
+    let rows = 1, lx0 = L + 6;
+    if (!one) for (const [, w] of leg) lx0 + w > W - R && lx0 > L + 6 ? (rows++, lx0 = L + 6 + w) : lx0 += w;
+    const T = one || !leg.length ? 18 : 20 + 13 * rows;
     let x0 = O.xmin, x1 = O.xmax, y0 = O.ymin, y1 = O.ymax;
     if (x0 == null || x1 == null || y0 == null || y1 == null) {
       let a = 1e30, b = -1e30, c = 1e30, d = -1e30;
@@ -120,9 +130,9 @@ class Plot {
     }
     for (const p of O.points || []) g.fillStyle = p.col, g.beginPath(), g.arc(X(p.x), Y(p.y), p.r || 3.5, 0, TAU), g.fill();
     g.restore();
-    let lx = L + 6;
-    g.textAlign = "left", g.font = "600 10px " + (css("--body") || "sans-serif");
-    for (const s of series) if (s.label) { g.fillStyle = s.col, g.fillRect(lx, 5, 10, 3), g.fillStyle = "#c9d2db", g.fillText(s.label, lx + 13, 10), lx += g.measureText(s.label).width + 26 }
+    let lx = L + 6, ly = one ? 10 : 24;
+    g.textAlign = "left", g.font = "600 10px " + fb;
+    for (const [s, w] of leg) { !one && lx + w > W - R && lx > L + 6 && (lx = L + 6, ly += 13); g.fillStyle = s.col, g.fillRect(lx, ly - 5, 10, 3), g.fillStyle = "#c9d2db", g.fillText(s.label, lx + 13, ly), lx += w }
     O.title && (g.fillStyle = "#e9eef3", g.textAlign = "right", g.font = "600 11px " + (css("--body") || "sans-serif"), g.fillText(O.title, W - R, 11));
     O.xlabel && (g.fillStyle = "#5b6672", g.textAlign = "right", g.font = "10px sans-serif", g.fillText(O.xlabel, W - R, H - 8 - 11))
   }

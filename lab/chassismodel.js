@@ -232,5 +232,5 @@ LAB.chassismodel = (() => {
     let mx = 0; for (const n of S.nodes) mx += n.m * n.x;
     return { S, modes: M.modes, tor, ben, mass, xcg: mx / mass, frf: frf(S, M.modes, P.zeta) }
   }
-  return { build, assemble, modes, torsion, bending, frf, run, jacobi, box }
+  return { build, assemble, modes, torsion, bending, frf, run, jacobi, box, solve }
 })();
