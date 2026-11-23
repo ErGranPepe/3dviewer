@@ -12,9 +12,9 @@
 <meta property="og:url" content="https://ergranpepe.github.io/3dviewer/"><meta property="og:image" content="https://ergranpepe.github.io/3dviewer/og.jpg"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Parrilla Neuronal — Simulador de carreras gratis en el navegador con circuitos reales"><meta name="twitter:description" content="Simulador de carreras de monoplazas gratis y sin descargas: 17 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada."><meta name="twitter:image" content="https://ergranpepe.github.io/3dviewer/og.jpg">
 <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="manifest" href="manifest.webmanifest">
-<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.b2628fd803.js" as="script"><link rel="preload" href="a/data.c4441b17c9.js" as="script">
+<link rel="preload" href="a/three.04d0db4a9b.js" as="script"><link rel="preload" href="a/app.cb9dd29589.js" as="script"><link rel="preload" href="a/data.c4441b17c9.js" as="script">
 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "VideoGame", "name": "Parrilla Neuronal", "url": "https://ergranpepe.github.io/3dviewer/", "description": "Simulador de carreras de monoplazas gratis y sin descargas: 17 circuitos reales, pilotos de IA, estrategia desde el muro de boxes, lluvia, narrador en español y modo temporada.", "inLanguage": "es", "genre": ["Carreras", "Simulación", "Estrategia"], "gamePlatform": "Navegador web", "applicationCategory": "Game", "operatingSystem": "Cualquiera", "image": "https://ergranpepe.github.io/3dviewer/og.jpg", "offers": {"@type": "Offer", "price": "0", "priceCurrency": "EUR"}}</script>
-<script>(function(){var B="b2628fd803c444";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
+<script>(function(){var B="cb9dd29589c444";try{fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.json()}).then(function(v){if(v&&v.b&&v.b!==B&&location.search.indexOf("v="+v.b)<0){var q=new URLSearchParams(location.search);q.set("v",v.b);location.replace(location.pathname+"?"+q.toString()+location.hash)}}).catch(function(){})}catch(e){}})()</script>
 
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -368,6 +368,8 @@ header .tabs{justify-self:center}header .hdact{display:flex;gap:8px;align-items:
 /* cabecera en pantallas medianas: con «Compartir» ya no cabía todo y las pestañas pisaban la marca */
 @media(min-width:701px) and (max-width:1260px){header .shBtn span{display:none}header .shBtn{padding:8px 10px}.brand p{display:none}}
 @media(min-width:701px) and (max-width:1120px){.brand h1{font-size:22px}header .labLink{font-size:0}header .labLink::after{content:"Laboratorio";font:700 13px var(--display);letter-spacing:.04em}}
+/* escritorio: el bloque de cámaras tapa buena parte de la imagen; se atenúa mientras no se usa */
+@media(hover:hover) and (min-width:701px){.v3 .camctl{opacity:.4;transition:opacity .2s}.v3 .camctl:hover,.v3 .camctl:focus-within{opacity:1}}
 /* aviso de fluidez (sin tarjeta gráfica o 3D muy lento) */
 .perfNote{position:absolute;left:12px;bottom:12px;z-index:40;width:min(520px,calc(100% - 24px));background:rgba(13,17,22,.95);border:1px solid #f2a33a;border-radius:10px;padding:12px 14px;color:#e8edf2;font-size:13.5px;line-height:1.5;display:grid;gap:8px;box-shadow:0 8px 28px rgba(0,0,0,.5)}
 .perfNote b{font:800 14px/1.2 var(--display);text-transform:uppercase;letter-spacing:.03em;color:#ffb347}
@@ -745,7 +747,7 @@ button:active:not(:disabled),.btn:active,.labLink:active{transform:translateY(1p
 <script src="config.js?v=20261123a"></script>
 <script src="a/three.04d0db4a9b.js"></script>
 <script src="a/data.c4441b17c9.js"></script><script>window.CADJS="a/cad.bb269d3b9f.js"</script>
-<script src="a/app.b2628fd803.js"></script>
+<script src="a/app.cb9dd29589.js"></script>
 <script src="a/site.40a3d4e99f.js"></script><script src="a/support.0d65ab039d.js"></script>
 </body>
 </html>
