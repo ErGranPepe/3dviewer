@@ -11,7 +11,9 @@ window.SITE={
   googleMapsKey:"",
   sponsors:[],
   /* Donaciones: pon tu usuario (solo el nombre, sin la dirección completa). Vacío = no se muestra el botón «Apoya».
-     kofi: ko-fi.com/<usuario> · github: github.com/sponsors/<usuario> · paypal: paypal.me/<usuario>
+     kofi: ko-fi.com/<usuario> · github: github.com/sponsors/<usuario>
+     paypal: tu nombre de PayPal.Me (paypal.me/<nombre>) o el enlace completo de tu botón «Donar» (https://www.paypal.com/donate/?hosted_button_id=…).
+             No pongas aquí tu correo: este archivo es público.
      goal: objetivo del mes opcional (target 0 = sin barra); "raised" lo actualizas tú a mano. */
   support:{
     kofi:"",

@@ -67,6 +67,25 @@ canvas.big{height:420px}
 .geartbl .gr.warn{color:#ffd23f}.geartbl .gr.bad{color:#ff6b6b}.geartbl .bar{position:relative;height:16px;background:rgba(255,255,255,.05);border-radius:4px;overflow:hidden}
 .geartbl .bar i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#3d8bff,#ff6b1a)}.geartbl .bar u{position:absolute;top:0;bottom:0;width:2px;background:#fff}.geartbl .bar em{position:relative;font:600 11px var(--mono);font-style:normal;padding-left:6px;line-height:16px;color:#fff;text-shadow:0 1px 2px #000}
 .geartbl small{color:var(--mute);font-size:11.5px}
+.chemsub{max-width:900px;margin:-2px 0 10px}.chemgrid{display:grid;grid-template-columns:minmax(280px,1fr) minmax(320px,1.25fr);gap:10px;margin-bottom:10px}
+.kvcard,.compcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:3px;align-content:start}.kvcard>b,.compcard>b{font:700 13px var(--display);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+.kvcard>div{display:grid;grid-template-columns:1fr 1.25fr;gap:10px;font-size:12.5px;padding:3px 0;border-top:1px solid rgba(255,255,255,.05);align-items:baseline}.kvcard>div span{color:var(--mute)}.kvcard>div b{font:600 12.5px var(--mono);font-weight:600}
+.compcard .ch,.compcard .cr{display:grid;grid-template-columns:38px 1fr 1fr;gap:8px;align-items:center;font-size:12px}.compcard .ch{color:var(--mute);font-size:10.5px;line-height:1.25;margin-bottom:2px}.compcard .cr span{font:600 12px var(--mono)}
+.compcard .cr i{position:relative;display:block;height:15px;background:rgba(255,255,255,.04);border-radius:3px;overflow:hidden;font-style:normal}.compcard .cr u{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,#ff6b1a55,#ff6b1a);border-radius:3px;text-decoration:none}.compcard .cr i+i u{background:linear-gradient(90deg,#3d8bff55,#3d8bff)}
+.compcard .cr em{position:absolute;right:5px;top:0;font:600 10.5px/15px var(--mono);font-style:normal;color:#fff;text-shadow:0 0 3px #000}.compcard small{color:var(--mute);font-size:11px;line-height:1.5;margin-top:5px}
+@media (max-width:900px){.chemgrid{grid-template-columns:1fr}}
+nav.tabs button.tval{color:#3ddc84}nav.tabs button.tval.on{background:#3ddc84;color:#06140b}
+.valsum{display:flex;gap:18px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 12px}
+.valbig{display:flex;align-items:baseline;gap:10px}.valbig b{font:800 44px/1 var(--display);color:#3ddc84}.valbig.bad b{color:#ff6b6b}.valbig span{font-size:14px;color:var(--ink)}.valmeta{color:var(--mute);font-size:12.5px;line-height:1.5;max-width:560px}
+.valg{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin:0 0 10px;padding:0 12px}.valg summary{display:flex;gap:12px;align-items:baseline;cursor:pointer;padding:11px 0;list-style:none;flex-wrap:wrap}.valg summary::-webkit-details-marker{display:none}
+.valg summary b{font:700 15px var(--display);text-transform:uppercase;letter-spacing:.03em}.valg summary span{color:var(--mute);font-size:12.5px;flex:1;min-width:140px}.valg summary em{font:700 13px var(--mono);font-style:normal;color:#3ddc84;border:1px solid currentColor;border-radius:20px;padding:1px 9px}.valg summary em.bad{color:#ff6b6b}
+.valg>p{color:#c9d1d9;font-size:13px;line-height:1.55;margin:0 0 10px;max-width:980px}.valt{display:grid;gap:0;margin-bottom:10px}
+.valt .vh,.valt .vr{display:grid;grid-template-columns:2.1fr 1fr 1.25fr .9fr;gap:12px;align-items:baseline;font-size:12.5px;padding:5px 0;border-top:1px solid rgba(255,255,255,.05)}.valt .vh{color:var(--mute);font-size:11px;border-top:0}
+.valt .vr span:nth-child(2),.valt .vr span:nth-child(3),.valt .vr span:nth-child(4){font:600 12.5px var(--mono)}.valt .vr span:nth-child(3){color:#c9d1d9;font-weight:500}.valt .vr small{display:block;font:400 10.5px var(--body);color:var(--mute);margin-top:1px}
+.valt .vr.ok span:nth-child(2)::before{content:"✓ ";color:#3ddc84}.valt .vr.bad span:nth-child(2){color:#ff6b6b}.valt .vr.bad span:nth-child(2)::before{content:"✗ "}.valt .vr.bad span:nth-child(4){color:#ff6b6b}
+.vsrc{display:block;color:var(--mute);font-size:11px;line-height:1.5;margin:0 0 12px}.vsrc a{color:#9cc3ff}
+.vas{display:grid;gap:0;margin-bottom:10px}.vas>div{display:grid;grid-template-columns:170px 1fr;gap:14px;font-size:12.5px;line-height:1.5;padding:6px 0;border-top:1px solid rgba(255,255,255,.05)}.vas b{color:#ffd23f;font-weight:600}.vas span{color:#c9d1d9}
+@media (max-width:760px){.valt .vh{display:none}.valt .vr{grid-template-columns:1fr 1fr;row-gap:2px}.valt .vr span:first-child{grid-column:1/-1;color:var(--ink)}.valt .vr span:nth-child(4){grid-column:1/-1}.valt .vr span:nth-child(4) small{display:inline;margin-left:8px}.vas>div{grid-template-columns:1fr;gap:2px}.valbig b{font-size:36px}}
 .benchbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 12px;display:grid;gap:4px}.benchbox>b{font:700 13px var(--display);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
 .benchbox .bh,.benchbox .br{display:grid;grid-template-columns:1.15fr .85fr 1.5fr;gap:10px;align-items:baseline;font-size:12.5px;padding:3px 0;border-top:1px solid rgba(255,255,255,.05)}.benchbox .bh{color:var(--mute);font-size:11px;border-top:0}
 .benchbox .br span:nth-child(2){font:600 12.5px var(--mono)}.benchbox .br.ok span:nth-child(2)::before{content:"✓ ";color:#3ddc84}.benchbox .br.bad span:nth-child(2){color:#ff6b6b}.benchbox .br.bad span:nth-child(2)::before{content:"✗ "}.benchbox .br.near span:nth-child(2){color:#ffd23f}.benchbox .br.near span:nth-child(2)::before{content:"≈ "}
@@ -182,7 +201,7 @@ button:active:not(:disabled){transform:translateY(1px) scale(.98)}:focus-visible
 <header>
   <a class="back" href="./">← Simulador</a>
   <h1>Laboratorio <span>técnico</span></h1>
-  <nav class="tabs"><button data-tab="susp" class="on">Suspensión</button><button data-tab="engine">Motor</button><button data-tab="limits">Límites y averías</button><button data-tab="drive">Transmisión y ERS</button><button data-tab="chassis">Chasis</button><button data-tab="tyre">Neumáticos</button></nav>
+  <nav class="tabs"><button data-tab="susp" class="on">Suspensión</button><button data-tab="engine">Motor</button><button data-tab="limits">Límites y averías</button><button data-tab="drive">Transmisión y ERS</button><button data-tab="chassis">Chasis</button><button data-tab="tyre">Neumáticos</button><button data-tab="validate" class="tval">Validación</button></nav>
   <div class="modes"><button data-setmode="easy">Modo fácil</button><button data-setmode="pro">Modo ingeniero</button></div>
 </header>
 <main>
@@ -192,13 +211,14 @@ button:active:not(:disabled){transform:translateY(1px) scale(.98)}:focus-visible
   <section id="tab-drive" hidden></section>
   <section id="tab-chassis" hidden></section>
   <section id="tab-tyre" hidden></section>
-  <p class="note">Modelos físicos simplificados pero completos: cinemática exacta en vista frontal, dinámica de medio eje integrada con Runge-Kutta a 3 kHz, motor en 3D con cinemática exacta pieza a pieza, tren de válvulas con flotación y holgura con el pistón, turbo con compresor y turbina, daño por fatiga acumulado (Basquin y Miner), ciclo de una zona con combustión de Wiebe, transferencia de calor de Woschni, detonación por Livengood-Wu (Douaud-Eyzat), mecánica biela-manivela exacta, fatiga de Goodman, pandeo de Euler y vibración torsional por análisis modal. Neumáticos: modelo de cepillo en 2D (600 cerdas) con deslizamiento combinado, caída y sensibilidad a la carga, balance térmico en 3 capas × 3 bandas con aire interior de gas ideal, y desgaste por abrasión de Archard, graining y ampollas. Chasis: pórtico 3D de vigas de Euler-Bernoulli con 150 grados de libertad, modos propios por Jacobi, banco de torsión, flexión y respuesta en frecuencia por superposición modal. Transmisión y ERS: vuelta cuasiestacionaria con los límites de potencia y energía de cada reglamento, línea motriz en torsión a 4 kHz con cambio sin interrupción, flexión de Lewis y contacto de Hertz con daño de Miner, y diferencial hidráulico con transferencia lateral de carga. Límites y averías: diagrama de unión atornillada con fluencia y autoaflojamiento, holgura de segmentos por dilatación diferencial, resonancia de muelles y flotación, ley de Vogel y película de Sommerfeld, curva de ebullición de Nukiyama con CHF de Zuber, cavitación por NPSH, curvas S-N de flexión y picado, frenos con convección, radiación y oxidación, gas ideal en el neumático, altura al suelo con efecto suelo, rebote de rueda y aeroelasticidad. Los valores por defecto son estimaciones razonables de un F1 actual, no datos de ningún equipo.</p>
+  <section id="tab-validate" hidden></section>
+  <p class="note">Modelos físicos simplificados pero completos: cinemática exacta en vista frontal, dinámica de medio eje integrada con Runge-Kutta a 3 kHz, motor en 3D con cinemática exacta pieza a pieza, tren de válvulas con flotación y holgura con el pistón, turbo con compresor y turbina, daño por fatiga acumulado (Basquin y Miner), ciclo de dos zonas con gases reales y equilibrio químico de 12 especies (datos termodinámicos de NASA Glenn), combustible definido por su composición, combustión de Wiebe, transferencia de calor de Woschni, NO por Zeldovich ampliado, detonación por Livengood-Wu con el retraso de autoencendido de un mecanismo de 143 especies, mecánica biela-manivela exacta, fatiga de Goodman, pandeo de Euler y vibración torsional por análisis modal. Neumáticos: modelo de cepillo en 2D (600 cerdas) con deslizamiento combinado, caída y sensibilidad a la carga, balance térmico en 3 capas × 3 bandas con aire interior de gas ideal, y desgaste por abrasión de Archard, graining y ampollas. Chasis: pórtico 3D de vigas de Euler-Bernoulli con 150 grados de libertad, modos propios por Jacobi, banco de torsión, flexión y respuesta en frecuencia por superposición modal. Transmisión y ERS: vuelta cuasiestacionaria con los límites de potencia y energía de cada reglamento, línea motriz en torsión a 4 kHz con cambio sin interrupción, flexión de Lewis y contacto de Hertz con daño de Miner, y diferencial hidráulico con transferencia lateral de carga. Límites y averías: diagrama de unión atornillada con fluencia y autoaflojamiento, holgura de segmentos por dilatación diferencial, resonancia de muelles y flotación, ley de Vogel y película de Sommerfeld, curva de ebullición de Nukiyama con CHF de Zuber, cavitación por NPSH, curvas S-N de flexión y picado, frenos con convección, radiación y oxidación, gas ideal en el neumático, altura al suelo con efecto suelo, rebote de rueda y aeroelasticidad. Los valores por defecto son estimaciones razonables de un F1 actual, no datos de ningún equipo. Qué está comprobado contra qué, y qué es un supuesto, está en la pestaña <b>Validación</b>.</p>
   <p class="note">El coche es el «<a href="https://sketchfab.com/3d-models/f1-2026-concept-polygon-model-ea3bde709b1e4dc9b0ec8557d106ed42" target="_blank" rel="noopener">F1 2026 concept (polygon model)</a>» de Qvist_designs (licencia <a href="https://creativecommons.org/licenses/by/4.0/deed.es" target="_blank" rel="noopener">CC BY 4.0</a>), adaptado: separado en piezas, con los trapecios delanteros recolocados para dar un eje de dirección real y sin marcas de equipos. Balancines, amortiguadores, barras estabilizadoras, cremallera, frenos y el interior del motor no vienen en el modelo: están diseñados aquí a sus medidas.</p>
 </main>
 <script src="a/three.04d0db4a9b.js"></script>
 <script src="a/data.c4441b17c9.js"></script>
-<script src="a/lab.69c436245b.js"></script>
-<script src="config.js?v=20261122a"></script><script src="a/support.be0ffe210d.js"></script>
+<script src="a/lab.93bdc71d4c.js"></script>
+<script src="config.js?v=20261122a"></script><script src="a/support.5875402f9b.js"></script>
 <script>
 (function(){
   LAB.setMode(LAB.mode);
@@ -206,12 +226,12 @@ button:active:not(:disabled){transform:translateY(1px) scale(.98)}:focus-visible
   const inited = {};
   const show = t => {
     for (const b of document.querySelectorAll("[data-tab]")) b.classList.toggle("on", b.dataset.tab === t);
-    for (const s of ["susp", "engine", "limits", "drive", "chassis", "tyre"]) document.getElementById("tab-" + s).hidden = s !== t;
+    for (const s of ["susp", "engine", "limits", "drive", "chassis", "tyre", "validate"]) document.getElementById("tab-" + s).hidden = s !== t;
     if (!inited[t]) inited[t] = 1, LAB[t].init(document.getElementById("tab-" + t));
     try { history.replaceState(null, "", "#" + t) } catch (e) {}
   };
   for (const b of document.querySelectorAll("[data-tab]")) b.onclick = () => show(b.dataset.tab);
-  show(["#engine", "#limits", "#drive", "#chassis", "#tyre"].includes(location.hash) ? location.hash.slice(1) : "susp");
+  show(["#engine", "#limits", "#drive", "#chassis", "#tyre", "#validate"].includes(location.hash) ? location.hash.slice(1) : "susp");
 })();
 </script>
 </body>
