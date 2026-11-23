@@ -350,6 +350,7 @@ html.fslock,html.fslock body{overflow:hidden!important}
 #stage.fsx.rot .onb{transform:scale(.78);transform-origin:100% 100%;right:56px}#stage.fsx.rot .mini{display:block}
 .geo-attr{position:absolute;left:8px;bottom:6px;z-index:25;font:600 10px/1.3 Barlow,Arial,sans-serif;color:#fff;text-shadow:0 1px 2px #000,0 0 6px rgba(0,0,0,.6);pointer-events:none;max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.geo-attr b{font:700 13px Arial,sans-serif;letter-spacing:-.2px;margin-right:4px}
 .labLink{font:700 14px var(--display);letter-spacing:.04em;text-transform:uppercase;color:#111;background:var(--accent);padding:8px 14px;border-radius:8px;text-decoration:none;margin-left:10px;white-space:nowrap}.labLink:hover{filter:brightness(1.1)}
+header .hdact{display:flex;gap:8px;align-items:center;flex-wrap:wrap}header .hdact .labLink{margin-left:0}
 .tcorn{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;font:600 11px var(--mono)}.tcorn .tch{flex-basis:100%;font:500 12px var(--sans,inherit);color:var(--mute,#9aa4ae);margin-bottom:2px}.tcorn .tch b{color:#fff}.tcorn .tch b.neg,.tcorn .tc.neg b{color:#ff6b6b}.tcorn .tch b.pos,.tcorn .tc.pos b{color:#2fd16c}.tcorn .tc{background:rgba(255,255,255,.05);border-radius:4px;padding:2px 5px;color:#8b97a4}.tcorn .tc b{color:#fff;margin:0 3px}.tcorn .tc i{font-style:normal;color:#c8ced6;opacity:.7}
 #suspLive{position:fixed;left:12px;bottom:12px;width:min(440px,calc(100vw - 24px));z-index:60;background:rgba(12,15,19,.96);border:1px solid #2a323c;border-radius:10px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.5);font:12px/1.35 Inter,system-ui,sans-serif;color:#e9eef3}
 #suspLive[hidden]{display:none}#suspLive .slh{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid #222a33}#suspLive .slh b{font-weight:700;text-transform:uppercase;letter-spacing:.04em;font-size:11.5px}#suspLive .slh span{color:#8b97a4;flex:1;font-family:ui-monospace,monospace}
@@ -454,8 +455,11 @@ button:active:not(:disabled),.btn:active,.labLink:active{transform:translateY(1p
   /* una sección cada vez */
   body[data-mg] .side>.card[data-mg],body[data-mg] .info[data-mg]{display:none!important}
   body[data-mg="race"] .side>.card[data-mg="race"]:not([hidden]),body[data-mg="times"] .side>.card[data-mg="times"]:not([hidden]),body[data-mg="car"] .side>.card[data-mg="car"]:not([hidden]),body[data-mg="info"] .side>.card[data-mg="info"]:not([hidden]),body[data-mg="info"] .info[data-mg="info"]{display:block!important}
-  header .labLink{font-size:0}header .labLink::after{content:"Laboratorio";font-size:11.5px;line-height:1}
-  .brand h1{font-size:18px}
+  /* la marca y los tres botones caben en una fila: «Apoya» y «Compartir» solo con icono y «Lab» abreviado (antes «Apoya» se montaba sobre la marca) */
+  header .labLink{font-size:0}header .labLink::after{content:"Lab";font-size:11.5px;line-height:1}
+  header .supBtn{font-size:0;padding:0 9px;gap:0}header .supBtn .h{font-size:14px}header .shBtn{height:30px;padding:0 8px;border-radius:7px}
+  header .hdact{gap:5px}.brand h1{font-size:18px}
+  @media(max-width:380px){.brand h1{font-size:16px}}
   /* rótulo inferior: anclado a la izquierda y compacto (deja libre el botón de pantalla completa) */
   .v3 .lower{left:8px;right:auto;bottom:8px;transform:scale(.8);transform-origin:0 100%;max-width:calc((100% - 72px)/.8)}
   .lower .tx{padding:5px 9px}.lower .sp{padding:5px 9px;font-size:19px}
