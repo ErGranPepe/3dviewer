@@ -12,7 +12,7 @@ async def main():
         await pg.add_init_script("try{localStorage.setItem('pn3-q',JSON.stringify('high'))}catch(e){}")
         await pg.goto('http://localhost:8765/index.html',wait_until='domcontentloaded');await pg.wait_for_timeout(2500)
         await pg.evaluate("for(const d of document.querySelectorAll('dialog,.consent,#cookie'))try{d.remove()}catch(e){}")
-        await pg.select_option('#rTrack',TRK)
+        await (pg.select_option('#rTrack',index=int(E('IDX'))) if E('IDX') else pg.select_option('#rTrack',TRK))
         try: await pg.select_option('#rWeather','seco')
         except Exception: pass
         await pg.evaluate("document.getElementById('rGo').click()")
