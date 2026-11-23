@@ -4823,7 +4823,7 @@ void main(){
     for (let m = 0; m <= cols; m++) {
      const t = m / cols,
       l = la + (lb - la) * t;
-     pos.push(x + nx * l, z + ya + (yb - ya) * t + bankOff(bkk, l), yy + ny * l), o.uvV ? uv.push(sd, o.uvV(l)) : o.uvLat ? uv.push(sd, Math.abs(l) / o.uvLat) : uv.push(sd, t), c && col.push(c[0], c[1], c[2])
+     pos.push(x + nx * l, z + ya + (yb - ya) * t + bankOff(bkk, l), yy + ny * l), o.uvV ? uv.push(sd, o.uvV(l, i, f)) : o.uvLat ? uv.push(sd, Math.abs(l) / o.uvLat) : uv.push(sd, t), c && col.push(c[0], c[1], c[2])
     }
     if (row > 0)
      for (let m = 0; m < cols; m++) {
@@ -8404,7 +8404,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
   }));
   let zmin = 1e9;
   for (let i = 0; i < tr.N; i++) zmin = Math.min(zmin, tr.z[i]);
-  m.position.set(cx, zmin + 30, cz), m.renderOrder = -1, group.add(m)
+  m.position.set(cx, zmin + 30, cz), m.renderOrder = -1, m.userData.backdrop = !0, group.add(m)
  }
  let grassMat = null,
   gravMask = null;
@@ -12477,8 +12477,11 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    depthWrite: !1
   });
   const rub = new THREE.Mesh(ribbon({
-   latA: (i, f) => rlF(i, f) - 2.7,
-   latB: (i, f) => rlF(i, f) + 2.7,
+   /* la goma llega como mucho al arranque del piano (HW + 0,3): más allá quedaba pintada sobre el césped o, en el interior de una
+      horquilla en cuesta, flotando sobre el asfalto */
+   latA: (i, f) => Math.max(-HW - .3, rlF(i, f) - 2.7),
+   latB: (i, f) => Math.min(HW + .3, rlF(i, f) + 2.7),
+   uvV: (l, i, f) => (l - rlF(i, f) + 2.7) / 5.4,
    y: .07,
    sub: 2,
    cols: 6,
@@ -12505,8 +12508,9 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
      let j = i;
      for (; heavy[j % Nn] && j - i < Nn;) j++;
      j - i > 2 && trackGroup.add(new THREE.Mesh(ribbon({
-      latA: (q, f) => rlF(q, f) - 2.4,
-      latB: (q, f) => rlF(q, f) + 2.4,
+      latA: (q, f) => Math.max(-HW - .3, rlF(q, f) - 2.4),
+      latB: (q, f) => Math.min(HW + .3, rlF(q, f) + 2.4),
+      uvV: (l, q, f) => (l - rlF(q, f) + 2.4) / 4.8,
       y: .072,
       i0: i - 2,
       i1: j + 2,
@@ -16858,7 +16862,8 @@ void main(){
  function vcloudStep(sd) {
   const m = VCL.mesh;
   if (!m) return;
-  const on = !VCL.off && !THERM.on && !!VCL.env;
+  /* de noche y sin nubosidad de lluvia no se dibujan: a contraluz del resplandor del horizonte eran manchones verticales */
+  const on = !VCL.off && !THERM.on && !!VCL.env && !VCL.env.hide;
   if (m.visible = on, !on) return;
   /* si el equipo no puede con ellas (menos de 30 fotogramas por segundo sostenidos), vuelve el cielo fotográfico */
   if (++VCL.n > 300 && frT > 33) {
@@ -17067,12 +17072,145 @@ void main(){
   c.needsUpdate = !0
  }
 
+ /* De noche solo está iluminado lo que alcanzan los focos: la pista y unos 40 m a cada lado; de ahí la luz cae hasta casi nada a 95 m.
+    Las luces de la escena son globales (una direccional hace de focos), así que la caída se cuece en el color de los vértices del
+    terreno y de los edificios, y en el color por instancia de árboles y demás, según su distancia a la pista. Las ventanas encendidas
+    y las farolas son emisivas y no se apagan. Antes todo el paisaje, hasta el horizonte, recibía la misma luz que la pista.
+    Es reversible (al volver al día se divide por el mismo factor). */
+ function nightBake(on) {
+  if (!tr || !trackGroup) return;
+  /* distancia a lo iluminado (pista, calle de boxes y paddock) en una rejilla propia de 6 m con transformada de distancia por
+     barrido e interpolación bilineal: la rejilla de la física solo llega a unos metros de la pista y cortaba la luz en línea recta */
+  if (!tr._ng) {
+   const N = tr.N,
+    cs = 6,
+    M = 150;
+   let x0 = 1e9,
+    x1 = -1e9,
+    y0 = 1e9,
+    y1 = -1e9;
+   for (let i = 0; i < N; i++) x0 = Math.min(x0, tr.x[i]), x1 = Math.max(x1, tr.x[i]), y0 = Math.min(y0, tr.y[i]), y1 = Math.max(y1, tr.y[i]);
+   x0 -= M, y0 -= M;
+   const gw = Math.ceil((x1 + M - x0) / cs) + 1,
+    gh = Math.ceil((y1 + M - y0) / cs) + 1,
+    D = new Float32Array(gw * gh).fill(1e6),
+    seed = (x, y) => {
+     const c = Math.round((x - x0) / cs),
+      r = Math.round((y - y0) / cs);
+     c >= 0 && r >= 0 && c < gw && r < gh && (D[r * gw + c] = 0)
+    },
+    P = tr.pit;
+   for (let i = 0; i < N; i++) {
+    const j = (i + 1) % N;
+    for (let q = 0; q < 2; q++) seed(tr.x[i] + (tr.x[j] - tr.x[i]) * q / 2, tr.y[i] + (tr.y[j] - tr.y[i]) * q / 2);
+    if (P && P.len) {
+     const d = ((i * tr.ds - P.inS) % tr.L + tr.L) % tr.L;
+     if (d < P.len)
+      for (const o of [20, 45, 70]) seed(tr.x[i] - Math.sin(tr.hd[i]) * P.side * o, tr.y[i] + Math.cos(tr.hd[i]) * P.side * o)
+    }
+   }
+   const a = cs,
+    b = cs * Math.SQRT2;
+   for (let r = 0; r < gh; r++)
+    for (let c = 0; c < gw; c++) {
+     const k = r * gw + c;
+     let v = D[k];
+     c > 0 && (v = Math.min(v, D[k - 1] + a)), r > 0 && (v = Math.min(v, D[k - gw] + a), c > 0 && (v = Math.min(v, D[k - gw - 1] + b)), c < gw - 1 && (v = Math.min(v, D[k - gw + 1] + b))), D[k] = v
+    }
+   for (let r = gh - 1; r >= 0; r--)
+    for (let c = gw - 1; c >= 0; c--) {
+     const k = r * gw + c;
+     let v = D[k];
+     c < gw - 1 && (v = Math.min(v, D[k + 1] + a)), r < gh - 1 && (v = Math.min(v, D[k + gw] + a), c < gw - 1 && (v = Math.min(v, D[k + gw + 1] + b)), c > 0 && (v = Math.min(v, D[k + gw - 1] + b))), D[k] = v
+    }
+   tr._ng = {
+    x0,
+    y0,
+    cs,
+    gw,
+    gh,
+    D
+   }
+  }
+  const NG = tr._ng,
+   dist = (x, y) => {
+    const fx = (x - NG.x0) / NG.cs,
+     fy = (y - NG.y0) / NG.cs,
+     c = Math.floor(fx),
+     r = Math.floor(fy);
+    if (c < 0 || r < 0 || c >= NG.gw - 1 || r >= NG.gh - 1) return 200;
+    const tx = fx - c,
+     ty = fy - r,
+     k = r * NG.gw + c,
+     D = NG.D;
+    return (D[k] * (1 - tx) + D[k + 1] * tx) * (1 - ty) + (D[k + NG.gw] * (1 - tx) + D[k + NG.gw + 1] * tx) * ty
+   },
+   f = d => {
+    const t = clamp((d - 34) / 76, 0, 1);
+    return 1 - .92 * t * t * (3 - 2 * t)
+   },
+   v = new THREE.Vector3,
+   m4 = new THREE.Matrix4,
+   c = new THREE.Color;
+  trackGroup.traverse(o => {
+   if (!o.isMesh || !o.geometry || o.userData.noNight) return;
+   const g = o.geometry,
+    st = o.isInstancedMesh ? o.userData : g.userData;
+   if (!!st.nb === on) return;
+   if (o.updateWorldMatrix(!0, !1), o.isInstancedMesh) {
+    if (!o.instanceColor) {
+     if (!on) return;
+     c.setRGB(1, 1, 1);
+     for (let i = 0; i < o.count; i++) o.setColorAt(i, c)
+    }
+    for (let i = 0; i < o.count; i++) {
+     o.getMatrixAt(i, m4), v.setFromMatrixPosition(m4).applyMatrix4(o.matrixWorld);
+     const k = f(dist(v.x, v.z));
+     o.getColorAt(i, c), c.multiplyScalar(on ? k : 1 / k), o.setColorAt(i, c)
+    }
+    o.instanceColor.needsUpdate = !0
+   } else {
+    const col = g.attributes.color,
+     pos = g.attributes.position,
+     ms = Array.isArray(o.material) ? o.material : [o.material];
+    if (!col || !pos || col.count !== pos.count || !(col.array instanceof Float32Array) || !ms.every(m => m && m.vertexColors)) return;
+    const a = col.array,
+     n = col.itemSize;
+    for (let i = 0; i < pos.count; i++) {
+     v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+     const k = f(dist(v.x, v.z)),
+      q = on ? k : 1 / k;
+     a[i * n] *= q, a[i * n + 1] *= q, a[i * n + 2] *= q
+    }
+    col.needsUpdate = !0
+   }
+   st.nb = on
+  });
+  /* lo que no lleva color por vértice (el relieve del horizonte, por ejemplo): si todas las mallas que usan un material están
+     enteras en la zona oscura, se oscurece el color del material */
+  const far = new Map,
+   sph = new THREE.Sphere;
+  trackGroup.traverse(o => {
+   if (!o.isMesh || !o.geometry || o.isInstancedMesh || o.userData.noNight) return;
+   const g = o.geometry,
+    ms = Array.isArray(o.material) ? o.material : [o.material];
+   if (g.attributes.color && ms.every(m => m && m.vertexColors)) return;
+   g.boundingSphere || g.computeBoundingSphere(), sph.copy(g.boundingSphere).applyMatrix4(o.matrixWorld);
+   const isFar = !!o.userData.backdrop || dist(sph.center.x, sph.center.z) - sph.radius > 115;
+   for (const m of ms) m && m.color && far.set(m, far.get(m) !== !1 && isFar)
+  });
+  for (const [m, isFar] of far) {
+   const want = on && isFar;
+   !!m.userData.nbK !== want && (m.color.multiplyScalar(want ? .08 : 12.5), m.userData.nbK = want)
+  }
+ }
+
  function environment(w) {
   const wet = w ? Math.max(w.wetLine, w.wetOff * .7) : 0,
    rainI = w ? w.rain : 0,
    key = tod + "|" + Math.round(wet * 20) + "|" + Math.round(rainI * 10) + "|" + (w && w.weather || "");
   if (key === lastTod) return;
-  lastTod = key;
+  lastTod = key, nightBake(tod === "night");
   const ov = clamp(rainI * 1.3 + wet * .3, 0, 1);
   let top, hor, sunC, sunI, hemiI, fogC, fogN, fogF, exp = 1.05,
    fillI = 0;
@@ -17109,7 +17247,7 @@ void main(){
   if (VCL.mesh) {
    /* cobertura: cúmulos de buen tiempo en seco, más nube con tiempo variable y cielo cerrado con lluvia */
    const E = VCL.env || (VCL.env = { sun: new THREE.Color, at: new THREE.Color, ab: new THREE.Color, hor: new THREE.Color });
-   E.cov = clamp(.34 + (w && w.weather === "variable" ? .16 : 0) + ov * .55, .2, .98), E.dark = clamp(ov * 1.1, 0, 1), tod === "night" ? (E.sun.setRGB(.05, .06, .09), E.at.setRGB(.035, .045, .075), E.ab.setRGB(.02, .025, .04)) : tod === "dusk" ? (E.sun.setRGB(2.1, 1.1, .55), E.at.setRGB(.36, .34, .46), E.ab.setRGB(.24, .18, .2)) : (E.sun.setRGB(1.75, 1.68, 1.55), E.at.setRGB(.5, .6, .8), E.ab.setRGB(.3, .33, .39)), E.hor.set(hor)
+   E.cov = clamp(.34 + (w && w.weather === "variable" ? .16 : 0) + ov * .55, .2, .98), E.dark = clamp(ov * 1.1, 0, 1), tod === "night" ? (E.sun.setRGB(.006, .007, .011), E.at.setRGB(.006, .008, .016), E.ab.setRGB(.01, .011, .014)) : tod === "dusk" ? (E.sun.setRGB(2.1, 1.1, .55), E.at.setRGB(.36, .34, .46), E.ab.setRGB(.24, .18, .2)) : (E.sun.setRGB(1.75, 1.68, 1.55), E.at.setRGB(.5, .6, .8), E.ab.setRGB(.3, .33, .39)), E.hor.set(hor), E.hide = tod === "night" && ov < .3
   }
   if (clouds) {
    const cm0 = clouds.material;
@@ -19757,9 +19895,24 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
   const rr = $("rRegs");
   rr && (rr.value = S.regsTable()[store.get("pn3-regs")] ? store.get("pn3-regs") : "2026", rr.onchange = () => { S.setRegs(rr.value), store.set("pn3-regs", rr.value) })
  } catch (e) { console.warn(e) }
- let has3d = !1;
+ let has3d = !1,
+  softGL = "";
  try {
-  const q = store.get("pn3-q") || (window.matchMedia && (matchMedia("(max-width:820px)").matches || matchMedia("(pointer:coarse)").matches) ? "med" : "high");
+  /* Sin tarjeta gráfica (aceleración por hardware desactivada, o falta el controlador), el navegador dibuja el 3D con la CPU: medido en
+     un PC real con Chrome y calidad Ultra, 0,4 fotogramas por segundo. Se reconoce por el nombre del renderizador; en ese caso, calidad
+     ligera y vista 2D de entrada, con un aviso que explica cómo activarla. A las pruebas automáticas (navigator.webdriver) no les afecta. */
+  try {
+   if (!navigator.webdriver) {
+    const c = document.createElement("canvas"),
+     gl = c.getContext("webgl2") || c.getContext("webgl"),
+     e = gl && gl.getExtension("WEBGL_debug_renderer_info"),
+     nm = gl ? String(e ? gl.getParameter(e.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) : "";
+    /swiftshader|basic render|llvmpipe|softpipe|software|warp/i.test(nm) && (softGL = nm);
+    const lc = gl && gl.getExtension("WEBGL_lose_context");
+    lc && lc.loseContext()
+   }
+  } catch {}
+  const q = softGL ? "low" : store.get("pn3-q") || (window.matchMedia && (matchMedia("(max-width:820px)").matches || matchMedia("(pointer:coarse)").matches) ? "med" : "high");
   $("rQual").value = q, has3d = !!(window.THREE && window.R3D && R3D.init(cv3, {
    quality: q
   }))
@@ -19767,7 +19920,12 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
   has3d = !1
  } {
   const v = store.get("pn3-view");
-  v && (app.view = v), has3d || (app.view = "2d")
+  v && (app.view = v), has3d || (app.view = "2d");
+  let s3 = null;
+  try {
+   s3 = sessionStorage.getItem("pn3-soft3d")
+  } catch {}
+  softGL && !s3 && (app.view = "2d")
  }
 
  function resize3() {
@@ -21632,9 +21790,45 @@ registerProcessor('engine-proc',EngineProc);`;
   brainT = 0,
   anaT = 0;
 
+ /* Aviso de fluidez. Dos casos: el navegador dibuja sin tarjeta gráfica (se sabe al arrancar), o el 3D va a menos de 8 fotogramas por
+    segundo durante 6 s seguidos. Antes el regulador solo tocaba la resolución e ignoraba los fotogramas de más de 120 ms: un equipo sin
+    aceleración se quedaba a 0,4 fps sin ningún aviso. */
+ const pw = {
+  slow: 0,
+  t0: 0,
+  shown: !1
+ };
+
+ function perfNote(soft) {
+  if (pw.shown) return;
+  pw.shown = !0;
+  const q = $("rQual").value,
+   el = document.createElement("div");
+  el.className = "perfNote", el.setAttribute("role", "status"), el.innerHTML = "<b>" + (soft ? "Tu navegador está dibujando sin tarjeta gráfica" : "El 3D va muy lento en este equipo") + "</b><span>" + (soft ?
+    "La aceleración por hardware está desactivada o falta el controlador de la gráfica, y así el 3D va a menos de un fotograma por segundo. Te dejo la vista 2D, que va fluida. Para ver el 3D: Configuración del navegador → Sistema → «Usar aceleración por hardware cuando esté disponible», y reinicia el navegador." :
+    "Puedes bajar la calidad o seguir la carrera en la vista 2D, que es mucho más ligera.") + "</span><div>" + (soft ? '<button type="button" data-a="3d">Ver en 3D de todos modos</button>' : (q !== "low" ?
+    '<button type="button" data-a="q">Bajar calidad y recargar</button>' : "") + '<button type="button" data-a="2d">Pasar a la vista 2D</button>') + '<button type="button" data-a="x">Cerrar</button></div>', el.onclick = e => {
+    const a = e.target && e.target.dataset ? e.target.dataset.a : null;
+    if (!a) return;
+    if (a === "q") return store.set("pn3-q", q === "ultra" ? "high" : q === "high" ? "med" : "low"), location.reload();
+    if (a === "3d") {
+     try {
+      sessionStorage.setItem("pn3-soft3d", "1")
+     } catch {}
+     setView("3d")
+    }
+    a === "2d" && setView("2d"), el.remove()
+   }, $("stage").appendChild(el)
+ }
+
+ function perfWatch(ms) {
+  if (pw.shown || app.view !== "3d" || document.hidden || !(ms > 0) || ms > 3e4 || navigator.webdriver) return;
+  ms > 125 ? (pw.slow || (pw.t0 = performance.now()), pw.slow++) : pw.slow = Math.max(0, pw.slow - 2), pw.slow >= 4 && performance.now() - pw.t0 > 6e3 && perfNote(!1)
+ }
+
  function frame(now) {
   const dt = Math.min(.1, (now - last) / 1e3);
-  if (last = now, app.mode === "drive" && updateInput(dt), app.phase === "quali" && qualiTick(), app.w && !app.paused && app.phase === "run") {
+  if (perfWatch(now - last), last = now, app.mode === "drive" && updateInput(dt), app.phase === "quali" && qualiTick(), app.w && !app.paused && app.phase === "run") {
    const t0 = performance.now();
    if (isTrain()) {
     const max = app.speed === "max" ? 1e6 : app.speed,
@@ -23003,7 +23197,10 @@ registerProcessor('engine-proc',EngineProc);`;
     '</tbody></table><p class="note">Motor gráfico: Three.js r180 (MIT) con oclusión ambiental N8AO (ISC), mapa de tonos ACES, iluminación por imagen con cielos HDR fotografiados de Poly Haven (CC0, vía pmndrs/assets y el repositorio de three.js) y texturas de asfalto, grava, hierba, carbono y árboles generadas por código para este simulador.</p><p class="note">Limitaciones honestas: Albert Park y Yas Marina tienen tramos reconstruidos con la telemetría tras sus cambios de trazado y son los de mayor error; el peralte (Zandvoort) no está modelado; el entorno (árboles, gradas, relieve fuera de la pista) es aproximado; la posición del pit lane es genérica.</p>'
   }(), window.claude && window.claude.use && window.claude.use("sample").then(sm => {
    sm && (app.sample = sm, buildCamCtl())
-  }).catch(() => {}), setView(app.view), setMode("race"), requestAnimationFrame(frame), window.addEventListener("resize", () => {
+  }).catch(() => {}), (() => {
+   const vs = store.get("pn3-view");
+   setView(app.view), softGL && (store.set("pn3-view", vs || "3d"), app.view === "2d" && perfNote(!0))
+  })(), setMode("race"), requestAnimationFrame(frame), window.addEventListener("resize", () => {
    chartDirty = !0
   })
 })(), document.addEventListener("click", e => {

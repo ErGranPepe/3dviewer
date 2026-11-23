@@ -3,7 +3,7 @@ from playwright.async_api import async_playwright
 Q=os.environ.get('Q','high');PORT=int(os.environ.get('PORT','8831'))
 HERE=os.path.dirname(os.path.abspath(__file__))
 async def main():
-    srv=subprocess.Popen(['python3','-m','http.server',str(PORT)],cwd='/home/claude/pages',stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);time.sleep(.8)
+    srv=subprocess.Popen(['python3','-m','http.server',str(PORT)],cwd=os.environ.get('ROOT','/home/claude/pages'),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);time.sleep(.8)
     async with async_playwright() as p:
         b=await p.chromium.launch(args=['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
         for i in json.loads(os.environ.get('IDX','[8]')):
