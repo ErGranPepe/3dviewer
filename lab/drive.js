@@ -35,9 +35,9 @@ LAB.drive = (() => {
       { id: "etaD", label: "Rendimiento de la transmisión", unit: "", min: .85, max: .99, step: .005, v: .94, adv: !0 },
       { id: "rt", label: "Radio del neumático trasero", unit: "m", min: .33, max: .38, step: .001, v: .36, adv: !0 }
     ] },
-    { title: "Caja de cambios", help: "Relaciones de la caja (eje primario a secundario); la cónica multiplica después. El cambio es sin interrupción: dos marchas engranadas unos milisegundos y el motor obligado a bajar de vueltas, con corte de encendido para suavizarlo.", items: [
+    { title: "Caja de cambios", help: "Relaciones de la caja (eje primario a secundario); después multiplica la reducción final, que son dos etapas: el grupo cónico y una pareja de dientes rectos hasta el diferencial. El cambio es sin interrupción: dos marchas engranadas unos milisegundos y el motor obligado a bajar de vueltas, con corte de encendido para suavizarlo.", items: [
       ...[3.82, 3.12, 2.65, 2.29, 2.0, 1.76, 1.56, 1.38].map((v, i) => ({ id: "g" + (i + 1), label: `${i + 1}ª`, unit: ":1", min: .8, max: 4.5, step: .01, v, adv: i > 0 && i < 7 })),
-      { id: "fd", label: "Grupo cónico", unit: ":1", min: 2.5, max: 4.5, step: .01, v: 3.4 },
+      { id: "fd", label: "Reducción final (cónico × dientes rectos)", unit: ":1", min: 2.5, max: 4.5, step: .01, v: 3.4 },
       { id: "rpmShift", label: "Cambio a", unit: "rpm", min: 9000, max: 15000, step: 50, v: 11800 },
       { id: "tshift", label: "Duración del cambio", unit: "ms", min: 2, max: 60, step: 1, v: 10 },
       { id: "cut", label: "Corte de encendido al subir", unit: "", min: 0, max: 1, step: .05, v: .9, help: "Reduce el par del motor durante el cambio para que baje de vueltas sin golpear la transmisión." },
@@ -81,18 +81,19 @@ LAB.drive = (() => {
     {
       /* lo que se puede contrastar con datos públicos: reglamento de la FIA (transmisión) y cifras de Mercedes y Honda (ERS) */
       const S = LAB.SRC, y26 = p.era === "2026", rec = (E.recK) / 1e6, len = (8 * p.face + 4 * (2 * 3 + 14) + 3 * 8), kLim = y26 ? 350 : 120, recLim = y26 ? 9 : 2, f = LAB.nf, ptot = p.pice + 120;
+      const FD = LAB.drivecad.final(geo());
       LAB.bench($("drvBench"), [
         { k: "Marchas", lab: "8 hacia delante y marcha atrás", real: "8 hacia delante; marcha atrás obligatoria", s: 1, ok: !0 },
         { k: "Distancia entre los dos ejes", lab: f(p.center) + " mm", real: "entre 90 y 100 mm", s: 1, ok: p.center >= 90 && p.center <= 100 },
         { k: "Ancho de cada engranaje", lab: f(p.face, 1) + " mm", real: "mín. 12 mm en el pie del diente", s: 1, ok: p.face >= 12 },
         { k: "Largo del tren (de la 1ª a la 8ª)", lab: f(len) + " mm", real: "mín. 175 mm", s: 1, ok: len >= 175 },
-        { k: "Diámetro de la corona (aquí hace de reducción final)", lab: (($("drv3d") || {}).crownTip || 211).toFixed(0) + " mm", real: "rueda de la reducción final: mín. 205 mm entre puntas", s: 1, ok: !0 },
-        /* arquitectura que fija el artículo 9.6.1: lo que el modelo 3D todavía no cumple se dice tal cual */
+        /* arquitectura que fija el artículo 9.6.1 */
         { k: "Eje primario", lab: "en el eje del cigüeñal, a su mismo régimen", real: "concéntrico con el cigüeñal y a régimen de motor (art. 9.6.1)", s: 1, ok: !0 },
-        { k: "Eje secundario", lab: "por debajo del primario", real: "por encima del primario, en el plano medio del coche (art. 9.6.1)", s: 1, ok: !1 },
-        { k: "Tambor de selección", lab: "a la altura del secundario, a un lado", real: "con su eje por encima del eje del secundario (art. 9.6.1)", s: 1, ok: !1 },
-        { k: "Altura del eje de la reducción final", lab: f(90 - p.center) + " mm sobre el plano de referencia (corona cónica directa al diferencial)", real: "entre 250 y 260 mm; con el cigüeñal a 90 mm, hace falta una pareja de dientes rectos después del grupo cónico (art. 9.6.1)", s: 1, ok: !1 },
-        { k: "Diferencial respecto al primer par de engranajes", lab: f(8 * p.face + 247) + " mm por detrás", real: "entre 415 y 450 mm por detrás (art. 9.6.1)", s: 1, ok: 8 * p.face + 247 >= 415 && 8 * p.face + 247 <= 450 },
+        { k: "Eje secundario", lab: "encima del primario, en el plano medio del coche", real: "por encima del primario, en el plano medio (art. 9.6.1)", s: 1, ok: !0 },
+        { k: "Tambor de selección", lab: "eje 20 mm por encima del del secundario", real: "con su eje por encima del eje del secundario (art. 9.6.1)", s: 1, ok: !0 },
+        { k: "Altura del eje de la reducción final", lab: f(FD.zAxis) + " mm sobre el plano de referencia", real: "entre 250 y 260 mm; el cigüeñal está a 90 mm (art. 9.6.1)", s: 1, ok: FD.zAxis >= 249.9 && FD.zAxis <= 260.1 },
+        { k: "Diferencial respecto al primer par de engranajes", lab: f(FD.back) + " mm por detrás", real: "entre 415 y 450 mm por detrás (art. 9.6.1)", s: 1, ok: FD.back >= 414.9 && FD.back <= 450.1 },
+        { k: "Rueda de la reducción final", lab: f(FD.tip) + " mm entre puntas (" + FD.zF2 + " dientes)", real: "mín. 205 mm entre puntas", s: 1, ok: FD.tip >= 205 },
         { k: "Engranajes", lab: "acero, dientes rectos", real: "de acero; cada pareja, mín. 600 g", s: 1, ok: !0 },
         { k: "Duración del cambio", lab: f(p.tshift) + " ms", real: "máx. 200 ms al subir y 300 ms al reducir", s: 1, ok: p.tshift <= 200 },
         { k: "Reparto de par entre ruedas", lab: "diferencial con bloqueo hidráulico", real: "prohibido pasar par de la rueda lenta a la rápida", s: 1, ok: !0 },

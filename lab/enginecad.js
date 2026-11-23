@@ -85,7 +85,7 @@ LAB.enginecad = (() => {
 
     /* ================= ESCAPE ================= */
     const rp = .0155, rs = .0215, exMat = new THREE.MeshStandardMaterial({ map: TX.tint, color: "#ffffff", metalness: .7, roughness: .45, emissive: "#000", emissiveMap: TX.hot, side: THREE.DoubleSide });
-    const tpEnd0 = V(Xt - .36, ty + .08, 0);
+    const tpEnd0 = V(Xt - .36, ty + .15, 0);
     for (const left of [!0, !1]) {
       const cs = cyl.filter(q => q.left === left).sort((a, b) => b.x - a.x), sz = left ? -1 : 1, od = cs[0].side.clone().multiplyScalar(left ? -1 : 1), tag = left ? "L" : "R";
       const P0 = (q, v, u) => q.dir.clone().multiplyScalar(deckD + v).addScaledVector(od, u).setX(q.x);
@@ -117,13 +117,13 @@ LAB.enginecad = (() => {
       const Pw = S0.clone().addScaledVector(ax, .03), dw = V(-.85, -.1, sz * .5).normalize(), du = V(0, 1, 0).addScaledVector(dw, -dw.y).normalize(), Pb = Pw.clone().addScaledVector(dw, .06);
       mk(K.merge([K.put(K.latheHard([[.016, 0], [.016, .036], [.026, .04], [.026, .082], [.02, .086], [.02, .092]], 32), Pw.clone(), dw), K.put(K.latheHard([[.0165, .016], [.0165, .03], [.0215, .03], [.0215, .036], [.0165, .036]], 24), Pb.clone(), du)]), mHot, "wg", "exh");
       mk(K.merge([K.put(K.latheHard([[.02, .092], [.031, .096], [.031, .132], [.024, .138], [.007, .138], [.007, .146], [0, .146]], 32), Pw.clone(), dw), K.put(K.hex(.005, .014), Pw.clone().addScaledVector(dw, .114).addScaledVector(du, .034), du)]), mFl, "wg", "exh");
-      const wp = K.smooth([Pb.clone().addScaledVector(du, .026), Pb.clone().addScaledVector(du, .07).add(V(-.02, 0, 0)), V(Xt - .14, ty - .03, sz * .105), V(Xt - .25, ty + .02, sz * .08), V(tpEnd0.x + .02, tpEnd0.y - .025, sz * .072)], 48);
+      const wp = K.smooth([Pb.clone().addScaledVector(du, .026), Pb.clone().addScaledVector(du, .07).add(V(-.02, 0, 0)), V(Xt - .14, ty - .02, sz * .105), V(Xt - .235, ty + .085, sz * .092), V(tpEnd0.x + .02, tpEnd0.y - .025, sz * .072)], 56);
       mk(pipe("wg" + tag, wp, .015, { raw: !0, sides: 18 }), mHot, "wg", "exh");
       left && (out.lab.wg = Pw.clone().addScaledVector(dw, .11).add(V(0, .04, 0)))
     }
-    /* tubo de escape: de la salida de la turbina hacia atrás y arriba, hasta su boca */
+    /* tubo de escape: de la salida de la turbina hacia atrás, subiendo en S para pasar por encima de la caja de cambios, hasta su boca */
     {
-      const tp = K.smooth([V(Xt - .05, ty, 0), V(Xt - .13, ty, 0), V(Xt - .26, ty + .035, 0), tpEnd0], 56), n = tp.length, dir = tp[n - 1].clone().sub(tp[n - 2]).normalize();
+      const tp = K.smooth([V(Xt - .05, ty, 0), V(Xt - .085, ty + .004, 0), V(Xt - .15, ty + .05, 0), V(Xt - .215, ty + .103, 0), V(Xt - .285, ty + .132, 0), tpEnd0], 72), n = tp.length, dir = tp[n - 1].clone().sub(tp[n - 2]).normalize();
       mk(pipe("escape", tp, t => .0385 + .0085 * Math.min(1, t / .25), { raw: !0, sides: 30, rr: .047 }), mHot, "exhaust", "exh");
       mk(K.put(K.latheHard([[.047, -.012], [.0505, -.012], [.0505, .003], [.047, .003]], 36), tp[n - 1].clone(), dir), mFl, "exhaust", "exh");
       out.lab.tail = tp[n - 12].clone().add(V(0, .07, 0))

@@ -206,7 +206,7 @@ LAB.drivemodel = (() => {
     const rs = ratios(P), m = P.module * 1e-3, b = P.face * 1e-3, a = P.center * 1e-3, res = [];
     const Y = z => .484 - 2.87 / z;
     for (let g = 0; g < 8; g++) {
-      const u = rs[g]; /* relación de la etapa de caja (la cónica aporta el resto) */
+      const u = rs[g]; /* relación de la etapa de caja (la reducción final aporta el resto) */
       const z1 = Math.max(12, Math.round(2 * a / m / (1 + u))), z2 = Math.round(2 * a / m) - z1, d1 = m * z1;
       res.push({ g, z1, z2, d1, u: z2 / z1, b: faceOf(P, g), sb: 0, sh: 0, Db: 0, Dh: 0, time: 0, maxT: 0 })
     }

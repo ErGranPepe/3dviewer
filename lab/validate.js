@@ -225,8 +225,7 @@ LAB.validate = (() => {
     ["Turbo", "Rendimientos isentrópicos fijos: 78 % el compresor y 80 % la turbina."],
     ["Neumáticos", "El agarre de cada compuesto y su ventana de temperatura no son públicos: están ajustados para dar las aceleraciones laterales que se ven en un F1 y las ventanas de trabajo que publica Pirelli."],
     ["Aerodinámica y vuelta", "Los coeficientes de carga y resistencia son los que hacen que el modelo clave las poles; no salen de un túnel de viento."],
-    ["Piezas en 3D", "La geometría interior del motor, la caja y la suspensión es un diseño propio, coherente con lo que se sabe, no los planos de ningún equipo."],
-    ["Caja de cambios", "La disposición 3D todavía no sigue el artículo 9.6.1 del reglamento: ahí el secundario va por encima del primario, el tambor por encima del secundario y, tras el grupo cónico, una pareja de dientes rectos sube el giro hasta el diferencial, 160-170 mm por encima del cigüeñal. En el modelo actual el secundario va debajo y la corona cónica ataca directamente al diferencial. Las relaciones, los esfuerzos y la simulación de vuelta no dependen de eso; el dibujo sí. Está señalado en rojo en la tabla de la pestaña Transmisión."]
+    ["Piezas en 3D", "La geometría interior del motor, la caja y la suspensión es un diseño propio, no los planos de ningún equipo. La caja sigue la disposición que fija el artículo 9.6.1 del reglamento (primario en el eje del cigüeñal, secundario encima, reducción final de dientes rectos hasta el diferencial); el número de dientes, los rodamientos y el mecanismo de selección son elección nuestra."]
   ];
   function run(only) {
     const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());

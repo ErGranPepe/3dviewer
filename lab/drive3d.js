@@ -10,7 +10,7 @@
    y la electrónica de control (CE), con la energía circulando por los cables de alta tensión. */
 LAB.drive3d = (() => {
   let T, R, scene, cam, host, comp = null, st, P = {}, parts = null, labelsEl, clock = 0, DC = null;
-  const C = { x0: -.06, yIn: .045, yOut: -.045, xc: -.43, yc: -.045 };
+  const C = { x0: -.24, yIn: -.045, yOut: .045, xc: -.66, yc: .12, xm: -.35 };
   /* ---------- geometría ---------- */
   function mergeG(list) {
     const pos = [], nor = [];
@@ -82,21 +82,29 @@ LAB.drive3d = (() => {
     /* pieza de la carcasa: se recorta con el plano de los ejes y lleva su cara de corte en rojo */
     const cased = (geo, mat, pk) => { const m = add(geo, mat, null, pk), c = new T.Mesh(geo, M.cap); scene.add(c), g.caseParts.push(m), g.caps.push(c); return m };
     /* posiciones axiales: grupos (1,2) (3,4) (5,6) (7,8) con anillo de garras entre cada par */
-    const face = q.face, mod = q.module, dogW = .014, gap = .003, zs = q.z1[0] + q.z2[0], a = mod * zs / 2, yIn = a / 2, yOut = -a / 2;
-    C.yIn = yIn, C.yOut = yOut, C.yc = yOut;
+    const face = q.face, mod = q.module, dogW = .014, gap = .003, zs = q.z1[0] + q.z2[0], a = mod * zs / 2, yIn = -a / 2, yOut = a / 2;
+    /* disposición del artículo 9.6.1: primario concéntrico con el cigüeñal, abajo; secundario encima, en el plano medio del coche */
+    C.yIn = yIn, C.yOut = yOut;
     let x = C.x0;
     g.xs = [], g.xd = [];
     for (let k = 0; k < 4; k++) { g.xs.push(x - face / 2), x -= face + gap, g.xd.push(x - dogW / 2), x -= dogW + gap, g.xs.push(x - face / 2), x -= face + .008 }
     g.xEnd = x;
-    const xEnd = x, xc = C.xc = xEnd - .135, yc = yOut, rOut = Math.max(...q.z2) * mod / 2 + mod, xF = .195, xFB = C.x0 + .034, xRB = xEnd - .014, wall = .007;
-    const zB = Math.max(.1, rOut + .03), yB = yOut, yR = yB + .042, zR = zB;
+    const xEnd = x, rOut = Math.max(...q.z2) * mod / 2 + mod, xF = .195, xFB = C.x0 + .034, xRB = xEnd - .014, wall = .007;
+    /* reducción final en dos etapas: grupo cónico en la punta del secundario → eje transversal → pareja de dientes rectos → diferencial.
+       El diferencial queda 160-170 mm por encima del cigüeñal y entre 415 y 450 mm por detrás del primer par (DC.final) */
+    const FD = DC.final(q), { zb1, zb2, zF1, zF2, mF, dyF, dxF } = FD, xc = C.xc = Math.min(xEnd - .082 - dxF, C.x0 - .415), xb = xc + dxF, yc = C.yc = yOut + dyF, yW = yIn + .205, yE = yIn - .005;
+    g.zb1 = zb1, g.zb2 = zb2, g.zF1 = zF1, g.zF2 = zF2, C.xm = (C.x0 + xEnd) / 2, host.crownTip = FD.tip, host.layout = FD;
+    /* el tambor, con su eje por encima del del secundario, a un lado; la barra de las horquillas, encima del tambor */
+    const zB = Math.max(.1, rOut + .03), yB = yOut + .02, yR = yB + .042, zR = zB;
     /* ---- carcasa: campana del embrague, cuello (encima va la turbina), cuerpo con los engranajes, bulto del diferencial y cola ---- */
-    const rInM = Math.max(...q.z1) * mod / 2 + mod, yTop = yIn + rInM + .012 + wall, yBot = yOut - rOut - .012 - wall, ra = (yTop - yBot) / 2, cym = (yTop + yBot) / 2, zmax = zB + .04, zmin = -(rOut + .014), zcm = (zmax + zmin) / 2, rbm = (zmax - zmin) / 2 + wall, rbd = .137, rad = .11 + .014 + wall + .012;
-    const keys = [[xF, .088, .088, yIn, 0], [.105, .088, .088, yIn, 0], [.088, .064, .068, .014, 0], [0, .064, .068, .014, 0], [-.022, ra, rbm, cym, zcm], [xEnd - .03, ra, rbm, cym, zcm], [xc + .075, rad, rbd, yc + .01, 0], [xc - .08, rad, rbd, yc + .01, 0], [xc - .16, .07, .06, yc + .02, 0], [xc - .2, .05, .045, yc + .02, 0]];
+    const rInM = Math.max(...q.z1) * mod / 2 + mod, yTop = Math.max(yOut + rOut + .012 + wall, yR + .03), yBot = yIn - rInM - .012 - wall, ra = (yTop - yBot) / 2, cym = (yTop + yBot) / 2, zmax = zB + .05, zmin = -(rOut + .014), zcm = (zmax + zmin) / 2, rbm = (zmax - zmin) / 2 + wall, rbd = .137;
+    const yHiD = yc + FD.tip / 2e3 + .014 + wall, yLoD = yOut - .085, rad = (yHiD - yLoD) / 2, cyD = (yHiD + yLoD) / 2, xsD = Math.min(xb + .04, xEnd - .02);
+    /* secciones a lo largo de la caja: campana, cuello bajo y estrecho (encima va la turbina y por ahí sube el escape), cuerpo del tren, bulto del diferencial y cola */
+    const keys = [[xF, .088, .088, yIn, 0], [.105, .088, .088, yIn, 0], [.088, .04, .06, yIn - .01, 0], [C.x0 + .075, .04, .06, yIn - .01, 0], [C.x0 + .05, ra, rbm, cym, zcm], [xEnd, ra, rbm, cym, zcm], [xsD, rad, rbd, cyD, 0], [xc - .1, rad, rbd, cyD, 0], [xc - .18, .07, .06, yc - .04, 0], [xc - .22, .05, .045, yc - .04, 0]];
     const sec = xx => { for (let i = 0; i < keys.length - 1; i++) { const k0 = keys[i], k1 = keys[i + 1]; if (xx <= k0[0] && xx >= k1[0]) { const u = (k0[0] - xx) / Math.max(1e-6, k0[0] - k1[0]), w = u * u * (3 - 2 * u); return [1, 2, 3, 4].map(j => k0[j] + (k1[j] - k0[j]) * w) } } return keys[keys.length - 1].slice(1) };
     {
       const n = 150, Pp = [], Ss = [];
-      for (let i = 0; i <= n; i++) { const xx = xF + (xc - .2 - xF) * i / n, s = sec(xx); Pp.push(V(xx, s[2], s[3])), Ss.push([s[0], s[1]]) }
+      for (let i = 0; i <= n; i++) { const xx = xF + (xc - .22 - xF) * i / n, s = sec(xx); Pp.push(V(xx, s[2], s[3])), Ss.push([s[0], s[1]]) }
       cased(K.sweep(Pp, t => Ss[Math.min(n, Math.round(t * n))], { sides: 60, n0: V(0, 1, 0), pow: .74, wall, cap1: !0, rim0: !0 }), M.caseS, { name: "Carcasa de la caja", mat: "Fibra de carbono (hay equipos que la hacen de titanio)", info: "Es parte de la estructura del coche: une el motor con el eje trasero, lleva los anclajes de la suspensión trasera y, en la cola, la estructura de impacto. Delante, la campana que cubre el embrague se atornilla al motor." });
       /* tabiques con los alojamientos de los rodamientos, el tambor y la barra de las horquillas */
       const bh = (xx, holes) => { const s = sec(xx), pts = [], N = 64, f = v => Math.sign(v) * Math.pow(Math.abs(v), .74); for (let j = 0; j < N; j++) { const an = j / N * TAU; pts.push([s[3] + (s[1] - wall * .5) * f(Math.sin(an)), s[2] + (s[0] - wall * .5) * f(Math.cos(an))]) } return K.plate(pts, .014, holes).applyMatrix4(new T.Matrix4().makeBasis(V(0, 0, 1), V(0, 1, 0), V(-1, 0, 0)).setPosition(V(xx + .007, 0, 0))) };
@@ -108,11 +116,11 @@ LAB.drive3d = (() => {
       for (const sg of [-1, 1]) fl.push(K.flange(.04, .066, .014, 8, .0045).rotateX(sg * Math.PI / 2).translate(xc, yc, sg * (rbd - .004)));
       cased(K.merge(fl), M.bulk);
       const tail = [];
-      for (const [dy, dz] of [[-.022, -.02], [-.022, .02], [.022, -.02], [.022, .02]]) tail.push(K.hex(.006, .012).rotateZ(Math.PI / 2).translate(xc - .204, yc + .02 + dy, dz));
-      cased(K.merge([X([[.03, -.004], [.05, -.004], [.05, 0], [.03, 0], [.03, -.004]], 4).translate(xc - .2, yc + .02, 0), ...tail]), M.bulk)
+      for (const [dy, dz] of [[-.022, -.02], [-.022, .02], [.022, -.02], [.022, .02]]) tail.push(K.hex(.006, .012).rotateZ(Math.PI / 2).translate(xc - .224, yc - .04 + dy, dz));
+      cased(K.merge([X([[.03, -.004], [.05, -.004], [.05, 0], [.03, 0], [.03, -.004]], 4).translate(xc - .22, yc - .04, 0), ...tail]), M.bulk)
     }
     /* ---- rodamientos (fijos en los tabiques) ---- */
-    add(K.merge([DC.bearing(.015, .029, .012).translate(xFB, yIn, 0), DC.bearing(.014, .028, .012).translate(xFB, yOut, 0), DC.bearing(.012, .025, .012).translate(xRB, yIn, 0), DC.bearing(.017, .033, .014).translate(xRB, yOut, 0), DC.bearing(.008, .0125, .009).translate(xFB, yB, zB), DC.bearing(.008, .0125, .009).translate(xRB, yB, zB)]), M.brg, null, { name: "Rodamientos de bolas", mat: "Acero de rodamientos; en F1, a menudo con bolas cerámicas", info: "Cada eje se apoya en dos, uno en cada tabique. El trasero del secundario es el mayor: aguanta también el empuje del piñón cónico." });
+    add(K.merge([DC.bearing(.015, .029, .012).translate(xFB, yIn, 0), DC.bearing(.014, .028, .012).translate(xFB, yOut, 0), DC.bearing(.012, .025, .012).translate(xRB, yIn, 0), DC.bearing(.017, .033, .014).translate(xRB, yOut, 0), DC.bearing(.008, .0125, .009).translate(xFB, yB, zB), DC.bearing(.008, .0125, .009).translate(xRB, yB, zB), DC.bearing(.014, .028, .012).rotateY(Math.PI / 2).translate(xb, yOut, -.084), DC.bearing(.014, .028, .012).rotateY(Math.PI / 2).translate(xb, yOut, .062)]), M.brg, null, { name: "Rodamientos de bolas", mat: "Acero de rodamientos; en F1, a menudo con bolas cerámicas", info: "Cada eje se apoya en dos, uno en cada tabique. El trasero del secundario es el mayor: aguanta también el empuje del piñón cónico." });
     /* ---- ejes: escalonados, con sus asientos de rodamiento, estriados y tuercas ---- */
     g.inShaft = new T.Group(), g.outShaft = new T.Group(), scene.add(g.inShaft, g.outShaft);
     g.inShaft.position.set(0, yIn, 0), g.outShaft.position.set(0, yOut, 0);
@@ -143,14 +151,14 @@ LAB.drive3d = (() => {
     }
     add(K.merge([X([[0, xRB - .012], [.006, xRB - .012], [.006, xFB + .012], [0, xFB + .012]], 16).translate(0, yR, zR)]), M.shaft);
     g.barrel = new T.Group(), g.barrel.position.set(0, yB, zB), scene.add(g.barrel);
-    add(X([[0, xRB - .008], [.008, xRB - .008], [.008, xEnd + .004], [.022, xEnd + .006], [.022, C.x0 - .004], [.008, C.x0 - .002], [.008, xFB + .03], [0, xFB + .03]], 40), M.barrel, g.barrel, { name: "Tambor de selección", mat: "Acero", info: "Cada pista mueve una horquilla. Al girar, pasa por las ocho marchas en orden: por eso el cambio es secuencial. Lo gira un actuador hidráulico.", live: s2 => `posición ${n0(s2.barrel + 1, 2)} de 8` });
+    add(X([[0, xRB - .008], [.008, xRB - .008], [.008, xEnd + .004], [.022, xEnd + .006], [.022, C.x0 - .004], [.008, C.x0 - .002], [.008, xFB + .016], [0, xFB + .016]], 40), M.barrel, g.barrel, { name: "Tambor de selección", mat: "Acero", info: "Cada pista mueve una horquilla. Al girar, pasa por las ocho marchas en orden: por eso el cambio es secuencial. Lo gira un actuador hidráulico.", live: s2 => `posición ${n0(s2.barrel + 1, 2)} de 8` });
     for (let k = 0; k < 4; k++) {
       const pts = [];
       for (let s = 0; s <= 96; s++) { const th = s / 96 * TAU * .9, pos = forkPos(k, th / (TAU * .9) * 8); pts.push(new T.Vector3(g.xd[k] + pos * .006, .0222 * Math.cos(th), .0222 * Math.sin(th))) }
       g.barrel.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts), 140, .0028, 6), M.track))
     }
-    /* actuador hidráulico giratorio con su servoválvula (delante del tabique) y sensor de posición (detrás) */
-    add(K.merge([X([[.008, 0], [.026, 0], [.026, .04], [.018, .046], [0, .046]], 28).translate(xFB + .03, yB, zB), new T.BoxGeometry(.03, .022, .03).translate(xFB + .05, yB + .034, zB), new T.CylinderGeometry(.008, .008, .02, 12).translate(xFB + .05, yB + .054, zB), X([[0, -.02], [.013, -.02], [.013, 0], [0, 0]], 20).translate(xRB - .01, yB, zB), new T.BoxGeometry(.012, .01, .014).translate(xRB - .02, yB + .016, zB)]), M.dark);
+    /* actuador hidráulico giratorio con su servoválvula y su sensor de posición, detrás del tabique trasero (delante la carcasa se estrecha para dejar sitio a la turbina) */
+    add(K.merge([X([[.008, 0], [.026, 0], [.026, .034], [.018, .04], [0, .04]], 28).rotateY(Math.PI).translate(xRB - .002, yB, zB), new T.BoxGeometry(.03, .022, .03).translate(xRB - .022, yB + .034, zB), new T.CylinderGeometry(.008, .008, .02, 12).translate(xRB - .022, yB + .054, zB), X([[0, 0], [.012, 0], [.012, .008], [0, .008]], 20).rotateY(Math.PI).translate(xRB - .042, yB, zB)]), M.dark);
     /* ---- embrague multidisco de carbono dentro de la campana ---- */
     const xCl = .12, pkC = { name: "Embrague multidisco de carbono", mat: "Discos de carbono-carbono; campana de titanio", info: "Los discos conductores van enganchados a los dedos de la campana (que gira con el cigüeñal) y los conducidos, al cubo estriado del primario. El muelle de diafragma los aprieta; el cojinete de empuje lo afloja. Solo trabaja al arrancar y al parar: en marcha se cambia sin tocarlo.", live: s2 => `${es(s2.rpm)} rpm · pasa ${es(Math.abs(s2.Tin))} N·m` };
     g.clutch = new T.Group(), g.clutch.position.set(xCl, yIn, 0), scene.add(g.clutch);
@@ -173,34 +181,40 @@ LAB.drive3d = (() => {
     /* cojinete de empuje y cilindro hidráulico concéntrico, fijos al tabique delantero por un tubo guía */
     add(K.merge([X([[.0125, -.046], [.019, -.046], [.019, -.036], [.0125, -.036], [.0125, -.046]], 28).translate(xCl, yIn, 0), X([[.0125, xFB + .007], [.034, xFB + .007], [.034, xFB + .013], [.018, xFB + .018], [.018, xCl - .09], [.026, xCl - .088], [.026, xCl - .052], [.0125, xCl - .05]], 32).translate(0, yIn, 0), K.hex(.005, .012).translate(xCl - .07, yIn + .03, 0)]), M.alu, null, { name: "Cojinete de empuje y cilindro hidráulico", mat: "Aluminio y acero", info: "El cilindro va alrededor del primario, fijo al tabique. Al recibir presión empuja el cojinete contra los dedos del muelle de diafragma y el embrague se suelta. Lo manda el piloto con una leva del volante." });
     /* ---- grupo cónico: piñón en la punta del secundario y corona atornillada al diferencial; los dientes van al vértice común ---- */
-    let zp = 11, zcw = Math.round(q.fd * 11), best = 9;
-    for (let n1 = 9; n1 <= 15; n1++) { const n2 = Math.round(q.fd * n1), e = Math.abs(n2 / n1 - q.fd); e < best - 1e-9 && (best = e, zp = n1, zcw = n2) }
-    g.zp = zp, g.zc = zcw;
-    const d1 = Math.atan(zp / zcw), d2 = Math.PI / 2 - d1, Re = .104 / Math.sin(d2), bw = .028, mb = .208 / zcw;
-    host.crownTip = 2e3 * (.104 + mb * Math.cos(d2));
-    const pin = DC.bevel(zp, d1, Re, bw, mb, -Math.PI / 2, (ri, ro) => [[.017, ri[1] - .004], [ri[0], ri[1]], [ro[0], ro[1]], [ro[0] * .8, ro[1] + .007], [.017, ro[1] + .011]]);
-    const crn = DC.bevel(zcw, d2, Re, bw, mb, Math.PI / 2 + Math.PI / zcw, (ri, ro) => [[ri[0] - .004, ri[1] + .002], [ri[0], ri[1]], [ro[0], ro[1]], [ro[0] + .003, ro[1] + .004], [ro[0] + .003, ro[1] + .022], [ri[0] - .004, ro[1] + .022], [ri[0] - .004, ri[1] + .002]]);
-const pkF = { name: "Grupo cónico", mat: "Acero de cementación", info: "El piñón, en la punta del secundario, gira la corona 90° hacia las ruedas. Los dientes apuntan todos al punto donde se cruzan los dos ejes. Es la última reducción.", live: s2 => `${zp} y ${zcw} dientes = ${n0(zcw / zp, 3)} : 1 · corona a ${es(wOutOf(s2) * zp / zcw)} rpm` };
-    g.pinion = add(pin.geo, M.bev.clone(), null, pkF), g.pinion.position.set(xc, yc, 0);
-    g.crown = add(crn.geo.rotateY(Math.PI / 2), M.bev.clone(), null, pkF), g.crown.position.set(xc, yc, 0);
+    /* ---- grupo cónico: piñón en la punta del secundario y rueda en el eje transversal, con los dientes apuntando al cruce de los dos ejes ---- */
+    const mbv = .0042, d1 = Math.atan(zb1 / zb2), d2 = Math.PI / 2 - d1, Re = mbv * zb2 / 2 / Math.sin(d2), bw = Math.min(.018, Re * .33);
+    const pin = DC.bevel(zb1, d1, Re, bw, mbv, -Math.PI / 2, (ri, ro) => [[.017, ri[1] - .004], [ri[0], ri[1]], [ro[0], ro[1]], [ro[0] * .8, ro[1] + .007], [.017, ro[1] + .011]]);
+    const crn = DC.bevel(zb2, d2, Re, bw, mbv, Math.PI / 2 + Math.PI / zb2, (ri, ro) => [[.014, ri[1] + .002], [ri[0], ri[1]], [ro[0], ro[1]], [ro[0] + .003, ro[1] + .004], [ro[0] + .003, ro[1] + .016], [.014, ro[1] + .016], [.014, ri[1] + .002]]);
+    const wFin = s2 => wOutOf(s2) * zb1 / zb2 * zF1 / zF2;
+    const pkF = { name: "Grupo cónico", mat: "Acero de cementación", info: "El piñón, en la punta del secundario, gira 90° el movimiento hacia un eje transversal. Los dientes apuntan todos al punto donde se cruzan los dos ejes.", live: s2 => `${zb1} y ${zb2} dientes = ${n0(zb2 / zb1, 3)} : 1 · eje transversal a ${es(wOutOf(s2) * zb1 / zb2)} rpm` };
+    const pkR = { name: "Reducción final", mat: "Acero de cementación, dientes rectos", info: "El reglamento pone el eje del diferencial entre 160 y 170 mm por encima del cigüeñal, bastante más alto que el secundario: esta pareja sube el giro hasta ahí y hace la última reducción. La rueda no puede medir menos de 205 mm entre puntas.", live: s2 => `${zF1} y ${zF2} dientes = ${n0(zF2 / zF1, 3)} : 1 · total con el cónico ${n0(FD.ratio, 3)} : 1 · diferencial a ${es(wFin(s2))} rpm` };
+    /* piñón cónico con la prolongación del secundario y su tuerca. Los dos cónicos se giran media vuelta en torno al eje del secundario para que la rueda quede del lado +z */
+    g.pinion = add(K.merge([pin.geo.rotateX(Math.PI), X([[0, .012], [.017, .012], [.017, xRB - .012 - xb], [0, xRB - .012 - xb]], 28), K.hex(.021, .008).rotateZ(Math.PI / 2).translate(.012, 0, 0)]), M.bev.clone(), null, pkF), g.pinion.position.set(xb, yOut, 0);
+    /* eje transversal: rueda cónica a un lado y piñón de la reducción final al otro */
+    const thF = Math.atan2(dyF, -dxF), zg = -.057;
+    g.cross = new T.Group(), g.cross.position.set(xb, yOut, 0), scene.add(g.cross);
+    add(K.merge([crn.geo.rotateY(Math.PI / 2).rotateX(Math.PI), Z([[0, -.092], [.014, -.092], [.014, .07], [0, .07]], 24)]), M.bev.clone(), g.cross, pkF);
+    add(K.gearZ(zF1, mF, .024, .0138).rotateZ(thF - Math.PI / zF1).translate(0, 0, zg), M.gear.clone(), g.cross, pkR);
     /* ---- diferencial: caja con su brida para la corona, tambor del paquete de discos, pistón hidráulico y rodamientos ---- */
-    const zf = -(crn.ro[1] + .022);
+    const zf = -.037;
     const pkD = { name: "Diferencial de bloqueo hidráulico", mat: "Caja de titanio; discos de acero y fricción", info: "Deja que las dos ruedas giren a distinta velocidad en curva. Un pistón aprieta el paquete de discos y las frena una contra otra: ese par de bloqueo lo decide la electrónica según se entre, se pase o se salga de la curva.", live: s2 => `bloqueo ${es(s2.lock)} N·m · rueda izq. ${es(s2.wL * 9.549)} rpm · dcha. ${es(s2.wR * 9.549)} rpm` };
     g.diff = new T.Group(), g.diff.position.set(xc, yc, 0), scene.add(g.diff);
     {
-      const R2 = (p, s) => new T.Vector2(p, s), gs = [Z([[.022, zf - .05], [.022, zf - .024], [.05, zf - .009], [.098, zf - .009], [.098, zf], [.05, zf], [.05, .046], [.06, .05], [.06, .054]], 48), Z([[.06, .1], [.06, .106], [.022, .108], [.022, .13], [.014, .13]], 48), Z([[.014, zf - .05], [.022, zf - .05]], 32)];
+      const R2 = (p, s) => new T.Vector2(p, s), gs = [Z([[.022, zf - .056], [.022, zf - .024], [.05, zf - .009], [.086, zf - .009], [.086, zf], [.05, zf], [.05, .046], [.06, .05], [.06, .054]], 48), Z([[.06, .1], [.06, .106], [.022, .108], [.022, .13], [.014, .13]], 48), Z([[.014, zf - .056], [.022, zf - .056]], 32)];
       for (let k = 0; k < 10; k++) gs.push(new T.LatheGeometry([R2(.0555, .054), R2(.06, .054), R2(.06, .1), R2(.0555, .1), R2(.0555, .054)], 4, k / 10 * TAU, TAU / 10 * .58).rotateX(Math.PI / 2));
-      for (let k = 0; k < 10; k++) gs.push(K.hex(.0048, .005).rotateX(Math.PI / 2).translate(.088 * Math.cos(k / 10 * TAU), .088 * Math.sin(k / 10 * TAU), zf - .011));
-      add(K.merge(gs), M.ti, g.diff, pkD)
+      for (let k = 0; k < 10; k++) gs.push(K.hex(.0048, .005).rotateX(Math.PI / 2).translate(.078 * Math.cos(k / 10 * TAU), .078 * Math.sin(k / 10 * TAU), zf + .003));
+      add(K.merge(gs), M.ti, g.diff, pkD);
+      /* rueda de la reducción final, atornillada a la brida de la caja del diferencial: un hueco suyo mira al piñón */
+      add(K.gearZ(zF2, mF, .022, .07).rotateZ(thF + Math.PI).translate(0, 0, zg), M.gear.clone(), g.diff, pkR)
     }
     g.plates = [];
     for (let k = 0; k < 12; k++) { const pl = new T.Mesh(new T.CylinderGeometry(k % 2 ? .051 : .054, k % 2 ? .051 : .054, .0022, 40).rotateX(Math.PI / 2), (k % 2 ? M.plate : M.plateS).clone()); pl.position.z = .057 + k * .0034, pl.userData.pk = pkD, g.diff.add(pl), g.plates.push(pl) }
     g.piston = new T.Mesh(Z([[.03, -.004], [.054, -.004], [.054, .003], [.03, .003], [.03, -.004]], 40), M.plateS), g.piston.position.z = .098, g.diff.add(g.piston);
-    add(K.merge([DC.bearing(.022, .04, .016).rotateY(Math.PI / 2).translate(xc, yc, zf - .037), DC.bearing(.022, .04, .016).rotateY(Math.PI / 2).translate(xc, yc, .119)]), M.brg);
+    add(K.merge([DC.bearing(.022, .04, .016).rotateY(Math.PI / 2).translate(xc, yc, zf - .046), DC.bearing(.022, .04, .016).rotateY(Math.PI / 2).translate(xc, yc, .119)]), M.brg);
     /* ---- palieres: junta trípode en la caja y homocinética en la rueda, las dos con fuelle; ruedas ---- */
     g.shafts = [];
     for (const s of [-1, 1]) {
-      const zi = s < 0 ? zf - .05 : .13, A0 = new T.Vector3(xc, yc, zi + s * .03), B0 = new T.Vector3(xc + .02, .03, s * .615), grp = new T.Group(), segs = [], N = 10, d = B0.clone().sub(A0), L = d.length();
+      const zi = s < 0 ? zf - .056 : .13, A0 = new T.Vector3(xc, yc, zi + s * .03), B0 = new T.Vector3(xc + .02, yW, s * .615), grp = new T.Group(), segs = [], N = 10, d = B0.clone().sub(A0), L = d.length();
       grp.position.copy(A0), grp.quaternion.setFromUnitVectors(new T.Vector3(1, 0, 0), d.clone().normalize()), scene.add(grp);
       grp.userData.pk = { name: "Palier " + (s < 0 ? "izquierdo" : "derecho"), mat: "Acero de alta resistencia, hueco; juntas trípode con fuelle", info: "Lleva el par a la rueda y, a la vez, hace de muelle de torsión: se retuerce con cada golpe de par. Aquí el giro va exagerado 12 veces para que se vea.", live: s2 => `par ${n0(s2.Tds / 2e3, 2)} kN·m · torsión ${n0(s2.Tds / s2.kds / 2 * 57.3, 2)}°` };
       for (let k = 0; k < N; k++) {
@@ -212,7 +226,7 @@ const pkF = { name: "Grupo cónico", mat: "Acero de cementación", info: "El pi�
       const flip = new T.Matrix4().makeRotationZ(Math.PI).setPosition(new T.Vector3(L + .03, 0, 0));
       add(j.cup.clone().applyMatrix4(flip), M.dark, grp), add(j.boot.clone().applyMatrix4(flip), M.boot, grp), add(j.clamps.clone().applyMatrix4(flip), M.plateS, grp);
       /* rueda trasera con su mangueta: del vaso de la junta sale el eje que la lleva */
-      const wg = new T.Group(); wg.position.set(xc + .02, .03, s * .8), scene.add(wg), wg.userData.pk = { name: "Rueda trasera", mat: "Llanta de magnesio de 18 pulgadas con tapacubos", info: "Neumático trasero de 720 mm de diámetro.", live: s2 => `${es((s < 0 ? s2.wL : s2.wR) * 9.549)} rpm · ${es(s2.v * 3.6)} km/h` };
+      const wg = new T.Group(); wg.position.set(xc + .02, yW, s * .8), scene.add(wg), wg.userData.pk = { name: "Rueda trasera", mat: "Llanta de magnesio de 18 pulgadas con tapacubos", info: "Neumático trasero de 720 mm de diámetro.", live: s2 => `${es((s < 0 ? s2.wL : s2.wR) * 9.549)} rpm · ${es(s2.v * 3.6)} km/h` };
       const w = DC.wheel(s);
       add(w.tyre, M.rubber, wg), add(w.rim, M.rim, wg), add(w.cover, M.cover, wg), add(w.nut, M.plateS, wg);
       add(Z([[0, -.2], [.022, -.2], [.022, -.06], [.05, -.05], [.05, .1], [.03, .12], [0, .12]], 28).rotateY(s < 0 ? Math.PI : 0), M.dark, wg);
@@ -228,21 +242,21 @@ const pkF = { name: "Grupo cónico", mat: "Acero de cementación", info: "El pi�
     g.mguk = eng.out.mguk, g.mguh = eng.out.mguh, g.pos.mguk = pK, g.pos.mguh = pH.clone().add(new T.Vector3(0, .06, 0));
     /* batería (bajo el depósito, delante del motor) con su mirilla de carga, y electrónica de control con aletas */
     const xES = eng.grp.position.x + eng.len + .5;
-    g.es = add(K.merge([new T.BoxGeometry(.44, .15, .52), new T.BoxGeometry(.4, .012, .48).translate(0, -.081, 0), new T.BoxGeometry(.05, .05, .09).translate(-.245, 0, -.17)]), M.es, null, { name: "Batería (ES)", mat: "Celdas de iones de litio en caja de carbono", info: "Va bajo el depósito, detrás del piloto. La regleta verde es su carga.", live: s2 => `${n0(s2.soc / 1e6, 2)} MJ de ${n0(s2.socwin / 1e6, 1)} MJ útiles` }), g.es.position.set(xES, -.2, 0);
-    g.cells = new T.Mesh(new T.BoxGeometry(.4, .014, .05), M.cell), g.cells.position.set(xES, -.122, .19), scene.add(g.cells);
-    add(new T.BoxGeometry(.41, .005, .06), M.glass).position.set(xES, -.1135, .19);
-    { const d = []; for (let k = 0; k < 6; k++) d.push(new T.BoxGeometry(.36, .006, .012).translate(0, .078, -.2 + k * .055)); for (const z0 of [-.2, -.14]) d.push(new T.CylinderGeometry(.012, .012, .03, 14).rotateZ(Math.PI / 2).translate(.235, 0, z0), K.hex(.016, .008).rotateZ(Math.PI / 2).translate(.224, 0, z0)); add(K.merge(d), M.alu).position.set(xES, -.2, 0) }
-    { const fins = []; for (let k = 0; k < 9; k++) fins.push(new T.BoxGeometry(.17, .014, .004).translate(0, .052, -.07 + k * .0175)); g.ce = add(K.merge([new T.BoxGeometry(.18, .09, .16), ...fins, new T.BoxGeometry(.03, .04, .05).translate(.105, 0, .03), new T.BoxGeometry(.03, .04, .05).translate(-.105, 0, 0)]), M.motor), g.ce.position.set(xES - .32, -.2, -.36) }
-    g.pos.es = new T.Vector3(xES, -.09, 0);
+    g.es = add(K.merge([new T.BoxGeometry(.44, .15, .52), new T.BoxGeometry(.4, .012, .48).translate(0, -.081, 0), new T.BoxGeometry(.05, .05, .09).translate(-.245, 0, -.17)]), M.es, null, { name: "Batería (ES)", mat: "Celdas de iones de litio en caja de carbono", info: "Va bajo el depósito, detrás del piloto. La regleta verde es su carga.", live: s2 => `${n0(s2.soc / 1e6, 2)} MJ de ${n0(s2.socwin / 1e6, 1)} MJ útiles` }), g.es.position.set(xES, yE, 0);
+    g.cells = new T.Mesh(new T.BoxGeometry(.4, .014, .05), M.cell), g.cells.position.set(xES, yE + .078, .19), scene.add(g.cells);
+    add(new T.BoxGeometry(.41, .005, .06), M.glass).position.set(xES, yE + .0865, .19);
+    { const d = []; for (let k = 0; k < 6; k++) d.push(new T.BoxGeometry(.36, .006, .012).translate(0, .078, -.2 + k * .055)); for (const z0 of [-.2, -.14]) d.push(new T.CylinderGeometry(.012, .012, .03, 14).rotateZ(Math.PI / 2).translate(.235, 0, z0), K.hex(.016, .008).rotateZ(Math.PI / 2).translate(.224, 0, z0)); add(K.merge(d), M.alu).position.set(xES, yE, 0) }
+    { const fins = []; for (let k = 0; k < 9; k++) fins.push(new T.BoxGeometry(.17, .014, .004).translate(0, .052, -.07 + k * .0175)); g.ce = add(K.merge([new T.BoxGeometry(.18, .09, .16), ...fins, new T.BoxGeometry(.03, .04, .05).translate(.105, 0, .03), new T.BoxGeometry(.03, .04, .05).translate(-.105, 0, 0)]), M.motor), g.ce.position.set(xES - .32, yE, -.36) }
+    g.pos.es = new T.Vector3(xES, yE + .11, 0);
     /* cables de alta tensión y flujos de energía */
     const cable = (pts, name) => { const cv = new T.CatmullRomCurve3(pts.map(p => p.isVector3 ? p : new T.Vector3(...p))), m = new T.Mesh(new T.TubeGeometry(cv, 70, .007, 8), M.hv); scene.add(m); const N = 26, inst = new T.InstancedMesh(new T.SphereGeometry(.011, 8, 6), new T.MeshBasicMaterial({ color: "#7fe3ff", toneMapped: !1 }), N); scene.add(inst); const f = { name, cv, m, inst, N, u: 0, p: 0 }; g.flows.push(f); return f };
     const ceP = g.ce.position, kBox = W(eng.out.lab.mguk).add(new T.Vector3(0, .065 + .052, 0));
-    g.fK = cable([kBox, kBox.clone().add(new T.Vector3(.05, .05, -.06)), [ceP.x - .2, -.12, ceP.z - .02], [ceP.x - .12, -.2, ceP.z]], "K");
-    g.fES = cable([[ceP.x + .12, -.2, ceP.z + .03], [ceP.x + .2, -.2, ceP.z + .1], [xES - .3, -.2, -.2], [xES - .27, -.2, -.17]], "ES");
-    g.fH = cable([pH.clone().add(new T.Vector3(0, .05, 0)), pH.clone().add(new T.Vector3(.03, .1, -.1)), [pH.x + .1, .34, -.36], [ceP.x - .16, .1, ceP.z - .14], [ceP.x - .04, -.12, ceP.z - .06], [ceP.x, -.155, ceP.z - .03]], "H");
-    g.floor = new T.Mesh(new T.PlaneGeometry(8, 8), M.ground), g.floor.rotation.x = -Math.PI / 2, g.floor.position.y = -.33, g.floor.receiveShadow = !0, scene.add(g.floor);
+    g.fK = cable([kBox, kBox.clone().add(new T.Vector3(.05, .05, -.06)), [ceP.x - .2, yE + .08, ceP.z - .02], [ceP.x - .12, yE, ceP.z]], "K");
+    g.fES = cable([[ceP.x + .12, yE, ceP.z + .03], [ceP.x + .2, yE, ceP.z + .1], [xES - .3, yE, -.2], [xES - .27, yE, -.17]], "ES");
+    g.fH = cable([pH.clone().add(new T.Vector3(0, .05, 0)), pH.clone().add(new T.Vector3(.03, .1, -.1)), [pH.x + .1, yIn + .2925, -.36], [ceP.x - .16, yIn + .0525, ceP.z - .14], [ceP.x - .04, yE + .08, ceP.z - .06], [ceP.x, yE + .045, ceP.z - .03]], "H");
+    g.floor = new T.Mesh(new T.PlaneGeometry(8, 8), M.ground), g.floor.rotation.x = -Math.PI / 2, g.floor.position.y = yW - .36, g.floor.receiveShadow = !0, scene.add(g.floor);
     const v3 = (x2, y2, z2) => new T.Vector3(x2, y2, z2);
-    g.names = [[v3(xCl, yIn + .075, 0), "Embrague multidisco de carbono"], [v3(xCl - .045, yIn - .04, 0), "Cojinete de empuje y cilindro hidráulico"], [v3(g.xs[1], yIn + rInM + .03, 0), "Primario (piñones tallados en el eje)"], [v3(g.xs[4], yOut - rOut - .02, 0), "Secundario (ruedas locas)"], [v3(g.xd[1], yOut, .05), "Anillo de garras"], [v3(g.xd[2], yR + .03, zR), "Horquilla y barra guía"], [v3(g.xs[5], yB - .04, zB), "Tambor de selección"], [v3(xFB + .05, yB + .07, zB), "Actuador hidráulico"], [v3(xFB, yIn + .05, 0), "Tabique con rodamientos", "case"], [v3(xc + .09, yc + .05, 0), "Piñón cónico"], [v3(xc, yc + .11, -.04), "Corona"], [v3(xc, yc - .08, .08), "Diferencial: discos y pistón"], [v3(xc, yc - .03, .2), "Junta trípode"], [v3(xc - .12, yc + .09, 0), "Carcasa de carbono (estructural)", "case"], [g.pos.es.clone().add(v3(.2, .04, .2)), "Batería (ES)"], [g.ce.position.clone().add(v3(0, .09, 0)), "Electrónica de control (CE)"], [W(v3(eng.out.Xt, eng.out.ty + .11, 0)), "Turbina", "eng"], [W(v3(eng.out.Xc, eng.out.ty + .12, 0)), "Compresor", "eng"]];
+    g.names = [[v3(xCl, yIn + .075, 0), "Embrague multidisco de carbono"], [v3(xCl - .045, yIn - .04, 0), "Cojinete de empuje y cilindro hidráulico"], [v3(g.xs[1], yIn - rInM - .03, 0), "Primario (piñones tallados en el eje)"], [v3(g.xs[4], yOut + rOut + .02, 0), "Secundario (ruedas locas)"], [v3(g.xd[1], yOut, .05), "Anillo de garras"], [v3(g.xd[2], yR + .03, zR), "Horquilla y barra guía"], [v3(g.xs[5], yB - .04, zB), "Tambor de selección"], [v3(xRB - .03, yB + .085, zB), "Actuador hidráulico"], [v3(xFB, yIn - .05, 0), "Tabique con rodamientos", "case"], [v3(xb + .05, yOut - .055, 0), "Piñón cónico"], [v3(xb, yOut - .065, .05), "Rueda cónica y eje transversal"], [v3(xc + .03, yc + .125, -.06), "Reducción final"], [v3(xc, yc - .08, .08), "Diferencial: discos y pistón"], [v3(xc, yc - .03, .2), "Junta trípode"], [v3(xc - .13, yc + .1, 0), "Carcasa de carbono (estructural)", "case"], [g.pos.es.clone().add(v3(.2, .04, .2)), "Batería (ES)"], [g.ce.position.clone().add(v3(0, .09, 0)), "Electrónica de control (CE)"], [W(v3(eng.out.Xt, eng.out.ty + .11, 0)), "Turbina", "eng"], [W(v3(eng.out.Xc, eng.out.ty + .12, 0)), "Compresor", "eng"]];
     parts = g, setCase(caseMode), setEngine(engMode);
     return g
   }
@@ -283,7 +297,7 @@ const pkF = { name: "Grupo cónico", mat: "Acero de cementación", info: "El pi�
     parts = build();
     labelsEl = document.createElement("div"), labelsEl.className = "s3labels", host.appendChild(labelsEl);
     pickEl = document.createElement("div"), pickEl.className = "s3pick", pickEl.hidden = !0, host.appendChild(pickEl);
-    st = { az: 1.05, el: .3, d: 1.15, t: new T.Vector3(-.17, 0, 0) };
+    st = { az: 1.05, el: .3, d: 1.2, t: new T.Vector3(-.37, .03, 0) };
     const place = () => { const c = Math.cos(st.el); cam.position.set(st.t.x + st.d * c * Math.cos(st.az), st.t.y + st.d * Math.sin(st.el), st.t.z + st.d * c * Math.sin(st.az)), cam.lookAt(st.t) };
     camSet = a => { st.az = a[0], st.el = a[1], st.d = a[2], st.t.set(a[3], a[4], a[5]), place() };
     let drag = null, pinch = null;
@@ -312,7 +326,7 @@ const pkF = { name: "Grupo cónico", mat: "Acero de cementación", info: "El pi�
     } catch (e) { comp = null }
     const fit = () => { const r = host.getBoundingClientRect(), w = Math.max(1, r.width), hh = Math.max(1, r.height); R.setSize(w, hh, !1), comp && comp.setSize(w, hh), cam.aspect = w / hh, cam.updateProjectionMatrix() };
     new ResizeObserver(fit).observe(host), fit(), place();
-    host.view = v => { Object.assign(st, { box: { az: 1.05, el: .3, d: 1.0, t: new T.Vector3(-.17, 0, 0) }, clutch: { az: 1.15, el: .25, d: .55, t: new T.Vector3(.1, C.yIn, 0) }, diff: { az: 2.2, el: .35, d: .85, t: new T.Vector3(C.xc, C.yc, .03) }, ers: { az: -.9, el: .45, d: 1.9, t: new T.Vector3(.75, 0, -.1) }, all: { az: .85, el: .4, d: 3.1, t: new T.Vector3(.25, .02, 0) } }[v] || {}), st.t = st.t.clone(), place() };
+    host.view = v => { Object.assign(st, { box: { az: 1.05, el: .3, d: 1.05, t: new T.Vector3(C.xm - .03, .03, 0) }, clutch: { az: 1.15, el: .25, d: .55, t: new T.Vector3(.1, C.yIn, 0) }, diff: { az: 2.2, el: .35, d: .9, t: new T.Vector3(C.xc + .05, C.yc - .03, 0) }, ers: { az: -.9, el: .45, d: 1.9, t: new T.Vector3(.75, 0, -.1) }, all: { az: .85, el: .4, d: 3.4, t: new T.Vector3(.12, .05, 0) } }[v] || {}), st.t = st.t.clone(), place() };
     host.casing = m => setCase(m), host.engine = m => setEngine(m), host.names = on => showNames = !!on;
     return !0
   }
@@ -358,8 +372,8 @@ const pkF = { name: "Grupo cónico", mat: "Acero de cementación", info: "El pi�
     g.barrel.rotation.x = -gIdx / 8 * TAU * .9;
     g.dogs.forEach((d, j) => { const p = forkPos(j, gIdx); d.position.x = g.xd[j] + p * .006, d.rotation.x -= wOut * dA, g.forks[j].position.x = d.position.x, d.material.emissive.set(Math.abs(p) > .5 ? "#ff6a1a" : "#000"), d.material.emissiveIntensity = Math.abs(p) > .5 ? clamp(Math.abs(s.Tin) / 900, .1, 1.2) : 0 });
     /* cónica, diferencial y palieres */
-    const wc = wOut * g.zp / g.zc;
-    g.pinion.rotation.x -= wOut * dA, g.crown.rotation.z -= wc * dA, g.diff.rotation.z -= wc * dA;
+    const wb = wOut * g.zb1 / g.zb2, wc = wb * g.zF1 / g.zF2;
+    g.pinion.rotation.x -= wOut * dA, g.cross.rotation.z += wb * dA, g.diff.rotation.z -= wc * dA;
     const lockI = clamp(s.lock / 900, 0, 1);
     g.plates.forEach((p, j) => p.material.emissive && (p.material.emissive.setRGB(lockI * .9, lockI * .35, 0), p.material.emissiveIntensity = lockI));
     g.piston.position.z = .098 - lockI * .003;
@@ -386,7 +400,7 @@ const pkF = { name: "Grupo cónico", mat: "Acero de cementación", info: "El pi�
     g.cells.scale.x = Math.max(.02, soc), g.cells.position.x = g.es.position.x - .2 * (1 - soc), g.cells.material.emissive.setHSL(.33 * soc, .9, .45), g.cells.material.color.setHSL(.33 * soc, .8, .45);
     g.mguk.material.emissive = g.mguk.material.emissive || new T.Color(), g.mguk.material.emissive.setRGB(Math.max(0, s.Pk) / 350e3 * .3, Math.max(0, -s.Pk) / 350e3 * .5, Math.max(0, s.Pk) / 350e3 * .8);
     /* etiquetas */
-    const L = [[g.pos.mguk, `MGU-K ${s.Pk >= 0 ? "+" : "−"}${Math.abs(s.Pk / 1e3).toFixed(0)} kW`], [g.pos.es, `Batería ${(s.soc / 1e6).toFixed(2)} MJ`], [new T.Vector3(g.xs[s.gear], C.yIn + .075, 0), `${s.gear + 1}ª · ${Math.round(s.rpm)} rpm`], [new T.Vector3(C.xc, C.yc + .12, 0), `Bloqueo ${Math.round(s.lock)} N·m`], [g.shafts[1].grp.position.clone().add(new T.Vector3(.02, .07, .3)), `Palier ${(s.Tds / 2e3).toFixed(2)} kN·m`]];
+    const L = [[g.pos.mguk, `MGU-K ${s.Pk >= 0 ? "+" : "−"}${Math.abs(s.Pk / 1e3).toFixed(0)} kW`], [g.pos.es, `Batería ${(s.soc / 1e6).toFixed(2)} MJ`], [new T.Vector3(g.xs[s.gear], C.yOut + .115, 0), `${s.gear + 1}ª · ${Math.round(s.rpm)} rpm`], [new T.Vector3(C.xc, C.yc + .12, 0), `Bloqueo ${Math.round(s.lock)} N·m`], [g.shafts[1].grp.position.clone().add(new T.Vector3(.02, .07, .3)), `Palier ${(s.Tds / 2e3).toFixed(2)} kN·m`]];
     hasH && L.push([g.pos.mguh, `MGU-H +${(s.Ph / 1e3).toFixed(0)} kW`]);
     if (showNames) for (const nm of g.names) (nm[2] !== "eng" || engMode === "full") && (nm[2] !== "case" || caseMode !== "off") && L.push(nm);
     const es = labelsEl.children.length === L.length ? labelsEl.children : (labelsEl.innerHTML = "<div class=t></div>".repeat(L.length), labelsEl.children), rect = R.domElement.getBoundingClientRect(), v = new T.Vector3();

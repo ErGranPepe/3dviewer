@@ -17,6 +17,19 @@ LAB.drivecad = (() => {
   }
   /* engranaje cónico recto: vértice del cono en el origen, eje +X. delta = semiángulo del cono primitivo, Re = generatriz exterior,
      b = ancho de diente. El diente k tiene su centro en el ángulo ph + k·2π/z (medido de +Y hacia +Z). body = perfil [radio, x] del cuerpo */
+  /* reducción final que pide el artículo 9.6.1 del reglamento: el eje del diferencial va entre 250 y 260 mm sobre el plano de referencia
+     (160-170 mm por encima del cigüeñal) y el secundario solo 90-100 mm por encima del primario, así que tras el grupo cónico hace falta
+     una pareja de dientes rectos. La rueda es de 57 dientes de módulo 3,5 (206 mm entre puntas; el mínimo es 205) y el resto de la
+     relación se reparte entre su piñón y el grupo cónico. q = { z1, z2, module, face, fd } en metros */
+  function final(q) {
+    const mF = .0035, zF2 = 57, a = q.module * (q.z1[0] + q.z2[0]) / 2;
+    let zb1 = 17, zb2 = 17, zF1 = 19, best = 9;
+    for (let f1 = 17; f1 <= 27; f1++) for (let b1 = 15; b1 <= 23; b1++) { const b2 = Math.round(q.fd * f1 / zF2 * b1); if (b2 < 13 || b2 > 31 || b2 / b1 < .7 || b2 / b1 > 1.7) continue; const e = Math.abs(b2 / b1 * zF2 / f1 - q.fd); e < best - 1e-9 && (best = e, zb1 = b1, zb2 = b2, zF1 = f1) }
+    const cF = mF * (zF1 + zF2) / 2, dyF = Math.min(cF - .02, Math.max(.03, .165 - a)), dxF = Math.sqrt(cF * cF - dyF * dyF);
+    /* largo del tren tal como lo monta drive3d (cuatro grupos de dos ruedas con su anillo de garras) y distancia del primer par al diferencial */
+    const len = 4 * (2 * q.face + .028), back = Math.max(.415, len + .082 + dxF);
+    return { zb1, zb2, zF1, zF2, mF, cF, dyF, dxF, a, len, ratio: zb2 / zb1 * zF2 / zF1, tip: mF * (zF2 + 1.9) * 1e3, zAxis: (.09 + a + dyF) * 1e3, back: back * 1e3 }
+  }
   function bevel(z, delta, Re, b, mod, ph, body) {
     const T = TH(), pos = [], cd = Math.cos(delta), sd = Math.sin(delta), tau = TAU / z, ha = mod, hf = 1.2 * mod;
     const P = (s, e, th) => { const a = s * cd - e * sd * s / Re, rho = s * sd + e * cd * s / Re; return [a, rho * Math.cos(th), rho * Math.sin(th)] };
@@ -86,5 +99,5 @@ LAB.drivecad = (() => {
     grp.traverse(m => { m.isMesh && (m.castShadow = !0) });
     return { grp, root, crank, cams, out, xmin, xmax, xc, len: xmax - xmin + .2 }
   }
-  return { V, latheX, latheZ, bearing, bevel, tripod, wheel, casing, bulkhead, engine }
+  return { V, latheX, latheZ, bearing, bevel, final, tripod, wheel, casing, bulkhead, engine }
 })();

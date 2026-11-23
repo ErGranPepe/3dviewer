@@ -57,7 +57,7 @@ async def run():
                 ok=await pg.evaluate("(()=>{const b=document.querySelector('%s');if(!b)return false;b.click();return true})()"%sel)
                 if not ok: bad.append('sin botón: '+sel)
                 await pg.wait_for_timeout(1300)
-            cases=[('m2',{'Módulo de los dientes':2}),('m4',{'Módulo de los dientes':4}),('m3',{'Módulo de los dientes':3}),('a8',{'Ancho de dentado':8}),('a30',{'Ancho de dentado':30}),('a18',{'Ancho de dentado':18}),('c70',{'Distancia entre ejes':70}),('c120',{'Distancia entre ejes':120}),('c90',{'Distancia entre ejes':90}),('fd25',{'Grupo cónico':2.5}),('fd45',{'Grupo cónico':4.5}),('g18',{'1ª':4.5,'8ª':0.8})]
+            cases=[('m2',{'Módulo de los dientes':2}),('m4',{'Módulo de los dientes':4}),('m3',{'Módulo de los dientes':3}),('a8',{'Ancho de dentado':8}),('a30',{'Ancho de dentado':30}),('a18',{'Ancho de dentado':18}),('c70',{'Distancia entre ejes':70}),('c120',{'Distancia entre ejes':120}),('c90',{'Distancia entre ejes':90}),('fd25',{'Reducción final (cónico × dientes rectos)':2.5}),('fd45',{'Reducción final (cónico × dientes rectos)':4.5}),('g18',{'1ª':4.5,'8ª':0.8})]
             for name,vals in cases:
                 for k,v in vals.items():
                     ok=await pg.evaluate("(%s)(%s,%s)"%(SETP,json.dumps(k),json.dumps(v)))
