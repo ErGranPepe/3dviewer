@@ -29,6 +29,18 @@ El Laboratorio (`lab/chem.js`) repite esos cálculos en JavaScript y `lab/valida
 R
 # pruebas automáticas: barrido de la pista (objetos sobre el asfalto), regresión completa, movimiento, averías, parada en boxes
 mkdir -p $F/pruebas && cp /home/claude/tools/tests/* $F/pruebas/ 2>/dev/null || true
+# guiones que se ejecutan dentro de la página (banco de conducción de la IA) y banco de la trazada fuera del navegador
+mkdir -p $F/pruebas/js && cp /home/claude/tools/tests/js/*.js $F/pruebas/js/ 2>/dev/null || true
+mkdir -p $F/trazada && cp /home/claude/tools/rl/*.js $F/trazada/ 2>/dev/null || true
+cat > $F/trazada/LEEME.md <<'R'
+# Banco de la trazada (fuera del navegador)
+
+- `harness.js <Circuito>`: extrae de `app.js` las funciones de la trazada y las ejecuta sobre la geometría volcada de un circuito
+  (se vuelca con `pruebas/probe.py` y `pruebas/js/dumptr.js`); lista el radio del eje y de la trazada en cada curva lenta.
+- `ribchk.js <Circuito> <lateral> <subdivisiones> <herm|lin|arc>`: comprueba si una cinta a ese desplazamiento lateral se pliega
+  sobre sí misma en la curva más cerrada (así se encontró el piano montado de la horquilla de Mónaco: radio local de 5,9 m).
+- `fair.js`, `minrad.js`: intentos de redondear la punta de la horquilla moviendo el eje; descartados (colapsan la curva).
+R
 cat > $F/pruebas/LEEME.md <<'R'
 # Pruebas
 

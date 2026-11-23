@@ -12,7 +12,9 @@ async def main():
             await pg.add_init_script("try{localStorage.setItem('pn3-q',JSON.stringify('low'))}catch(e){}")
             await pg.goto('http://localhost:8765/index.html',wait_until='domcontentloaded');await pg.wait_for_timeout(3500)
             await pg.screenshot(path=f'{OUT}_{name}_0.png')
-            await pg.screenshot(path=f'{OUT}_{name}_full.png',full_page=True)
+            for k in (1,2,3):
+                await pg.evaluate('window.scrollBy(0, innerHeight*0.9)');await pg.wait_for_timeout(400);await pg.screenshot(path=f'{OUT}_{name}_{k}.png')
+            await pg.evaluate('window.scrollTo(0,0)')
             if os.environ.get('RACE'):
                 await pg.select_option('#rTrack',index=6);await pg.select_option('#rWeather','seco');await pg.evaluate("document.getElementById('rGo').click()")
                 for k in range(300):
@@ -20,7 +22,6 @@ async def main():
                     if await pg.evaluate('!!(window.__app&&__app.w&&__app.phase==="run")'):break
                 await pg.wait_for_timeout(14000)
                 await pg.screenshot(path=f'{OUT}_{name}_race.png')
-                await pg.screenshot(path=f'{OUT}_{name}_racefull.png',full_page=True)
             await ctx.close()
         await b.close()
 asyncio.run(main())
