@@ -16,7 +16,7 @@ window.SITE={
              No pongas aquí tu correo: este archivo es público.
      goal: objetivo del mes opcional (target 0 = sin barra); "raised" lo actualizas tú a mano. */
   support:{
-    kofi:"",
+    kofi:"mariodiazgomez",
     github:"",
     paypal:"",
     goal:{label:"Objetivo del mes",target:0,raised:0}
