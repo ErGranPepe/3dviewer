@@ -59,6 +59,9 @@ LAB.chassismodel = (() => {
     for (const n of fwT) slice(n, 1.4, .1, .05, .25);
     for (const n of rwT) slice(n, 1.2, .1, .05, .25);
     for (const w of wheels) slice(w.pk, 3, .1, .1, .1);
+    /* lo que no está detallado arriba (carrocería, suelo, refrigeración, hidráulica, cableado) se reparte por el cuerpo del coche hasta
+       llegar a la masa mínima del reglamento sin combustible: los F1 se construyen por debajo del mínimo y se lastran hasta él */
+    if (P.mmin) { const sp = nodes.filter(n => n.grp === "spine" && n.m > 0), ms = sp.reduce((a, n) => a + n.m, 0), ex = P.mmin - (nodes.reduce((a, n) => a + n.m, 0) - P.fuel); if (ex > 0 && ms > 0) for (const n of sp) { const k = 1 + ex / ms; n.m *= k; for (let j = 0; j < 3; j++) n.I[j] *= k } }
     /* numeración de grados de libertad */
     let ndof = 0;
     for (const n of nodes) n.d0 = ndof, ndof += n.dof;

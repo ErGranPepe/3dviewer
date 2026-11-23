@@ -366,13 +366,17 @@ LAB.susp = (() => {
       /* lo que se puede contrastar: medidas del coche y de la rueda y lo que el reglamento prohíbe en la suspensión */
       const c = LAB.car, Sx = LAB.SRC, f = LAB.nf, y26 = c.reg === "2026", w = y26 ? 1900 : 2000;
       LAB.bench($("susBench"), [
-        { k: "Batalla", lab: f(c.wb * 1e3) + " mm", real: y26 ? "≈3400 mm en 2026 (200 mm menos que antes)" : "200 mm más que en 2026 (≈3400 mm)", s: "1, 2", ok: !0 },
-        { k: "Ancho del coche", lab: f(w) + " mm", real: y26 ? "≈1900 mm en 2026 (antes 2000 mm)" : "2000 mm hasta 2025 (≈1900 mm en 2026)", s: 1, ok: !0 },
-        { k: "Masa mínima", lab: f(c.mass) + " kg", real: y26 ? "768 kg en 2026" : "30 kg más que los 768 kg de 2026", s: 2, ok: !0 },
+        { k: "Batalla", lab: f(c.wb * 1e3) + " mm", real: y26 ? "≈3400 mm en 2026 (200 mm menos que antes)" : "máx. 3600 mm", s: y26 ? "1, 2" : 3, ok: y26 ? !0 : c.wb * 1e3 <= 3600.5 },
+        { k: "Ancho del coche", lab: f(w) + " mm", real: y26 ? "≈1900 mm en 2026 (antes 2000 mm)" : "2000 mm: nada puede pasar de 1000 mm a cada lado", s: y26 ? 1 : 3, ok: !0 },
+        { k: "Masa mínima", lab: f(c.mass) + " kg", real: y26 ? "768 kg en 2026" : "30 kg más que los 768 kg de 2026 (790 kg en la edición de 2022)", s: y26 ? 2 : "2, 3", ok: !0 },
         { k: "Llanta", lab: "18 pulgadas", real: "18 pulgadas; labio exterior de 490,6 mm; magnesio AZ70 o AZ80", s: 3, ok: !0 },
         { k: "Diámetro del neumático", lab: f(c.R * 2e3) + " mm", real: "máx. 725 mm en seco", s: 3, ok: c.R * 2e3 <= 725 },
+        { k: "Disco de freno delantero", lab: "328 mm de diámetro y 32 mm de grosor", real: "de 325 a 330 mm; grosor máx. 32 mm (detrás, de 275 a 280 mm)", s: 3, ok: !0 },
+        { k: "Pinza de freno", lab: "una por rueda, de aluminio", real: "una por rueda, de aluminio, con 6 pistones y 2 pastillas como mucho", s: 3, ok: !0 },
+        { k: "Refrigeración de los frenos", lab: "aire por la toma del tambor", real: "prohibido refrigerarlos con líquido", s: 3, ok: !0 },
         { k: "Muelles y amortiguación", lab: "barra de torsión, amortiguador, estabilizadora y elemento central", real: "prohibidos el inerter, el amortiguador de masa y los muelles o bieletas con fluido", s: 3, ok: !0 },
-        { k: "Altura del coche", lab: "solo cambia con la carga", real: "prohibido cualquier sistema que la regule o la nivele", s: 3, ok: !0 }
+        { k: "Altura del coche", lab: "solo cambia con la carga", real: "prohibido cualquier sistema que la regule o la nivele", s: 3, ok: !0 },
+        { k: "Cables de retención de la rueda", lab: "no se dibujan", real: "3 por rueda, cada uno capaz de absorber 7 kJ", s: 3, ok: null }
       ], [Sx.honda26, Sx.mbch26, Sx.fia22])
     }
     ro.set("mr0", m.MR0, 3), ro.set("wr0", kw / 1e3, 0), ro.set("kroll", kroll / 1e3, 2), ro.set("rc0", at(m.K, m.K.RC, 0) * 1e3, 0), ro.set("cg", (m.K.CAM[61] - m.K.CAM[59]) / 2 / DEG * 10, 3);

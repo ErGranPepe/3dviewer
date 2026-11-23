@@ -272,7 +272,19 @@ LAB.limits = (() => {
     return { box, go }
   }
   function init(host) {
-    host.innerHTML = `<div class="labhead"><div><h2>Límites y averías</h2><p class="sub">Cada mecanismo que puede romper un F1, con su modelo físico y su límite. Son los mismos modelos que corren en tiempo real en cada coche durante las carreras (abre «Ingeniería en vivo» en la telemetría del simulador).</p></div><div class="presets" id="limNav"></div></div><div class="limgrid" id="limGrid"></div>`;
+    host.innerHTML = `<div class="labhead"><div><h2>Límites y averías</h2><p class="sub">Cada mecanismo que puede romper un F1, con su modelo físico y su límite. Son los mismos modelos que corren en tiempo real en cada coche durante las carreras (abre «Ingeniería en vivo» en la telemetría del simulador).</p></div><div class="presets" id="limNav"></div></div><div class="benchbox" id="limBench"></div><div class="limgrid" id="limGrid"></div>`;
+    {
+      /* los límites que sí fija el reglamento, al lado de lo que usa cada banco de pruebas */
+      const Sx = LAB.SRC;
+      LAB.bench($("limBench"), [
+        { k: "Tablón", lab: "descalificación con menos de 9 mm", real: "10 ± 0,2 mm nuevo; se admite hasta 9 mm por desgaste; patines de titanio", s: 1, ok: !0 },
+        { k: "Disco de freno", lab: "de carbono, refrigerado por aire", real: "delante de 325 a 330 mm y detrás de 275 a 280 mm; grosor máx. 32 mm; prohibido refrigerar con líquido", s: 1, ok: !0 },
+        { k: "Dientes de la caja", lab: "acero, 14 mm de ancho de serie", real: "de acero; ancho mín. 12 mm; cada pareja, mín. 600 g", s: 1, ok: !0 },
+        { k: "Neumático", lab: "gas ideal dentro de la carcasa", real: "solo aire o nitrógeno; diámetro máx. 725 mm en seco", s: 1, ok: !0 },
+        { k: "Ventana de temperatura del neumático", lab: "blando 100 °C · medio 108 °C · duro 116 °C (óptimo)", real: "C5: 85–115 °C · C4: 90–120 °C · C3: 105–135 °C · C2: 110–135 °C · C1: 110–140 °C", s: 2, ok: !0 },
+        { k: "Alerón trasero móvil", lab: "el banco calcula flexión y flameo, no la abertura", real: "abertura entre los dos planos de 10 a 85 mm", s: 1, ok: null }
+      ], [Sx.fia22, Sx.pirelli19])
+    }
     const cards = BENCH.map(card);
     for (const [i, c] of cards.entries()) $("limGrid").appendChild(c.box), $("limNav").appendChild(el("button", { class: "btn", text: BENCH[i].t.split(":")[0], onclick: () => c.box.scrollIntoView({ behavior: "smooth", block: "start" }) }));
     requestAnimationFrame(() => cards.forEach(c => c.go()))

@@ -263,11 +263,24 @@ LAB.chassis = (() => {
   const heatCol = t => { t = clamp(t, 0, 1); const s = [[.46, .53, .62], [.24, .55, 1], [.18, .82, .42], [1, .82, .25], [1, .42, .1], [1, .23, .23]], x = t * (s.length - 1), i = Math.min(s.length - 2, x | 0), f = x - i; return { r: s[i][0] + (s[i + 1][0] - s[i][0]) * f, g: s[i][1] + (s[i + 1][1] - s[i][1]) * f, b: s[i][2] + (s[i + 1][2] - s[i][2]) * f } };
   /* ---------- cálculo ---------- */
   function compute() {
-    const p = { ...prm.v, nModes: 30, wb: LAB.car.wb };
+    const p = { ...prm.v, nModes: 30, wb: LAB.car.wb, mmin: LAB.car.mass };
     res = CM().run(p), res.p = p;
     const M = res.modes, find = re => M.find(m => re.test(m.name)), tors = find(/^Torsión/), bv = find(/^Flexión vertical/), bl = find(/^Flexión lateral/), fw = find(/^Alerón delantero/), rw = find(/^Alerón trasero/), hopF = find(/delantero (en fase|en oposición)/), hopR = find(/trasero (en fase|en oposición)/), heave = find(/^Bote/), pitch = find(/^Cabeceo/), roll = find(/^Balanceo/);
     const kRoll = (p.kwf * 1e3 * p.trf ** 2 / 2 + p.kwr * 1e3 * p.trr ** 2 / 2) * DEG, ratio = res.tor.k / kRoll;
     res.kRoll = kRoll, res.ratio = ratio;
+    {
+      /* lo que se puede contrastar: masa y medidas. La rigidez real no la publica nadie; lo que sí es público son las cargas de los ensayos */
+      const c = LAB.car, Sx = LAB.SRC, f = LAB.nf, y26 = c.reg === "2026";
+      LAB.bench($("chBench"), [
+        { k: "Masa sin combustible", lab: f(res.mass - p.fuel) + " kg (" + f(res.mass) + " kg con " + f(p.fuel) + " kg de combustible)", real: y26 ? "mín. 768 kg en 2026" : "30 kg más que los 768 kg de 2026 (790 kg en la edición de 2022)", s: y26 ? 1 : "1, 2", ok: y26 ? res.mass - p.fuel >= 767.5 : res.mass - p.fuel >= 790 },
+        { k: "Batalla", lab: f(c.wb * 1e3) + " mm", real: y26 ? "≈3400 mm en 2026" : "máx. 3600 mm", s: y26 ? 3 : 2, ok: y26 ? !0 : c.wb * 1e3 <= 3600.5 },
+        { k: "Rigidez a torsión", lab: f(res.tor.k / 1e3, 1) + " kN·m/°", real: "no se publica", ok: null },
+        { k: "Arco principal (ensayo estático)", lab: "el Laboratorio no simula el ensayo", real: "60 kN de lado, 70 kN hacia atrás y 105 kN hacia abajo; menos de 25 mm de deformación", s: 2, ok: null },
+        { k: "Halo (ensayo estático)", lab: "el Laboratorio no simula el ensayo", real: "130,1 kN hacia abajo y 51,6 kN hacia atrás en el centro", s: 2, ok: null },
+        { k: "Choque frontal del habitáculo", lab: "el Laboratorio no simula el ensayo", real: "a 15 m/s como mínimo, con un carro de 900 a 925 kg", s: 2, ok: null },
+        { k: "Costados del habitáculo", lab: "el Laboratorio no simula el ensayo", real: "200 kN con menos de 15 mm y 300 kN con menos de 30 mm", s: 2, ok: null }
+      ], [Sx.mbch26, Sx.fia22, Sx.honda26])
+    }
     ro.set("ktor", res.tor.k / 1e3, 1, res.tor.k < 2e4 ? "bad" : res.tor.k < 3e4 ? "warn" : "ok"), ro.set("kben", res.ben.k / 1e6, 1), ro.set("mass", res.mass, 0), ro.set("wf", res.xcg / LAB.car.wb * 100, 1);
     ro.set("ratio", ratio, 1, ratio < 2.5 ? "bad" : ratio < 3.2 ? "warn" : "ok"), ro.set("fh", heave ? heave.f : NaN, 1), ro.set("fp", pitch ? pitch.f : NaN, 1), ro.set("fr", roll ? roll.f : NaN, 1);
     ro.set("fhf", hopF ? hopF.f : NaN, 1), ro.set("fhr", hopR ? hopR.f : NaN, 1), ro.set("ft", tors ? tors.f : NaN, 0), ro.set("fbv", bv ? bv.f : NaN, 0), ro.set("fbl", bl ? bl.f : NaN, 0), ro.set("ffw", fw ? fw.f : NaN, 1), ro.set("frw", rw ? rw.f : NaN, 1);
@@ -351,6 +364,7 @@ LAB.chassis = (() => {
         <div class="ctrl"><label>Amplitud <input type="range" id="chAmp" min=".2" max="3" step=".1" value="1" style="width:120px;vertical-align:middle"></label><span class="s3views"><span>Vista</span><button class="btn" data-chv="iso">3/4</button><button class="btn" data-chv="side">Lateral</button><button class="btn" data-chv="top">Planta</button><button class="btn" data-chv="front">Frontal</button></span></div>
         <div class="modelist" id="chModes"></div>
         <div class="readouts" id="chRo"></div>
+        <div class="benchbox" id="chBench"></div>
         <div class="pgrid"><canvas id="chFrf"></canvas><canvas id="chTw"></canvas></div>
         <div class="loadtbl twtbl" id="chTwist"></div>
       </section></div>`;

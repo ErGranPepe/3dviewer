@@ -253,6 +253,7 @@ LAB.drive = (() => {
     /* si en otra pestaña terminas una vuelta rápida en el simulador, aparece aquí al momento */
     window.addEventListener("storage", e => { e.key === "pn3-simlap" && res && compute() });
     compute();
+    $("drv3d").gearInfo = i => res && res.Gs ? res.Gs[i] : null;
     use3d = !!(LAB.drive3d && LAB.drive3d.init($("drv3d"), geo()));
     requestAnimationFrame(loop)
   }
