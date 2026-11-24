@@ -11,7 +11,7 @@
   window.__laps && (w.laps = +window.__laps);
   const B = window.__boost;
   if (B) { const c = w.cars.find(c => c.code === B.code); c && (B.q && (c.setup.q = (c.setup.q || 1) * B.q), B.p && (c.perf.p *= B.p)) }
-  const pitDur = [];
+  const pitDur = [], WT = window.__watch || null, watch = [], runIx = (window.__runIx = (window.__runIx == null ? -1 : window.__runIx) + 1);
   const ev = [], rows = new Map, wall0 = performance.now(), hits = [], atkLog = [], passes = [], spins = [], NB = +(window.__box || 0), NS = +(window.__sbox || 0);
   let evId = w.events.length ? w.events[0].id : 0, steps = 0;
   /* la frenada más fuerte del circuito: el punto donde vref cae más en 150 m */
@@ -31,6 +31,8 @@
   const slowOrHurt = o => o.u < .55 * tr.vref[o.idx] || o.dmg.fw + o.dmg.susp > .35 || o.tire.punct >= 0 || o.mist || o.spinning || o.fail || (o.surf | 0) === 2;
   while (steps < 60 * T && !w.over) {
     Sim.raceStep(w), steps++;
+    /* window.__watch = {code, t0, t1, n}: traza fina de un coche entre dos instantes (cada n pasos de 1/60 s) */
+    if (WT && w.t >= WT.t0 && w.t <= WT.t1 && steps % (WT.n || 3) === 0 && (WT.run == null || WT.run === runIx)) { const c = w.cars.find(c => c.code === WT.code); c && watch.push([f2(w.t), Math.round(c.s), f2(c.lat), f2(tr.rl[c.idx]), f1(c.u * 3.6), c.tsD != null ? f1(c.tsD * 3.6) : null, c.vCap != null && c.vCap < 199 ? f1(c.vCap * 3.6) : null, f2(c.thr), f2(c.brk), f2(c.steer), f2(c.beta), f2(c.r), f1((c.axF || 0) / 9.81), f1(c.u * c.r / 9.81), c.surf | 0, c.aiMode | 0, f2(c.absW || 0), c.offS != null ? f2(c.offS) : null, f2(c.muEst), f2(c.mu || 0), f1(tr.vref[c.idx] * 3.6), c.ahead ? c.ahead.code + Math.round(c.aheadD) : "", (c.lockF ? "bF" : "") + (c.lockR ? "bR" : "") + (c.mist ? "E:" + c.mist.type : "") + (c.reflex ? "s" : "") + (c.calm ? "c" : "") + (c.atkSide ? "A" : "") + (c.laneM ? "L" : "") + (c.laneW ? "w" : "")]) }
     const fresh = [];
     for (const e of w.events) { if (e.id <= evId) break; fresh.push(e) }
     if (fresh.length) {
@@ -116,7 +118,7 @@
   return { circuito: tr.key, HW: Sim.HW, vueltas: w.laps, t: Math.round(w.t), over: !!w.over, muroS: Math.round((performance.now() - wall0) / 1e3), frenadaEn: Math.round(sB), verticeEn: Math.round(sA), vrefApex: f(tr.vref[iA] * 3.6, 0),
     resumen: { adelantamientos: passes.length, enVuelta1: lap1, realesTrasV1: real.length, realesPorVuelta: f(real.length / Math.max(1, w.laps - 1), 2), contactos: hits.length, incidentes: incs.length, incidentesFuertes: incs.filter(q => q.imp > 6).length, trompos: spins.length, tromposCausa: spinC, contactosFuertes: hits.filter(h => h.imp > 6).length, cadena, ataques: atkLog.length, ataquesGanados: atkLog.filter(a => a.gana).length, finAtaque: fin,
       abandonos: ord.filter(c => c.retired).length, calleMedida: pitDur.length ? f(pitDur.slice().sort((a, b) => a - b)[pitDur.length >> 1], 1) : null, calleModelo: w.strat ? f(w.strat.tLane + 2.5, 1) : null, pistaModelo: w.strat ? f(w.strat.tTrack, 1) : null, vueltasDeParada: out.map(p => p.paradas.replace(/\([^)]*\)/g, "")).join(",") },
-    eventos: kinds, atk: w.atkStats, pilotos: out, pases: passes.slice(0, 60), ataques: atkLog.slice(0, +(window.__natk || 30)), golpes: hits.slice(0, 40), incidentes: incOut.slice(0, 40), trompos: spins.slice(0, 40),
+    eventos: kinds, atk: w.atkStats, watch: watch.length ? watch : void 0, pilotos: out, pases: passes.slice(0, 60), ataques: atkLog.slice(0, +(window.__natk || 30)), golpes: hits.slice(0, 40), incidentes: incOut.slice(0, 40), trompos: spins.slice(0, 40),
     ev: window.__ev ? ev : ev.filter(e => /crash|spin|dnf|sc|vsc|pen|fail/.test(e[2])).slice(0, 60) }
   };
   const w0 = __app.w, n = +(window.__runs || 0);

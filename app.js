@@ -54,7 +54,8 @@
    /* muros reales: distancia del eje a la primera barrera de verdad (vallas, muros y guardarraíles de OpenStreetMap,
       edificios, agua) a cada lado, punto a punto. Donde no hay dato queda el muro por defecto. */
    const n = tr.wr.n,
-    lo = EDGE + 2.6 - WALL;
+    lo = EDGE + 2.6 - WALL,
+    hv = tr.hwv;
    for (let si = 0; si < 2; si++) {
     const e = tr.wr.w[si],
      a = o[si];
@@ -66,7 +67,9 @@
       v0 = e[p + 1],
       k1 = p + 2 < e.length ? e[p + 2] : k0,
       v1 = p + 2 < e.length ? e[p + 3] : v0;
-     a[i] = v0 < 0 || v1 < 0 ? (v0 >= 0 && q - k0 < .5 ? v0 * .1 - WALL : 0) : (v0 + (v1 - v0) * (k1 > k0 ? Math.min(1, (q - k0) / (k1 - k0)) : 0)) * .1 - WALL, a[i] = Math.max(lo, Math.min(a[i], 110 - WALL))
+     /* sin dato, el muro por defecto va a su distancia de siempre del borde REAL de la pista (dI = semiancho real − nominal) */
+     const dI = hv ? hv[i] - HW : 0;
+     a[i] = v0 < 0 || v1 < 0 ? (v0 >= 0 && q - k0 < .5 ? v0 * .1 - WALL : dI) : (v0 + (v1 - v0) * (k1 > k0 ? Math.min(1, (q - k0) / (k1 - k0)) : 0)) * .1 - WALL, a[i] = Math.max(lo + dI, Math.min(a[i], 110 - WALL))
     }
     /* el muro no hace escalones: como mucho se abre o se cierra a 45° */
     for (let it = 0; it < 2; it++) {
@@ -117,24 +120,77 @@
   return Math.max(EDGE + .5, Math.min(EDGE + 9, B - 1.5, B + wx - .3))
  }
 
- function latWarp(tr, i, lat, f) {
-  const al = Math.abs(lat);
-  if (al <= EDGE + .5) return lat;
-  const wx = wxAt(tr, i, lat, f);
-  if (!wx) return lat;
-  const A = warpA(wx),
-   B = WALL - 2;
-  return al <= A ? lat : (lat > 0 ? 1 : -1) * (al >= B ? al + wx : A + (al - A) * (B + wx - A) / (B - A))
+ /* Ancho real punto a punto. tr.hwv = semiancho medido en cada nodo; HW queda como semiancho nominal del circuito (el mayor),
+    respecto al cual está colocado todo lo que hay junto a la pista. hwAt = el del nodo; hwUse = el que puede usar un piloto, que
+    se anticipa a los estrechamientos (tr.hwF no se cierra más de 1 m por cada 30 m de avance). dHW = real − nominal (≤ 0) */
+ function hwAt(tr, i) {
+  const h = tr.hwv;
+  return h && i >= 0 && i < h.length ? h[i | 0] : HW
  }
 
- function latUnwarp(tr, i, lat) {
-  const al = Math.abs(lat);
-  if (al <= EDGE + .5) return lat;
-  const wx = wxAt(tr, i, lat, 0);
-  if (!wx) return lat;
+ /* Distancia entre centros de dos coches en paralelo: 4,6 m donde la pista mide 9,8 m o más (1,3 m libres a cada lado de cada
+    coche) y hasta 3,6 m en los tramos más estrechos (8,8 m): con el ancho real, pedir 4,6 m en Monza o Spa era no ir nunca en
+    paralelo */
+ function laneSep(hw) {
+  return clamp(2 * hw - 5.2, 3.6, 4.6)
+ }
+
+ function hwUse(tr, i) {
+  const h = tr.hwF;
+  return h && i >= 0 && i < h.length ? h[i | 0] : HW
+ }
+
+ function dHW(tr, i, f) {
+  const h = tr.hwv;
+  if (!h) return 0;
+  const N = tr.N,
+   ii = (i % N + N) % N,
+   v = h[ii];
+  return (f ? v + (h[(ii + 1) % N] - v) * f : v) - HW
+ }
+
+ /* nominal → real. Dentro de la pista los metros son reales hasta 1,1 m del borde real (ahí están la trazada, la parrilla y los
+    coches); los últimos 0,6 m nominales (línea blanca) van pegados al borde real y lo que sobra de ancho nominal se comprime en
+    medio metro. Del borde hacia fuera todo se desplaza con él; después, la franja entre piano y muro se estira como antes */
+ function latWarp(tr, i, lat, f) {
+  const al = Math.abs(lat),
+   d = dHW(tr, i, f),
+   sg = lat > 0 ? 1 : -1;
+  if (d) {
+   const a0 = HW + d - 1.1;
+   if (al <= a0) return lat;
+   if (al <= HW - .6) return sg * (a0 + (al - a0) * .5 / (.5 - d))
+  }
+  if (al <= EDGE + .5) return d ? lat + sg * d : lat;
+  const wx = wxAt(tr, i, lat, f) - d;
+  if (!wx) return d ? lat + sg * d : lat;
   const A = warpA(wx),
    B = WALL - 2;
-  return al <= A ? lat : (lat > 0 ? 1 : -1) * (al >= B + wx ? al - wx : A + (al - A) * (B - A) / (B + wx - A))
+  return sg * (d + (al <= A ? al : al >= B ? al + wx : A + (al - A) * (B + wx - A) / (B - A)))
+ }
+
+ function latUnwarp(tr, i, lat, f) {
+  const al = Math.abs(lat),
+   d = dHW(tr, i, f || 0),
+   sg = lat > 0 ? 1 : -1;
+  if (d) {
+   const a0 = HW + d - 1.1;
+   if (al <= a0) return lat;
+   if (al <= HW + d - .6) return sg * (a0 + (al - a0) * (.5 - d) / .5)
+  }
+  const an = al - d;
+  if (an <= EDGE + .5) return sg * an;
+  const wx = wxAt(tr, i, lat, f || 0) - d;
+  if (!wx) return sg * an;
+  const A = warpA(wx),
+   B = WALL - 2;
+  return sg * (an <= A ? an : an >= B + wx ? an - wx : A + (an - A) * (B - A) / (B + wx - A))
+ }
+
+ function warpS(tr, s, lat) {
+  const f = (s % tr.L + tr.L) % tr.L / tr.ds,
+   i = Math.floor(f);
+  return latWarp(tr, i % tr.N, lat, f - i)
  }
  const CAR = {
    mass: 798,
@@ -147,9 +203,23 @@
    cda: 1.6,
    LD: 3.93,
    aeroF: .43,
-   muScale: 1.637,
+   /* Agarre y carga aerodinámica, calibrados contra la telemetría real (24-11): velocidad mínima de 118 curvas de 16 vueltas de
+      pole, tiempos por vuelta y velocidades punta. Antes: agarre 1,637 y carga recortada un 14 % (L/D 3,38). Los tiempos por
+      vuelta cuadraban (±1,7 %), pero por compensación: la trazada no aprovechaba el ancho y el agarre lo tapaba. Curva a curva,
+      las de menos de 90 km/h salían un 20 % rápidas y las de 170-210 un 10 % lentas. Con la trazada bien resuelta (K1999), el
+      agarre baja a 1,43, la carga vuelve a su valor (L/D 3,93), el agarre longitudinal sube de 0,85 a 0,95 del lateral y las
+      curvas lentas llevan su corrección (slowK): error medio por tramo de velocidad dentro de ±3 % (salvo las 5 curvas de
+      más de 250 km/h, +9 %) y por vuelta 1,7 % */
+   muScale: 1.43,
    kLoad: .142,
-   muXr: .852,
+   slowK: .33,
+   slowR0: 18,
+   slowR1: 48,
+   /* anticipación de la frenada (s): la IA mira la velocidad objetivo esta fracción de segundo por delante. Con 0,15 la vuelta
+      lanzada se parece más a la real (en las frenadas va 18 km/h por debajo de la telemetría en vez de 23), pero en carrera
+      no deja margen en las frenadas en apoyo: en Sakhir 10 volvían los alcances y las pasadas de frenada. Se queda en 0,25 */
+   leadT: .25,
+   muXr: .95,
    drsCd: .75,
    pIce: 431e3,
    pK: 12e4,
@@ -375,11 +445,44 @@
    NX = new Float32Array(N),
    NY = new Float32Array(N);
   let lim = lim0;
+  /* con el ancho real punto a punto, el límite lateral de la trazada es el de cada nodo */
+  const LM = tr.hwv ? Float32Array.from(tr.hwv, v => v - .95) : null,
+   limAt = i => LM ? LM[i] : lim;
+  /* Peralte progresivo (Hugenholtz): arriba hay cuatro veces más peralte y más radio, y por ahí se pasa mucho más deprisa.
+     La trazada de curvatura mínima no lo sabe (se iría al vértice interior): donde el peralte cambia más de 4° de un borde a
+     otro, se limita a la franja exterior, tanto más estrecha cuanto mayor es la diferencia (2,6 m con 10° o más) */
+  let LO = null,
+   HI = null;
+  if (tr.bankG)
+   for (let i = 0; i < N; i++) {
+    const g = tr.bankG[i];
+    if (!(g > 0)) continue;
+    if (!LO) {
+     LO = new Float32Array(N), HI = new Float32Array(N);
+     for (let q = 0; q < N; q++) LO[q] = -limAt(q), HI[q] = limAt(q)
+    }
+    const l = limAt(i),
+     w = clamp((g * 2 * hwAt(tr, i) * 180 / Math.PI - 4) / 6, 0, 1),
+     band = 2 * l - w * Math.max(0, 2 * l - 2.6);
+    tr.bank[i] < 0 ? HI[i] = -l + band : LO[i] = l - band
+   }
+  const loAt = i => LO ? LO[i] : -limAt(i),
+   hiAt = i => HI ? HI[i] : limAt(i);
   for (let i = 0; i < N; i++) NX[i] = -Math.sin(tr.hd[i]), NY[i] = Math.cos(tr.hd[i]);
   /* circuitos reales: la trazada del TUM se optimizó para una pista más estrecha (≈4,5 m de semiancho); aquí se
      reoptimiza a curvatura mínima con todo el ancho real menos el del coche, partiendo de ella. Así desaparecen los
      codos que obligaban a frenar donde el coche real va a fondo (Ascari, Parabólica, tramos reconstruidos) */
-  const realStart = tr.rlReal ? i => clamp(tr.rlReal[i], -lim, lim) : null;
+  const realStart = tr.rlReal ? i => clamp(tr.rlReal[i], loAt(i), hiAt(i)) : null;
+  /* Circuitos reales: trazada de curvatura mínima por el método K1999 (Coulom: curvatura geométrica de tres puntos, multirrejilla),
+     partiendo de la trazada real de la telemetría recortada al ancho real. El descenso por gradiente que se usaba antes no
+     llegaba a converger en las ondas largas (medido: la trazada usaba el 43-66 % del semiancho disponible y pasaba por el
+     vértice de Sakhir 11 con 33 m de radio, donde caben más de 50): las curvas medias salían un 10 % lentas respecto a la
+     telemetría real. Con K1999 usa el 68-80 % y la vuelta ideal baja entre un 1,4 % y un 6,7 % */
+  if (realStart) {
+   const k = k1999Line(tr, NX, NY, LO ? [LO, HI] : LM || lim, realStart);
+   for (let i = 0; i < N; i++) k[i] = clamp(k[i], loAt(i), hiAt(i));
+   return racingLineFinish(tr, k, NX, NY)
+  }
   /* (antes HW − 2,1 en urbanos: la persecución pura recortaba las curvas lentas y había que alejarse del muro) */
 
   function solve(step, n0, iters) {
@@ -411,7 +514,7 @@
       b = (j + 1) % M,
       gx = dx[a2] - 2 * dx[j] + dx[b],
       gy = dy[a2] - 2 * dy[j] + dy[b];
-     n[j] = clamp(n[j] - .05 * (gx * nx[j] + gy * ny[j]), -lim, lim)
+     n[j] = clamp(n[j] - .05 * (gx * nx[j] + gy * ny[j]), loAt(j * step), hiAt(j * step))
     }
    }
    return n
@@ -446,9 +549,9 @@
      la trazada de K1999 (Coulom, curvatura geométrica de tres puntos), que abre la entrada y la salida */
   if (realStart) {
    const w = hairpinMask(tr), HWT = typeof window < "u" && window.__hwt != null ? window.__hwt : 1;
-   if (w.some(x => x > 0)) { const k = k1999Line(tr, NX, NY, lim, realStart); for (let i = 0; i < N; i++) a[i] = (1 - HWT * w[i]) * a[i] + HWT * w[i] * k[i] }
+   if (w.some(x => x > 0)) { const k = k1999Line(tr, NX, NY, LO ? [LO, HI] : LM || lim, realStart); for (let i = 0; i < N; i++) a[i] = (1 - HWT * w[i]) * a[i] + HWT * w[i] * k[i] }
   }
-  for (let i = 0; i < N; i++) a[i] = clamp(a[i], -lim, lim);
+  for (let i = 0; i < N; i++) a[i] = clamp(a[i], loAt(i), hiAt(i));
   return racingLineFinish(tr, a, NX, NY)
  }
  /* máscara de horquillas: giro neto de más de ~100° en ±35 m con radio del eje menor de 25 m, ensanchada ±40 m */
@@ -473,7 +576,7 @@
  /* K1999: cada punto se mueve por su normal hasta que su curvatura sea la media ponderada de la de sus vecinos, de paso
     grueso (256 m) a fino (4 m) */
  function k1999Line(tr, NX, NY, lim, n0) {
-  const N = tr.N, X = tr.x, Y = tr.y, n = new Float64Array(N);
+  const N = tr.N, X = tr.x, Y = tr.y, n = new Float64Array(N), LA = typeof lim == "number" ? null : lim, lo = i => LA ? Array.isArray(LA) ? LA[0][i] : -LA[i] : -lim, hi = i => LA ? Array.isArray(LA) ? LA[1][i] : LA[i] : lim;
   for (let i = 0; i < N; i++) n[i] = n0 ? n0(i) : 0;
   for (const st of [64, 32, 16, 8, 4, 2, 1]) {
    if (N / st < 12) continue;
@@ -485,7 +588,7 @@
      r0 = k3pt(ax, ay, bx, by, cx, cy), r1 = k3pt(cx, cy, dx, dy, ex, ey), lp = Math.hypot(cx - bx, cy - by), ln = Math.hypot(dx - cx, dy - cy),
      tgt = (ln * r0 + lp * r1) / (ln + lp), k0 = k3pt(bx, by, cx, cy, dx, dy), e = 1e-3,
      dk = (k3pt(bx, by, cx + NX[i] * e, cy + NY[i] * e, dx, dy) - k0) / e;
-    Math.abs(dk) > 1e-9 && (n[i] = clamp(n[i] + .7 * (tgt - k0) / dk, -lim, lim))
+    Math.abs(dk) > 1e-9 && (n[i] = clamp(n[i] + .7 * (tgt - k0) / dk, lo(i), hi(i)))
    }
    if (st > 1) for (let q = 0; q < M; q++) {
     const a = q * st, b = q + 1 < M ? (q + 1) * st : N, na = n[a], nb = n[b % N];
@@ -493,7 +596,7 @@
    }
   }
   const o = new Float32Array(N);
-  for (let i = 0; i < N; i++) o[i] = clamp((n[(i - 1 + N) % N] + 2 * n[i] + n[(i + 1) % N]) / 4, -lim, lim);
+  for (let i = 0; i < N; i++) o[i] = clamp((n[(i - 1 + N) % N] + 2 * n[i] + n[(i + 1) % N]) / 4, lo(i), hi(i));
   return o
  }
  function racingLineFinish(tr, a, NX, NY) {
@@ -524,6 +627,37 @@
   tr.rx = RX, tr.ry = RY, tr.rh = RH, tr.rk = K2, tr.rs = RS, tr.nx = NX, tr.ny = NY
  }
 
+ /* Frenada disponible mientras se gira, con el mismo reparto que la física: cada eje frena con el agarre que le queda después
+    de sostener su parte de la fuerza lateral y, como el reparto de frenada es fijo, manda el eje que antes se agota (casi
+    siempre el trasero, que además se descarga al frenar). La elipse de fricción del coche entero, que es lo que usaba el
+    plan de velocidad, promete hasta el doble de frenada con 4 g laterales: la IA frenaba tarde en las frenadas en apoyo
+    (curvas 9-10 de Sakhir) y se iba recta. Devuelve m/s² sin contar la resistencia del aire. mu = agarre con el margen del
+    piloto ya aplicado; c = carga aerodinámica por unidad de masa y v²; lat = aceleración lateral que pide la trayectoria */
+ function brakeCap(mu, c, v2, lat, bias) {
+  const g = 9.81,
+   wb = CAR.wb,
+   sf = g * CAR.b / wb,
+   sr = g * CAR.a / wb,
+   df = c * v2 * CAR.aeroF,
+   dr = c * v2 * (1 - CAR.aeroF),
+   lf = lat * CAR.b / wb,
+   lr = lat * CAR.a / wb,
+   kL = -CAR.kLoad;
+  let ax = mu * CAR.muXr * (g + c * v2) * .6;
+  for (let it = 0; it < 3; it++) {
+   const t = ax * CAR.hcg / wb,
+    zf = sf + df + t,
+    zr = Math.max(.3, sr + dr - t),
+    kf = mu * CAR.gripF * zf * Math.pow(zf / sf, kL) * CAR.absM,
+    kr = mu * CAR.gripR * zr * Math.pow(zr / sr, kL) * (CAR.absM - .05),
+    yf = Math.min(1, lf / kf),
+    yr = Math.min(1, lr / kr),
+    a = Math.min(kf * CAR.muXr * Math.sqrt(1 - yf * yf) / bias, kr * CAR.muXr * Math.sqrt(1 - yr * yr) * .92 / (1 - bias));
+   ax = .5 * ax + .5 * a
+  }
+  return ax
+ }
+
  function speedProfile(tr, mu, mass, cla, cda0, P, cdaArr) {
   const N = tr.N,
    v = new Float32Array(N),
@@ -539,6 +673,10 @@
      den = k - m2 * (c + tr.kv[i]);
     vv = den <= 1e-5 ? 100 : Math.min(100, Math.sqrt(m2 * 9.81 / den))
    }
+   if (tr.bank && tr.bank[i] && tr.rl) {
+    const bl = bankLoc(tr, i, tr.rl[i]);
+    vv = Math.min(100, bankV(mu, c, k, tr.kv[i], -(Math.sign(tr.k[i]) || 0) * Math.sin(bl), Math.cos(bl)))
+   }
    v[i] = vv
   }
   for (let pass = 0; pass < 2; pass++) {
@@ -548,7 +686,7 @@
      vi = v[i],
      A = muV(vi) * (CAR.muXr || 1) * (9.81 * (1 + Math.max(-.6, vi * vi * tr.kv[i] / 9.81)) + c * vi * vi),
      lt = vi * vi * Math.abs(tr.rk[i]),
-     dec = Math.max(2, Math.sqrt(Math.max(0, A * A - lt * lt)) * .95 + .5 * RHO * (cdaArr ? cdaArr[i] : cda) * vi * vi / mass + 9.81 * tr.slope[i]),
+     dec = Math.max(2, Math.min(Math.sqrt(Math.max(0, A * A - lt * lt)), brakeCap(mu, c, vi * vi, lt, .59) * (1 + Math.max(-.6, vi * vi * tr.kv[i] / 9.81))) * .95 + .5 * RHO * (cdaArr ? cdaArr[i] : cda) * vi * vi / mass + 9.81 * tr.slope[i]),
      vm = Math.sqrt(vi * vi + 2 * dec * tr.rs[j]);
     v[j] > vm && (v[j] = vm)
    }
@@ -664,6 +802,67 @@
   return def.kinksFixed = fixed
  }
 
+ /* Ancho real punto a punto. `wv` trae el ancho total medido cada 20 m (TUM racetrack-database). Se le quita el ruido (mediana
+    de 3 muestras y media móvil de ±40 m; en la zona de boxes, ±100 m y otra vez ±60 m, para que la calle de boxes, que va a
+    distancia fija del borde, no serpentee), se limita por abajo a 7,8 m y por arriba al percentil 97, que queda como ancho nominal
+    del circuito. Los urbanos (Mónaco) siguen con ancho constante: sus muros son los bordes */
+ function realWidths(def, N, ds, L) {
+  const wv = def.wv;
+  if (!wv || !wv.length || STREET[def.key]) return null;
+  const M = wv.length,
+   m3 = new Float32Array(M),
+   h = new Float32Array(N);
+  for (let j = 0; j < M; j++) {
+   const a = wv[(j - 1 + M) % M],
+    b = wv[j],
+    c = wv[(j + 1) % M];
+   m3[j] = Math.max(Math.min(a, b), Math.min(Math.max(a, b), c))
+  }
+  for (let i = 0; i < N; i++) {
+   const f = i / N * M,
+    j = Math.floor(f) % M,
+    t = f - Math.floor(f);
+   h[i] = (m3[j] * (1 - t) + m3[(j + 1) % M] * t) / 2
+  }
+  const avg = (src, r) => {
+    const o = new Float32Array(N),
+     n = Math.max(1, Math.round(r / ds));
+    for (let i = 0; i < N; i++) {
+     let q = 0;
+     for (let k = -n; k <= n; k++) q += src[((i + k) % N + N) % N];
+     o[i] = q / (2 * n + 1)
+    }
+    return o
+   },
+   a = avg(h, 40),
+   P = PITR[def.key] || [L - 260, 430],
+   b = avg(avg(h, 100), 60),
+   i0 = Math.round((P[0] - 40) / ds),
+   i1 = Math.round((P[0] + P[1] + 40) / ds),
+   nb = Math.round(80 / ds);
+  for (let i = i0 - nb; i <= i1 + nb; i++) {
+   const ii = (i % N + N) % N,
+    w = i < i0 ? sstep((i - (i0 - nb)) / nb) : i > i1 ? sstep((i1 + nb - i) / nb) : 1;
+   a[ii] += (b[ii] - a[ii]) * w
+  }
+  const q = Array.from(a).sort((x, y) => x - y),
+   top = Math.round(q[Math.floor(.97 * (N - 1))] * 20) / 20;
+  for (let i = 0; i < N; i++) a[i] = Math.max(3.9, Math.min(top, a[i]));
+  /* el ancho que puede usar un piloto: no se cierra más de 1 m por cada 30 m de avance */
+  const F = Float32Array.from(a),
+   g = ds / 30;
+  for (let k = 2 * N; k >= 0; k--) {
+   const i = k % N,
+    j = (i + 1) % N;
+   F[i] > F[j] + g && (F[i] = F[j] + g)
+  }
+  return {
+   h: a,
+   f: F,
+   hw: top
+  }
+ }
+
  function makeTrackReal(def) {
   const N = def.x.length,
    L = def.L,
@@ -671,7 +870,8 @@
    X = Float32Array.from(def.x),
    Y = Float32Array.from(def.y),
    HD = new Float32Array(N),
-   K = new Float32Array(N);
+   K = new Float32Array(N),
+   RW = realWidths(def, N, ds, L);
   fixKinks(X, Y, def, ds);
   for (let i = 0; i < N; i++) {
    const a = (i - 1 + N) % N,
@@ -701,7 +901,14 @@
    place: def.place,
    ref: def.ref,
    zReal: def.z,
-   hw: def.hw,
+   /* Ancho de pista: el real, punto a punto (`wv`, del TUM racetrack-database; ver realWidths). Antes se usaba un ancho constante
+      inflado un 25-60 % (el necesario para que cupiera dentro la trazada de la telemetría, que no está perfectamente alineada con
+      el eje): Shanghái 19,9 m en vez de 11-17; Spa 15,1 en vez de 8-16. La trazada se vuelve a optimizar dentro del ancho real */
+   hw: RW ? RW.hw : def.hw,
+   hwv: RW ? RW.h : null,
+   hwF: RW ? RW.f : null,
+   hwOld: def.hw,
+   wv: def.wv,
    wr: def.wr,
    rho: def.rho || 1.2,
    aeroCda: def.cda,
@@ -788,20 +995,27 @@
   }
   tr.z = a, tr.slope = sl, tr.kv = kv2, tr.zr = amp
  }
+ /* Peraltes: [inicio, fin (m), grados arriba (borde exterior), grados abajo (borde interior)]. Zandvoort: Hugenholtz es progresivo,
+    de 4,5° abajo a 19° arriba (35 %), y la última curva (Arie Luyendyk) va de 15° a 18°: datos del proyecto de 2020 publicados
+    por Autosport. Sin cuarto valor el peralte es uniforme */
  const BANKS = {
   Zandvoort: [
    [290, 400, 4],
-   [720, 900, 19],
-   [3600, 3930, 18]
+   [720, 900, 19, 4.5],
+   [3600, 3930, 18, 15]
   ]
  };
 
+ /* tr.bank = ángulo en el eje de la pista (rad, con signo: negativo en curvas a izquierdas); tr.bankG = cuánto crece hacia el
+    exterior (rad por metro de desplazamiento lateral, ≥ 0). Ángulo en un punto: bankLoc() */
  function bankProfile(tr) {
   const N = tr.N,
    b = new Float32Array(N),
+   g = new Float32Array(N),
    L = BANKS[tr.key];
-  if (!L) return b;
-  for (const [s0, s1, deg] of L)
+  if (!L) return tr.bankG = null, b;
+  let prog = !1;
+  for (const [s0, s1, top, bot] of L)
    for (let i = 0; i < N; i++) {
     const s = i * tr.ds;
     let w = 0;
@@ -809,14 +1023,47 @@
     if (s >= s0 && s <= s1 && (w = Math.min(1, (s - s0) / r, (s1 - s) / r)), w <= 0) continue;
     let k = 0;
     for (let q = -8; q <= 8; q++) k += tr.k[(i + q + N) % N];
-    const sg = -(Math.sign(k) || 1);
-    b[i] = sg * deg * Math.PI / 180 * sstep(w)
+    const sg = -(Math.sign(k) || 1),
+     lo = bot != null ? bot : top;
+    b[i] = sg * (top + lo) / 2 * Math.PI / 180 * sstep(w), g[i] = (top - lo) / (2 * hwAt(tr, i)) * Math.PI / 180 * sstep(w), g[i] > 0 && (prog = !0)
    }
-  for (let it = 0; it < 3; it++) {
-   const c = b.slice();
-   for (let i = 0; i < N; i++) b[i] = (c[(i - 1 + N) % N] + 2 * c[i] + c[(i + 1) % N]) / 4
+  for (const a of [b, g])
+   for (let it = 0; it < 3; it++) {
+    const c = a.slice();
+    for (let i = 0; i < N; i++) a[i] = (c[(i - 1 + N) % N] + 2 * c[i] + c[(i + 1) % N]) / 4
+   }
+  return tr.bankG = prog ? g : null, b
+ }
+
+ /* ángulo de peralte en un punto de la pista (lat = metros desde el eje; fuera del borde sigue el del borde) */
+ function bankLoc(tr, i, lat) {
+  const b = tr.bank[i];
+  if (!b) return 0;
+  const g = tr.bankG ? tr.bankG[i] : 0;
+  if (!g) return b;
+  const E = hwAt(tr, i) + 2.2;
+  return b + g * clamp(lat, -E, E)
+ }
+
+ /* Velocidad límite en una curva peraltada, con el mismo modelo que la física: la carga sobre los neumáticos crece con la fuerza
+    centrífuga (hasta 2,2 veces el peso, el tope de la física) y con ella baja el coeficiente de agarre (sensibilidad a la
+    carga); del giro solo hay que sostener con los neumáticos la parte que queda en el plano de la pista (cos β). La cuenta
+    anterior no ponía tope a la carga ni le aplicaba la sensibilidad: con 19° y un agarre de 2,4 daba «sin límite» y la IA
+    entraba en Hugenholtz (radio 30 m) a 218 km/h sin frenar. sb > 0 = el peralte ayuda */
+ function bankV(mu, c, k, kv, sb, cb) {
+  const f = v => {
+   const v2 = v * v,
+    fz = 9.81 * clamp(1 + v2 * kv / 9.81, .35, 1.8) * clamp(cb + v2 * k * sb / 9.81, .5, 2.2) + c * v2;
+   return v2 * k * cb - 9.81 * sb - mu * Math.pow(fz / 9.81, -CAR.kLoad) * fz
+  };
+  if (f(110) < 0) return 200;
+  let lo = 3,
+   hi = 110;
+  for (let it = 0; it < 11; it++) {
+   const m = (lo + hi) / 2;
+   f(m) < 0 ? lo = m : hi = m
   }
-  return b
+  return lo
  }
 
  /* Radio local del eje en cada nodo (el menor de sus dos tramos: cuerda / giro). En el vértice de una horquilla puede ser menor que
@@ -888,8 +1135,16 @@
    /* pit lane real (OSM proyectado al eje): inicio, longitud, lado, distancia al eje y longitud de rampas */
    const PR = tr.real && PITR[tr.key];
    if (PR) {
-    const [inS, len, sd, lane, rin, rout] = PR,
-     la = Math.max(EDGE + 5.5, Math.min(lane, EDGE + 14));
+    const [inS, len, sd, lane, rin, rout] = PR;
+    /* la distancia real de la calle al eje: en coordenadas nominales se le quita lo que la pista mide ahí de menos (dP) */
+    let dP = 0;
+    if (tr.hwv) {
+     let q = 0,
+      m = 0;
+     for (let d = .3 * len; d <= .7 * len; d += 20) q += tr.hwv[idxAt(tr, inS + d)] - HW, m++;
+     dP = q / m
+    }
+    const la = Math.max(EDGE + 5.5, Math.min(lane - dP, EDGE + 14));
     tr.pit = {
      inS: (inS % tr.L + tr.L) % tr.L,
      len,
@@ -906,12 +1161,13 @@
      a = tr.wallX[P.side > 0 ? 0 : 1],
      i0 = Math.round((P.inS - P.rin - 40) / tr.ds),
      i1 = Math.round((P.inS + P.len + P.rout + 40) / tr.ds),
-     W2 = i => (i % N + N) % N;
-    for (let i = i0; i <= i1; i++) a[W2(i)] = 0;
+     W2 = i => (i % N + N) % N,
+     dH = i => tr.hwv ? tr.hwv[i] - HW : 0;
+    for (let i = i0; i <= i1; i++) a[W2(i)] = dH(W2(i));
     for (let q = 1; q <= 40; q++) {
      const u = W2(i1 + q),
       d = W2(i0 - q);
-     a[u] = Math.max(-q * tr.ds, Math.min(q * tr.ds, a[u])), a[d] = Math.max(-q * tr.ds, Math.min(q * tr.ds, a[d]))
+     a[u] = Math.max(dH(u) - q * tr.ds, Math.min(dH(u) + q * tr.ds, a[u])), a[d] = Math.max(dH(d) - q * tr.ds, Math.min(dH(d) + q * tr.ds, a[d]))
     }
    }
    const P = tr.pit;
@@ -1009,6 +1265,7 @@
    y1: mxy + pad
   };
   const D = new Float32Array(tr.gw * tr.gh).fill(99),
+   Wg = tr.hwv ? new Uint8Array(tr.gw * tr.gh) : null,
    R = WALL + 6;
   for (let i = 0; i < N; i++) {
    const ax = tr.x[i],
@@ -1032,14 +1289,22 @@
       dy = py - ay - uy * t,
       d = Math.sqrt(dx * dx + dy * dy),
       id = r * tr.gw + c;
-     d < D[id] && (D[id] = d)
+     d < D[id] && (D[id] = d, Wg && (Wg[id] = Math.round(tr.hwv[i] * 10)))
     }
    }
   }
-  tr.D = D, tr.dist = function(x, y) {
+  tr.D = D, tr.Wg = Wg, tr.dist = function(x, y) {
    const c = (x - this.gx) / this.cs | 0,
     r = (y - this.gy) / this.cs | 0;
    return c < 0 || r < 0 || c >= this.gw || r >= this.gh ? 99 : this.D[r * this.gw + c]
+  };
+  /* metros que faltan hasta el borde del piano (negativo = fuera), con el ancho del tramo de pista más cercano */
+  tr.edgeD = function(x, y) {
+   const c = (x - this.gx) / this.cs | 0,
+    r = (y - this.gy) / this.cs | 0;
+   if (c < 0 || r < 0 || c >= this.gw || r >= this.gh) return -99;
+   const id = r * this.gw + c;
+   return (this.Wg ? this.Wg[id] * .1 + KERB : EDGE) - this.D[id]
   };
   let ks = 0;
   for (let i = 0; i < N; i++) ks += Math.abs(tr.k[i]);
@@ -1415,14 +1680,14 @@
   const c = Math.cos(a),
    s = Math.sin(a);
   for (; d < RMAX;) {
-   const e = EDGE - tr.dist(x + c * d, y + s * d);
+   const e = tr.edgeD(x + c * d, y + s * d);
    if (e <= 0) {
     /* bisección entre la última muestra dentro y la primera fuera: la distancia ya no salta de 1,2 en 1,2 m */
     let lo = p,
      hi = d;
     for (let q = 0; q < 4; q++) {
      const m = (lo + hi) / 2;
-     EDGE - tr.dist(x + c * m, y + s * m) <= 0 ? hi = m : lo = m
+     tr.edgeD(x + c * m, y + s * m) <= 0 ? hi = m : lo = m
     }
     return (lo + hi) / 2
    }
@@ -1465,6 +1730,8 @@
  }
 
  function sense(w, car) {
+  const HW = hwUse(w.track, car.idx),
+   EDGE = HW + KERB;
   const tr = w.track,
    inp = car.inp,
    N = tr.N;
@@ -1482,7 +1749,9 @@
     bb = 60,
     pk = 0;
    for (const o of others(w)) {
-    if (o === car || o.inPit || o.gone || o.retired && Math.abs(o.lat) > EDGE + 1 || w.mode === "train" && !o.alive) continue;
+    /* (un coche parado o casi parado más de un metro fuera del piano no es «el de delante»: antes solo se descartaban los
+       retirados, y a uno atascado en la grava se le seguía, frenando hasta su velocidad, y se le esquivaba hacia su lado) */
+    if (o === car || pitGhost(w, o) || o.gone || Math.abs(o.lat) > EDGE + 1 && (o.retired || (o.u || 0) < 10) || w.mode === "train" && !o.alive) continue;
     const dx = o.x - car.x,
      dy = o.y - car.y;
     if (dx * dx + dy * dy > 8100 || !sameStretch(tr, car, o)) continue;
@@ -1509,6 +1778,8 @@
  }
 
  function think(w, car) {
+  const HW = hwUse(w.track, car.idx),
+   EDGE = HW + KERB;
   sense(w, car), tactics(w, car), forward(car.genome.w, car.inp, car.act);
   const b = H1 + H2,
    o = car.act,
@@ -1550,19 +1821,22 @@
  }
 
  function targetSpeed(w, car, margin, mu0) {
+  const HW = hwUse(w.track, car.idx),
+   EDGE = HW + KERB;
   const tr = w.track,
    N = tr.N,
    /* estilo: el que frena tarde aprovecha hasta un 3 % más de frenada y pasa un 0,25 % más despacio por la curva */
    sb = car.sty ? car.sty.brk : 0,
    mu = (mu0 || car.muEst) * (margin || .92) * CAR.muScale * (1 - .005 * sb),
    brkM = CAR.brkM * (1 + .03 * sb),
+   bia = car.setup && car.setup.bias || .59,
    mass = CAR.mass + car.fuel,
    cl = CAR.cla * car.setup.cl * car.perf.cl * (1 - .22 * car.dmg.fw - .35 * car.dmg.floor) * (1 - car.dirty * 1.35),
    c = .5 * RHO * cl / mass,
    cdm = .5 * RHO * CAR.cda * car.setup.cd / mass,
    u = Math.max(car.u, 0),
    step = 8,
-   lead = u * .25,
+   lead = u * (CAR.leadT != null ? CAR.leadT : .25),
    dive = car.diveT != null && w.t - car.diveT < .4,
    /* El camino que va a seguir de verdad. Por la trazada con un desvío: una paralela a la trazada (su curvatura, corregida
       por el desvío), salvo donde esa paralela se sale de la pista y hay que ceñirse al borde. Por un carril propio: un
@@ -1636,20 +1910,21 @@
    const gJ = G(clamp((Math.abs(yj - rlj) - 2.5) / 3, 0, 1)) / g0,
     muJ = mu * gJ;
    const kvj = tr.kv[j],
-    bkj = tr.bank ? tr.bank[j] : 0,
-    sb = bkj ? -(Math.sign(tr.k[j]) || 0) * Math.sin(bkj) : 0,
-    cb = Math.cos(bkj);
+    /* el peralte del sitio por donde va a pasar (en Hugenholtz, de 4,5° por dentro a 19° por fuera) */
+    bkj = tr.bank && tr.bank[j] ? bankLoc(tr, j, yj) : 0;
    let vc = 200;
-   for (let it = 0; it < 3; it++) {
-    const me = muJ * Math.pow(1 + c * Math.min(vc, 110) ** 2 / 9.81, -CAR.kLoad),
-     den = k - me * (c + kvj + k * sb);
-    vc = den <= 1e-5 ? 200 : Math.sqrt(Math.max(.1, me * 9.81 * cb + 9.81 * sb) / den)
-   }
+   if (bkj) vc = bankV(muJ, c, k, kvj, -(Math.sign(tr.k[j]) || 0) * Math.sin(bkj), Math.cos(bkj));
+   else
+    for (let it = 0; it < 3; it++) {
+     const me = muJ * Math.pow(1 + c * Math.min(vc, 110) ** 2 / 9.81, -CAR.kLoad),
+      den = k - me * (c + kvj);
+     vc = den <= 1e-5 ? 200 : Math.sqrt(Math.max(.1, me * 9.81) / den)
+    }
    vp = vn;
    if (vn < 200) {
     const A = muJ * Math.pow(1 + c * vn * vn / 9.81, -CAR.kLoad) * CAR.muXr * (9.81 * (1 + Math.max(-.6, vn * vn * kvj / 9.81)) + c * vn * vn),
      lat = vn * vn * k,
-     dec = Math.max(2, Math.sqrt(Math.max(0, A * A - lat * lat)) * brkM + cdm * vn * vn + 9.81 * tr.slope[j]);
+     dec = Math.max(2, Math.min(Math.sqrt(Math.max(0, A * A - lat * lat)), brakeCap(muJ, c, vn * vn, lat * 1.15, bia) * (1 + Math.max(-.6, vn * vn * kvj / 9.81))) * brkM + cdm * vn * vn + 9.81 * tr.slope[j]);
     vn = Math.min(vc, Math.sqrt(vn * vn + 2 * dec * step))
    } else vn = vc;
    res = vn
@@ -1664,11 +1939,23 @@
     segundo, y los que llegaban detrás se adelantaban entre sí a golpes. Un coche que ya está esperando o sorteando el
     obstáculo no es un obstáculo: es el primero de la fila y se le sigue */
  /* coche tocado: con una rueda pinchada o sin potencia. No compite: va despacio camino del garaje */
+ /* Un coche en boxes no cuenta para los que van por la pista… salvo cuando ya baja por la rampa de salida: se le ve venir,
+    se le deja sitio o se le sigue. Antes era invisible hasta el instante de pisar la pista: con la trazada pegada a ese
+    borde (salida de boxes de Yas Marina), el que venía lanzado se lo encontraba delante 35 km/h más lento */
+ function pitGhost(w, o) {
+  if (!o.inPit) return !1;
+  const P = w.track.pit,
+   p = o.pit;
+  return !(p && p.phase === "out" && P && p.d > P.len - (P.rout || 70))
+ }
+
  function hurt(o) {
   return !!(o.tire && o.tire.punct >= 0 || o.fail && o.fail.noPower)
  }
 
  function hazard(w, car) {
+  const HW = hwUse(w.track, car.idx),
+   EDGE = HW + KERB;
   car.hz = null, car.hzD = 300, car.hzGap = 0, car.hzLead = null, car.hurtA = null, car.hurtD = 300;
   /* en la salida todos arrancan de parado: no son obstáculos */
   if (w.traffic === !1 || w.mode === "train" || w.mode === "race" && (!w.started || w.t - w.raceT0 < 6)) return car.hzBusy = 0, null;
@@ -1715,10 +2002,10 @@
  function laneBusy(w, car, tl, a) {
   const L = w.track.L;
   for (const o of others(w)) {
-   if (o === car || o === a || o.inPit || o.gone || o.s == null) continue;
+   if (o === car || o === a || pitGhost(w, o) || o.gone || o.s == null) continue;
    let d = ((o.s - car.s) % L + L) % L;
    d > L / 2 && (d -= L);
-   if (d > -7 && d < 30 && Math.abs(o.lat - tl) < 3.3) return !0
+   if (d > -7 && d < 30 && Math.abs(o.lat - tl) < Math.min(3.3, laneSep(hwUse(w.track, car.idx)) - .5)) return !0
   }
   return !1
  }
@@ -1778,6 +2065,8 @@
  }
 
  function tactics(w, car) {
+  const HW = hwUse(w.track, car.idx),
+   EDGE = HW + KERB;
   const tr = w.track,
    N = tr.N,
    atk = car.attack,
@@ -1815,7 +2104,8 @@
    neut = !!(car.underYellow || w.vsc > 0 || w.sc && w.sc.on),
    /* pista estrecha para ir en paralelo: entre muros (Mónaco) por debajo de 11,2 m; en un circuito con escapatorias
       (Suzuka mide 9,7 m y ahí se adelanta) solo por debajo de 8,8 m */
-   nar = HW < (tr.street ? 5.6 : 4.4);
+   nar = HW < (tr.street ? 5.6 : 3.95),
+   LS = laneSep(HW);
   car.mgnAdj = 0, car.along = 0, car.aLd = 0, neut && car.atkSide && (car.atkEnd = "bandera", car.atkSide = 0, car.atkTgt = null);
   if (car.calm = calm, calm && (car.atkSide = 0, car.atkTgt = null), car.atkSide && car.atkTgt && car.atkTgt !== a) {
    /* el rival ya no figura delante: o vamos rueda con rueda o ya lo hemos pasado; se mantiene el lado y se pelea la frenada */
@@ -1824,9 +2114,10 @@
     lim = HW - 1.1;
    if (o.retired || o.inPit || o.gone || f2 < -9 || f2 > 14) f2 < -9 ? AS.done++ : AS.lost++, car.atkEnd = f2 < -9 ? "done" : "atras", car.atkSide = 0, car.atkTgt = null;
    else {
-    const tl = o.lat + 4.4 * car.atkSide,
-     limI = car.atkSide === insB && Zn && dB < 250 ? Math.min(lim, Math.max(1.5, 1 / Math.max(1e-4, Math.abs(tr.k[Zn.ia])) - 10.5)) : lim;
-    Math.abs(tl) > lim + .6 || nar && !straight && f2 > -3 ? (AS.lost++, car.atkEnd = "sinSitio", car.atkSide = 0, car.atkTgt = null, car.atkCool = tNow + 2) : (latT = clamp(tl, -limI, limI), car.along = 1, AS.along++, car.atkSide === ins && f2 < 5 && (car.mgnAdj = .03, heavy && dB < 30 && (car.diveT = tNow)), o.underAtk = car, o.underAtkT = tNow)
+    const lxA = HW - 1.2,
+     tl = clamp(o.lat + (LS - .2) * car.atkSide, -lxA, lxA),
+     limI = car.atkSide === insB && Zn && dB < 250 ? Math.min(lim, Math.max(1.5, 1 / Math.max(1e-4, Math.abs(tr.k[Zn.ia])) - 10.5)) : lxA;
+    Math.abs(o.lat + (LS - .2) * car.atkSide) > lim + .6 || nar && !straight && f2 > -3 ? (AS.lost++, car.atkEnd = "sinSitio", car.atkSide = 0, car.atkTgt = null, car.atkCool = tNow + 2) : (latT = clamp(tl, -limI, limI), car.along = 1, AS.along++, car.atkSide === ins && f2 < 5 && (car.mgnAdj = .03, heavy && dB < 30 && (car.diveT = tNow)), o.underAtk = car, o.underAtkT = tNow)
    }
   } else if (a && !hurt(a) && car.aheadD < 80 && alongV(tr, a) > Math.min(9, .35 * tr.vref[a.idx != null ? a.idx : car.idx])) {
    const av = alongV(tr, a),
@@ -1844,8 +2135,12 @@
     reach = 6.2 + 4.5 * agg;
    car.gB = gB;
    if (car.atkSide) {
-    const tl = a.lat + 4.6 * car.atkSide,
-     edge = Math.abs(tl) > lim + .4,
+    /* el carril de ataque va a LS metros del rival; si no cabe entero en la pista (con 40 cm de tolerancia), no hay sitio.
+       (Probado relajarlo a 3,3 m entre centros: más adelantamientos, pero 6 toques por carrera en la primera chicane de
+       Monza y 4 en la curva 3 de Melbourne) */
+    const lxA = HW - 1.2,
+     tl = clamp(a.lat + LS * car.atkSide, -lxA, lxA),
+     edge = Math.abs(a.lat + LS * car.atkSide) > lim + .4,
      inside = car.atkSide === insB,
      /* por dentro no se pega al borde más de lo que el coche puede girar: en el vértice que viene, su carril no baja de
         10,5 m de radio (pegado al interior de la primera chicane de Monza quedaban 9 m: no se puede trazar) */
@@ -1857,8 +2152,8 @@
     if (narrow) AS.lost++, car.atkEnd = "estrecha", car.atkSide = 0, car.atkTgt = null, car.atkCool = tNow + 2.5;
     else if (edge) {
      /* le cierra la puerta: cambia al otro lado (una vez) si hay sitio */
-     const t2 = a.lat - 4.6 * car.atkSide;
-     Math.abs(t2) <= lim && !car.swUsed && straight && dB > 60 && !laneBusy(w, car, t2, a) ? (car.atkSide = -car.atkSide, car.swUsed = 1, latT = t2, AS.sw++) : (AS.edge++, car.atkEnd = "borde", car.atkSide = 0, car.atkTgt = null, car.atkCool = tNow + 2.5)
+     const t2 = clamp(a.lat - LS * car.atkSide, -lxA, lxA);
+     Math.abs(a.lat - LS * car.atkSide) <= lim && !car.swUsed && straight && dB > 60 && fwd > 12 + Math.abs(t2 - car.lat) * (2.5 + .5 * Math.max(0, vrel)) && !laneBusy(w, car, t2, a) ? (car.atkSide = -car.atkSide, car.swUsed = 1, latT = t2, AS.sw++) : (AS.edge++, car.atkEnd = "borde", car.atkSide = 0, car.atkTgt = null, car.atkCool = tNow + 2.5)
     } else tNow - car.atkT > 7 + 5 * agg && fwd > 6 ? (AS.time++, car.atkEnd = "tiempo", car.atkSide = 0, car.atkTgt = null, car.atkCool = tNow + 3.5) : noReach ? (AS.brake++, car.atkEnd = "frenada", car.atkSide = 0, car.atkTgt = null, car.atkCool = tNow + 1.2, /* amago fallido: con el mismo rival no vuelve a tirarse desde lejos en unos segundos (70 amagos por carrera era un vaivén continuo) */ car.feint = a, car.feintT = tNow + 9 - 4 * agg) : (latT = clamp(tl, -limI, limI), /* por dentro, con la frenada fuerte encima y a su alcance: se tira (frena más tarde) */ inside && heavy && dB < 70 && fwd < reach + 1.5 && Math.abs(a.lat - car.lat) > 2.5 && (car.diveT = tNow, car.mgnAdj = .02 + .025 * agg), fwd < 7 && Math.abs(a.lat - car.lat) > 2.5 && (inside && (car.mgnAdj = .02 + .025 * agg), a.underAtk = car, a.underAtkT = tNow))
    } else if (!calm && !neut && atk > .2 && tNow > (car.atkCool || 0) && fwd < 60) {
     /* dos maneras de pasar: llegar a su altura antes de frenar (rebufo, ayuda eléctrica o mejor salida de la curva) o
@@ -1875,15 +2170,19 @@
      /* (con el modo adelantamiento la ventaja no depende del rebufo: puede salir antes y ganar los metros por potencia) */
      near = fwd < 8.5 + Math.max(0, adv) * .9 || (canPass ? tB < 1.2 + 3.2 * clamp((fwd - 6) / 8, 0, 1) : tB < (held && car.mom ? 3.6 : 1.5)) && fwd < reach + 5;
     if ((canPass || canDive) && near && (!nar || canPass && advP > 2.2) && (straight || Math.abs(tr.k[car.idx]) < 1 / 120)) {
-     const Ll = a.lat + 4.6,
-      Rr = a.lat - 4.6,
-      tIn = insB > 0 ? Ll : Rr,
-      tOut = insB > 0 ? Rr : Ll,
-      okIn = insB > 0 ? Ll < lim : Rr > -lim,
-      okOut = insB > 0 ? Rr > -lim : Ll < lim;
+     const lxA = HW - 1.2,
+      tgt = sd => clamp(a.lat + LS * sd, -lxA, lxA),
+      /* sitio: el carril entero dentro de la pista */
+      room = sd => Math.abs(a.lat + LS * sd) < lim,
+      /* si ya va claramente a un lado del rival, ese es su lado: cruzarse por detrás a otro carril con el rival a diez
+         metros y cerrándose era un toque seguro (Silverstone, a 200 km/h) */
+      dLa = car.lat - a.lat,
+      mine = Math.abs(dLa) > 2.2 ? Math.sign(dLa) : 0,
+      cross = sd => mine !== 0 && sd !== mine && fwd < 12 + Math.abs(tgt(sd) - car.lat) * (2.5 + .5 * Math.max(0, vrel)),
+      outOk = canPass && (HW >= 5.2 || adv > 2.5);
      let side = 0;
      /* por dentro si el carril está libre; por fuera solo si va a completar el adelantamiento antes de la frenada */
-     okIn && !laneBusy(w, car, tIn, a) ? side = insB : okOut && canPass && (HW >= 6.2 || adv > 2.5) && !laneBusy(w, car, tOut, a) && (side = -insB), side && (car.atkSide = side, car.atkT = tNow, car.atkTgt = a, car.swUsed = 0, car.atkEnd = "", latT = side > 0 ? Ll : Rr)
+     mine && room(mine) && (mine === insB || outOk) && !laneBusy(w, car, tgt(mine), a) ? side = mine : room(insB) && !cross(insB) && !laneBusy(w, car, tgt(insB), a) ? side = insB : room(-insB) && !cross(-insB) && outOk && !laneBusy(w, car, tgt(-insB), a) && (side = -insB), side && (car.atkSide = side, car.atkT = tNow, car.atkTgt = a, car.swUsed = 0, car.atkEnd = "", latT = tgt(side))
     }
    }
    /* sin atacar: se pega al rebufo en las rectas (3,8 m) y guarda más distancia en curva por el aire sucio */
@@ -1893,7 +2192,14 @@
     const cap = !car.atkSide && straight && car.vCap < 190 && car.thr < .97 && u > 55;
     car.resS = (car.resS || 0) + ((cap ? clamp(1 - car.thr, 0, 1) : 0) - (car.resS || 0)) * DT / (cap ? .5 : 1.5)
    }
-   car.atkSide || (fwd < 30 && (car.aLd = a.axF || 0), vCap = av + (fwd - (calm ? 6.5 + .12 * Math.min(u, 50) : straight ? 5 + .06 * u : 6.8 + .05 * u) * (1 + .25 * clamp(car.wetL || 0, 0, 1))) * .6, /* a rueda en recta: el mismo desvío respecto a la trazada que lleva el de delante (si va por la trazada, por la trazada).
+   /* Velocidad con la que puede acercarse al de delante: la que es capaz de quitarse en el hueco que queda con la frenada de
+      la que dispone AHORA (casi ninguna si va girando al límite, o en mojado) por encima de la que ya lleva el de delante.
+      Antes era solo proporcional al hueco (0,6 m/s por metro): en una curva larga en apoyo (el caracol de Shanghái) el de
+      atrás llegaba 25 km/h más rápido, pedía 9 m/s² de frenada, tenía 5 y le daba por detrás; en lluvia, lo mismo */
+   const g0F = (calm ? 6.5 + .12 * Math.min(u, 50) : straight ? 5 + .06 * u : 6.8 + .05 * u) * (1 + .25 * clamp(car.wetL || 0, 0, 1)),
+    aAvF = brakeCap((car.muEst || 1.4) * CAR.muScale * .9, .5 * RHO * CAR.cla * (car.setup ? car.setup.cl : 1) * (car.perf ? car.perf.cl : 1) / (CAR.mass + (car.fuel || 0)), u * u, Math.abs(car.ayS || 0), car.setup && car.setup.bias || .59) * CAR.brkM + .5 * RHO * CAR.cda * (car.setup ? car.setup.cd : 1) / (CAR.mass + (car.fuel || 0)) * u * u,
+    aRelF = clamp(aAvF - Math.max(0, -(a.axF || 0)), 1, 6);
+   car.atkSide || (fwd < 30 && (car.aLd = a.axF || 0), vCap = av + (fwd > g0F ? Math.min((fwd - g0F) * .6, Math.sqrt(2 * aRelF * (fwd - g0F))) : (fwd - g0F) * .6), /* a rueda en recta: el mismo desvío respecto a la trazada que lleva el de delante (si va por la trazada, por la trazada).
        Solo de cerca, con los dos en recta y antes de la frenada. Antes se copiaba su posición lateral tal cual, hasta a
        70 m: con él ya girando hacia el vértice, el que le seguía se iba al interior en plena recta (y se cruzaba con el
        que le atacaba por dentro) */
@@ -1913,7 +2219,15 @@
      Antes bastaba con tener a alguien a 30 m en una recta: el pelotón entero iba defendiendo por dentro en cada recta y
      perdía 4-5 s por vuelta respecto al líder (medido en Monza) */
   /* (el movimiento se hace antes de frenar: en plena frenada ya no se cambia de carril) */
-  if (b && straight && !car.defUsed && heavy && tB < 3 && tB > .7 && (car.brk || 0) < .1 && car.behindD < 24 && car.behindD > 7 && atk > .25 && Math.abs(b.lat - car.lat) < 3.4) {
+  /* (y solo si hasta esa frenada todo es recta: tapar el interior justo antes de una curva rápida que se hace a fondo
+     —Silverstone— obligaba a frenar en ella 60 km/h para volver a la trazada, con el de detrás encima) */
+  const clearRun = () => {
+   const n = Math.min(Math.round(dB / tr.ds), Math.round(350 / tr.ds));
+   for (let q = 1; q <= n; q++)
+    if (Math.abs(tr.k[(car.idx + q) % N]) > 1 / 250) return !1;
+   return !0
+  };
+  if (b && straight && !car.defUsed && heavy && tB < 3 && tB > .7 && (car.brk || 0) < .1 && car.behindD < 24 && car.behindD > 7 && atk > .25 && Math.abs(b.lat - car.lat) < 3.4 && clearRun()) {
    const advB = advOver(tr, b, car),
     sDef = car.sty ? car.sty.def : .5;
    advB > .5 && car.behindD - advB * tB < 7 + 3 * sDef && (car.defUsed = !0, car.defLat = insB * clamp(HW - 4.9 - 1.6 * (1 - sDef), -(HW - 1.6), HW - 1.6), car.atkBlock = tNow)
@@ -1971,7 +2285,7 @@
     inside = (car.lat - o.lat) * cdir > 0;
    let dS = ((o.s - car.s) % tr.L + tr.L) % tr.L;
    dS > tr.L / 2 && (dS -= tr.L);
-   const wideFast = HW >= 6.6 && (Zn ? Zn.vMin : 99) > 52 && Math.abs(tr.k[car.idx]) < 1 / 90,
+   const wideFast = HW >= 5.6 && (Zn ? Zn.vMin : 99) > 52 && Math.abs(tr.k[car.idx]) < 1 / 90,
     /* nunca se cede ante quien ya está cediendo o quedándose detrás de uno: si no, el de dentro frenaba para ponerse a
        rueda del de fuera mientras el de fuera frenaba para cederle la curva, y los dos acababan casi parados a la salida
        (medido en la curva 5 de Catalunya: de 145 a 68 km/h, y dos coches que llegaban detrás se los llevaron a 77 km/h) */
@@ -1980,7 +2294,7 @@
    /* (el que cede se queda detrás antes: con 1,6 m/s menos que el otro tardaba dos segundos en dejar de ir en paralelo) */
    yield_ && (vCap = Math.min(vCap, Math.max(11, alongV(tr, o) - 3.2)), car.yieldT = tNow, car.atkSide && (car.atkEnd = "cede", AS.lost++, car.atkCool = tNow + 2.5), car.atkSide = 0, car.atkTgt = null)
   }
-  const sepN = calm ? 3.9 : 4.3;
+  const sepN = calm ? LS - .7 : LS - .3;
   car.nbP && (latT = Math.min(latT, car.nbP.lat - sepN)), car.nbN && (latT = Math.max(latT, car.nbN.lat + sepN)), car.nbP && car.nbN && (latT = (car.nbP.lat + car.nbN.lat) / 2), latT = clamp(latT, -(HW -
    1.2), HW - 1.2);
   /* Dos maneras de ir por la pista, y hay que saber en cuál se está:
@@ -2050,6 +2364,9 @@
   /* cuánto de «carril» y cuánto de «trazada» (0…1) para la curvatura y el rumbo de referencia: el cambio se reparte en
      tres décimas (la posición de referencia no salta: es la misma en los dos modos) */
   car.wW = wait ? 1 : lane ? 0 : car.wW;
+  /* (Probado el 24-11: dar al carril la geometría de la trazada mientras esté a menos de 0,5-2 m de ella. Quitaba el salto de
+     velocidad objetivo al pasar de trazada a carril, pero los coches algo fuera de la trazada dejaban de perder velocidad,
+     se ponían en paralelo en las chicanes y se tocaban: 4-7 toques por carrera en Monza. Descartado) */
   car.absW = clamp((car.absW || 0) + (lane ? DT / .3 : -DT / (car.wW ? .6 : .3)), 0, 1);
   const useLat = yN;
   car.latT = null, car.latS = useLat, car.intent = useLat, car.look = look, car.vCap = vCap, car.inp[34] = clamp((useLat - car.lat) / HW, -2, 2), car.inp[
@@ -2071,9 +2388,14 @@
    k = Math.max(k, Math.abs(tr.rk[j])), kc = Math.max(kc, Math.abs(tr.k[j]))
   }
   k = kc > 1 / 16 ? Math.max(k, kc * .92) : k;
-  /* horquillas de menos de 11 m de radio: al límite de agarre, la deriva de los neumáticos se come parte del giro del
-     volante y el coche, con el tope de dirección (0,44 rad), ya no cierra más de ~8,5 m; se les pide algo menos de velocidad */
-  return k > 1 / 11 ? k * (1 + Math.min(.2, (k - 1 / 11) * 6)) : k
+  /* Curvas lentas. En una curva lenta el piloto no sigue la trazada de curvatura mínima: frena más tarde y más adentro, gira en
+     menos radio y acelera antes (trazada en V), así que su velocidad mínima es menor que la del límite lateral sobre la
+     trazada geométrica. Medido contra la telemetría real de 16 vueltas de pole (118 curvas): con la trazada geométrica el
+     simulador pasaba un 12 % más deprisa por las curvas de menos de 90 km/h y un 5 % por las de 90-130. Se corrige con una
+     curvatura efectiva mayor por debajo de CAR.slowR1 metros de radio (hasta ×(1 + CAR.slowK) por debajo de CAR.slowR0).
+     Es un ajuste empírico a datos reales, no un modelo de la maniobra. (Antes solo se corregían las horquillas de menos de 11 m) */
+  const R = 1 / Math.max(k, 1e-6);
+  return R < CAR.slowR1 ? k * (1 + CAR.slowK * clamp((CAR.slowR1 - R) / (CAR.slowR1 - CAR.slowR0), 0, 1)) : k
  }
 
  function marginOf(car) {
@@ -2101,6 +2423,8 @@
     Y un tope: no se gira más de lo que el neumático delantero aprovecha (0,125 rad de deriva; su pico está en 0,105).
     Con la persecución pura de antes el coche recortaba las curvas lentas (apuntaba a un punto 14 m por delante). */
  function steerTo(w, car, latT, look, soft, absW, yAbs) {
+  const HW = hwAt(w.track, car.idx),
+   EDGE = HW + KERB;
   const tr = w.track,
    N = tr.N,
    ds = tr.ds,
@@ -2333,7 +2657,9 @@
   c.partH = 0;
   CAR.reg === "2026" && !noErs && !c.ersOn && thr > .05 && thr < .88 && c.brk < .05 && u0 > 15 && c.batt < .98 && c.hLeft > 0 && (c.partH = Math.min(CAR.pK * .7, CAR.pIce * (.92 - thr) * .55));
   const windF = w.windX * Math.cos(c.h) + w.windY * Math.sin(c.h),
-   bk = tr.bank ? tr.bank[c.idx] : 0,
+   bk = tr.bank && tr.bank[c.idx] ? bankLoc(tr, c.idx, c.lat) : 0,
+   /* en una curva peraltada los neumáticos solo sostienen la parte del giro que queda en el plano de la pista (cos β) */
+   kbk = bk ? 1 - Math.cos(bk) : 0,
    slope = tr.slope[c.idx];
   let vload = clamp(1 + u0 * u0 * tr.kv[c.idx] / 9.81, .35, 1.8) * Math.cos(Math.atan(slope));
   bk && (vload *= clamp(Math.cos(bk) - u0 * u0 * tr.k[c.idx] / 9.81 * Math.sin(bk), .5, 2.2)), c.vload = vload;
@@ -2414,8 +2740,9 @@
    const cdl = Math.cos(delta),
     sdl = Math.sin(delta),
     Fx = Fxf * cdl - Fyf * sdl + Fxr - drag * (u >= 0 ? 1 : -1),
-    Fy = Fyf * cdl + Fxf * sdl + Fyr + Fbank,
-    ayT = (Fy - Fbank) / mass,
+    Frel = kbk ? kbk * mass * u * r : 0,
+    Fy = Fyf * cdl + Fxf * sdl + Fyr + Fbank + Frel,
+    ayT = (Fy - Fbank - Frel) / mass,
     Mz = CAR.a * (Fyf * cdl + Fxf * sdl) - CAR.b * Fyr;
    if (c.ayS = ayT, c.capF = capF, c.capR = capR, c.fzAx = [Fzf, Fzr, dFf, dFr], u += (Fx / mass + v * r) * sdt, v += (Fy / mass - u * r) * sdt, r += Mz / CAR.Iz * sdt, u < 6) {
     const wk = clamp((6 - u) / 4, 0, 1),
@@ -2505,10 +2832,10 @@
     8,5 MJ de recuperación por vuelta, sin MGU-H, aerodinámica activa en recta para todos y modo adelantamiento) ===== */
  function regsTable() {
   return {
-   "2025": { a: 1.98, b: 1.62, wb: 3.6, Iz: 1050, tf: 1.6, trr: 1.55, mass: 798, cla: 5.5 * .86, cda: 1.6, drsCd: .75, LD: 3.93 * .86, pIce: 431e3, pK: 12e4, pH: 6e4, bat: 4e6, dLap: 4e6, hLap: 2e6, gripF: .98, gripR: 1.05 },
+   "2025": { a: 1.98, b: 1.62, wb: 3.6, Iz: 1050, tf: 1.6, trr: 1.55, mass: 798, cla: 5.5, cda: 1.6, drsCd: .75, LD: 3.93, pIce: 431e3, pK: 12e4, pH: 6e4, bat: 4e6, dLap: 4e6, hLap: 2e6, gripF: .98, gripR: 1.05 },
    /* 2026: térmico ~400 kW (−28 %), 350 kW eléctricos, ~30 % menos carga, menos resistencia y aún menos en modo recta,
       neumáticos más estrechos (−25/−30 mm) y 30 kg menos */
-   "2026": { a: 1.87, b: 1.53, wb: 3.4, Iz: 960, tf: 1.55, trr: 1.5, mass: 768, cla: 5.5 * .8 * .86, cda: 1.6 * .9, drsCd: .55, LD: 3.93 * .93 * .86, pIce: 322e3, pK: 35e4, pH: 0, bat: 4e6, dLap: 1e12, hLap: 8.5e6, gripF: .98 * .99, gripR: 1.05 * .99 }
+   "2026": { a: 1.87, b: 1.53, wb: 3.4, Iz: 960, tf: 1.55, trr: 1.5, mass: 768, cla: 5.5 * .8, cda: 1.6 * .9, drsCd: .55, LD: 3.93 * .93, pIce: 322e3, pK: 35e4, pH: 0, bat: 4e6, dLap: 1e12, hLap: 8.5e6, gripF: .98 * .99, gripR: 1.05 * .99 }
   }
  }
 
@@ -2685,7 +3012,7 @@
   for (const c of w.cars) {
    if (!c.alive) continue;
    if (w.ctrl ? w.ctrl(w, c) : think(w, c), w.traffic && w.reflex !== !1 && reflex(w, c), physics(w, c, dt), locate(tr, c), c.prog > c.maxProg + .5 && (c.maxProg = c.prog, c
-     .lastImp = w.t), Math.abs(c.lat) > EDGE + .6 || c.prog < c.maxProg - 25 || w.t - c.lastImp > 3.5 || Math.abs(wrap(tr.hd[c.idx] - c.h)) > 1.6 || w.traffic && c.dmg.fw + c.dmg
+     .lastImp = w.t), Math.abs(c.lat) > hwAt(tr, c.idx) + KERB + .6 || c.prog < c.maxProg - 25 || w.t - c.lastImp > 3.5 || Math.abs(wrap(tr.hd[c.idx] - c.h)) > 1.6 || w.traffic && c.dmg.fw + c.dmg
     .susp > .9) {
     c.alive = !1, c.deadT = w.t;
     continue
@@ -2703,6 +3030,10 @@
  }
 
  function reflex(w, c) {
+  const HW = hwUse(w.track, c.idx),
+   EDGE = HW + KERB,
+   RS = Math.min(3.2, laneSep(HW) - .9),
+   RP = RS - .4;
   c.reflex = 0, c.lateBrk = 0;
   const ch = Math.cos(c.h),
    sh = Math.sin(c.h);
@@ -2710,7 +3041,7 @@
   const slowAhead = c.u > 14 && vrefMin(w.track, c.idx, 0, 70) < c.u - 2.5,
    calm = !!c.calm;
   for (const a of others(w)) {
-   if (a === c || a.inPit || a.gone || w.mode === "train" && !a.alive || a.retired && Math.abs(a.lat) > EDGE + 1) continue;
+   if (a === c || pitGhost(w, a) || a.gone || w.mode === "train" && !a.alive || Math.abs(a.lat) > EDGE + 1 && (a.retired || (a.u || 0) < 10)) continue;
    const dx = a.x - c.x,
     dy = a.y - c.y;
    if (dx * dx + dy * dy > 3600 || !sameStretch(w.track, a, c)) continue;
@@ -2738,19 +3069,19 @@
   }
   if (worst > 0 ? (c.thr = Math.min(c.thr, .05), c.brk = Math.max(c.brk, worst), c.reflex = 1) : c.unjam && (c.brk = 0), c.unjam = 0, c.nbP) {
    /* (con sitio se aparta; contra el borde de la pista no se sale: levanta el pie y se queda detrás) */
-   /* La separación la lleva ya la táctica (4,3 m entre centros). Este reflejo es el último recurso: por debajo de 3,2 m
-      no se gira hacia el otro, y por debajo de 2,8 m (menos de 80 cm entre coches) se aparta, tanto menos cuanto más
-      deprisa va (a 200 km/h, medio volante de golpe era un trompo seguro) */
+   /* La separación la lleva ya la táctica (4,3 m entre centros; hasta 3,3 m donde la pista es estrecha). Este reflejo es el
+      último recurso: por debajo de 3,2 m (o de 60 cm menos que la separación de la táctica) no se gira hacia el otro, y 40 cm
+      más cerca se aparta, tanto menos cuanto más deprisa va (a 200 km/h, medio volante de golpe era un trompo seguro) */
    const sp = c.nbP.lat - c.lat,
     room = clamp((c.lat + HW - 1.2) / 1.2, 0, 1),
     kv = clamp(22 / Math.max(c.u, 1), .2, 1);
-   sp < 3.2 && (c.steer = clamp(Math.min(c.steer, .12 + Math.max(0, sp - 2.8) * 2.2) - clamp((2.8 - sp) * .45, 0, .5) * room * kv, -1, 1), room < .5 && sp < 2.8 && !c.player && (c.thr = Math.min(c.thr, .3)))
+   sp < RS && (c.steer = clamp(Math.min(c.steer, .12 + Math.max(0, sp - RP) * 2.2) - clamp((RP - sp) * .45, 0, .5) * room * kv, -1, 1), room < .5 && sp < RP && !c.player && (c.thr = Math.min(c.thr, .3)))
   }
   if (c.nbN) {
    const sp = c.lat - c.nbN.lat,
     room = clamp((HW - 1.2 - c.lat) / 1.2, 0, 1),
     kv = clamp(22 / Math.max(c.u, 1), .2, 1);
-   sp < 3.2 && (c.steer = clamp(Math.max(c.steer, -.12 - Math.max(0, sp - 2.8) * 2.2) + clamp((2.8 - sp) * .45, 0, .5) * room * kv, -1, 1), room < .5 && sp < 2.8 && !c.player && (c.thr = Math.min(c.thr, .3)))
+   sp < RS && (c.steer = clamp(Math.max(c.steer, -.12 - Math.max(0, sp - RP) * 2.2) + clamp((RP - sp) * .45, 0, .5) * room * kv, -1, 1), room < .5 && sp < RP && !c.player && (c.thr = Math.min(c.thr, .3)))
   }
   /* Reacción a un toque, proporcional al golpe: se aparta y levanta un momento. El que ha tocado por detrás solo frena
      mientras siga encima del de delante. Antes, cualquier roce (aunque fuera de 1 km/h) suponía 1,1 s de volante al lado
@@ -3218,7 +3549,7 @@
      .trace && c.prog >= 0 && (c.trace[Math.floor(c.s / 20)] = c.u, traceMore(c)), w.started && !c.finished && !c.hold) {
      const lost = c.maxProg - c.prog > 60;
      c.u < 3 && !(c.hz && c.hzD < 60 && (c.hzGap < 0 || c.hzLead)) || lost ? c.stuckT = (c.stuckT || 0) + dt : c.stuckT = 0, c.stuckT > 6 && (c.resets = (c.resets || 0) + 1, c.stuckT = 0, c.resets >= 5 ? retire(w, c,
-      "Atascado fuera de pista", "crash") : (place(w, c, c.maxProg, clamp(c.lat, -(HW - 2), HW - 2), 6), c.dmg.susp = Math.min(1, c.dmg.susp + .05), evt(w, c.code +
+      "Atascado fuera de pista", "crash") : (place(w, c, c.maxProg, clamp(c.lat, -(hwAt(tr, idxAt(tr, c.maxProg)) - 2), hwAt(tr, idxAt(tr, c.maxProg)) - 2), 6), c.dmg.susp = Math.min(1, c.dmg.susp + .05), evt(w, c.code +
       " pierde mucho tiempo y vuelve a la pista", "off", c))), Math.abs(c.beta) > .55 && c.u > 10 && !c.spinning && (c.spinning = !0, evt(w, c.code + " hace un trompo", "spin",
       c, {
        pos: w.order.indexOf(c) + 1
@@ -3309,6 +3640,8 @@
  }
 
  function director(w, c, dt) {
+  const HW = hwUse(w.track, c.idx),
+   EDGE = HW + KERB;
   const tr = w.track,
    u = c.u;
   if (c.blue = !1, c.mgr && c.mgr.yieldTo && w.started && !c.inPit) {
@@ -3372,6 +3705,8 @@
  }
 
  function limpOff(w, c, dt) {
+  const HW = hwAt(w.track, c.idx),
+   EDGE = HW + KERB;
   const side = c.pullSide || (c.lat >= 0 ? 1 : -1);
   c.pullSide = side, c.thr = 0, c.brk = .35, c.ers = !1, c.hold = !1, steerTo(w, c, side * (EDGE + 4), Math.max(14, c.u * .5)), physics(w, c, dt), locate(w.track, c), walls(w, c),
    c.u < 1 && (c.parked = !0, c.u = c.v = c.r = 0, c.vx = c.vy = 0, c.parkT = w.t, Math.abs(c.lat) < EDGE + 1 ? neutralize(w, c, "track") : neutralize(w, c, "side"))
@@ -3422,7 +3757,7 @@
  function scStep(w, dt) {
   const sc = w.sc;
   if (sc) {
-   if (sc.phase === "out" && w.t > sc.until && (w.cars.every(c => !c.retired || !c.parked || Math.abs(c.lat) > EDGE + 1 || c.gone) && !w.rainSC || w.t > sc.until + 40) && (sc
+   if (sc.phase === "out" && w.t > sc.until && (w.cars.every(c => !c.retired || !c.parked || Math.abs(c.lat) > hwAt(w.track, c.idx) + KERB + 1 || c.gone) && !w.rainSC || w.t > sc.until + 40) && (sc
      .phase = "in", evt(w, "El safety car entra en boxes al final de esta vuelta", "sc")), sc.phase === "in" && sc.car) {
     const s = sc.car.s,
      d = s - w.track.pit.inS;
@@ -3801,8 +4136,8 @@
   if (W.dir += Math.sin(t * .013) * 4e-4, W.spd = Math.max(0, W.base * (1 + .25 * Math.sin(t * .7) + .15 * Math.sin(t * 1.9 + 1))), w.windX = Math.cos(W.dir) * W.spd, w.windY =
    Math.sin(W.dir) * W.spd, w.yellowT)
    for (let i = 0; i < w.yellowT.length; i++) w.yellow[i] && w.t > w.yellowT[i] && (w.cars.some(c => c.retired && c.parked && !c.gone && Math.floor(c.s / w.track.L * w.track
-    .nms) % w.track.nms === i && Math.abs(c.lat) < EDGE + 3) || (w.yellow[i] = 0));
-  for (const c of w.cars) c.parked && !c.gone && w.t - c.parkT > (Math.abs(c.lat) < EDGE + 1 ? 55 : 35) && (!w.sc || !w.sc.on || w.t - c.parkT > 45) && (c.gone = !0);
+    .nms) % w.track.nms === i && Math.abs(c.lat) < hwAt(w.track, c.idx) + KERB + 3) || (w.yellow[i] = 0));
+  for (const c of w.cars) c.parked && !c.gone && w.t - c.parkT > (Math.abs(c.lat) < hwAt(w.track, c.idx) + KERB + 1 ? 55 : 35) && (!w.sc || !w.sc.on || w.t - c.parkT > 45) && (c.gone = !0);
   w.debris.length && (w.vsc > 0 || w.sc && w.sc.on) ? w.debris = w.debris.filter(d => w.t - d.t < 20) : w.debris.length && (w.debris = w.debris.filter(d => w.t - d.t < 90))
  }
 
@@ -3823,6 +4158,8 @@
  }
 
  function trackLimits(w, c) {
+  const HW = hwAt(w.track, c.idx),
+   EDGE = HW + KERB;
   !w.penalties || !w.started || c.isSC || c.inPit || Math.abs(c.lat) > HW + 1.05 && Math.abs(w.track.k[c.idx]) > 1 / 200 && c.u > 20 && w.t - c.tlT > 4 && (c.tlT = w.t, c.tl++, c
    .tl === 3 ? (evt(w, "Bandera blanca y negra para " + c.code + " por límites de pista", "tl", c), radio(w, c, "Tercer aviso por límites de pista, cuidado")) : c.tl === 4 || c
    .tl === 7 ? (c.pen += 5, evt(w, "Sanción de 5 s para " + c.code + " por exceder los límites de pista", "pen", c), radio(w, c, "5 segundos de sanción por límites de pista")) :
@@ -4037,9 +4374,10 @@
    for (let i = 0; i < N; i++) {
     const r = reach[s][i],
      Wl = WALL + (tr.wallX ? tr.wallX[s][i] : 0);
-    let L = r >= Wl + 1.2 ? Wl : Math.min(Wl, Math.max(EDGE + (tr.street ? .6 : 2), r - .6));
+    const hwI = tr.hwv ? tr.hwv[i] : HW;
+    let L = r >= Wl + 1.2 ? Wl : Math.min(Wl, Math.max(hwI + KERB + (tr.street ? .6 : 2), r - .6));
     /* por el interior de una curva más cerrada que el propio muro, el límite se queda a 35 cm del centro de la curva */
-    tr.rloc && (tr.k[i] > 0) === (s === 0) && (L = Math.min(L, Math.max(HW - .2, tr.rloc[i] - .35)));
+    tr.rloc && (tr.k[i] > 0) === (s === 0) && (L = Math.min(L, Math.max(hwI - .2, tr.rloc[i] - .35)));
     tp[s][i] && (!tr.street || tp[s][i] === 2) && (L = Wl - 1.6), lim[s][i] = L - CAR_HW
    }
   const kerb = new Uint8Array(N),
@@ -4256,7 +4594,7 @@
     fresh
    });
    const ms = Math.floor(c.s / w.track.L * w.track.nms) % w.track.nms;
-   w.penalties && (w.yellow[ms] || w.sc && w.sc.on) && o.u > 28 && !o.spinning && !o.fail && Math.abs(o.lat) < HW + 1 && w.rngW() < .8 && (c.pen += 5, evt(w,
+   w.penalties && (w.yellow[ms] || w.sc && w.sc.on) && o.u > 28 && !o.spinning && !o.fail && Math.abs(o.lat) < hwAt(w.track, o.idx) + 1 && w.rngW() < .8 && (c.pen += 5, evt(w,
     "Sanción de 5 s para " + c.code + " por adelantar bajo bandera amarilla", "pen", c), radio(w, c, "Has adelantado con amarilla: 5 segundos"))
   }
  }
@@ -4648,7 +4986,7 @@
   c.inPit = !0, c.pit = {
    d: 0,
    v: c.u,
-   lat0: c.lat,
+   lat0: latUnwarp(tr, c.idx, c.lat),
    phase: "in",
    base: c.prog - (c.s - tr.pit.inS)
   }, c.stops++, c.drs = !1, c.drsOk = !1, c.ers = !1, c.pitTire || (c.pitTire = c.tire.c);
@@ -4773,13 +5111,14 @@
     return p.phase === "svc" ? 1 : x < 24 ? 1 - sstep(x / 24) : 0
    },
    BOXW = 3.5 * (tr.pit.side || -1),
-   lat = pitLat(tr, p.d, p.lat0) + BOXW * swF(p.d),
    s = tr.pit.inS + p.d,
+   /* la calle de boxes está definida respecto al ancho nominal: su posición real pasa por latWarp, como en el dibujo */
+   lat = warpS(tr, s, pitLat(tr, p.d, p.lat0) + BOXW * swF(p.d)),
    pt = ptAt(tr, s, lat),
    /* rumbo de la trayectoria: el del eje más lo que se abre o se cierra la vía, corregido por la curvatura. Antes se sacaba de dos puntos
       a 1 m y, por dentro de las curvas cerradas, daba un diente de sierra de hasta 9° en cada punto del trazado. Se suaviza en 1,5 m para
       no dar un tirón al entrar (el coche llega con su propio ángulo) ni al arrancar del garaje */
-   hT = pt[2] + Math.atan2(pitLat(tr, p.d + 1, p.lat0) + BOXW * swF(p.d + 1) - lat, Math.max(.25, 1 - tr.k[idxAt(tr, s)] * lat)),
+   hT = pt[2] + Math.atan2(warpS(tr, s + 1, pitLat(tr, p.d + 1, p.lat0) + BOXW * swF(p.d + 1)) - lat, Math.max(.25, 1 - tr.k[idxAt(tr, s)] * lat)),
    dh = wrap(hT - c.h);
   /* en la entrada el coche llega a más de 200 km/h y con su propio ángulo: el morro se alinea con la vía en unos 8 m (con 1,5 m era un
      giro de 8° o 9° en un solo fotograma) */
@@ -4796,7 +5135,7 @@
    why,
    kind
   }), c.player && radio(w, c, "Lo siento, tenemos que parar el coche. " + why), c.stints.length && (c.stints[c.stints.length - 1].to = c.retLap), kind === "crash" || c.u < 2 ? (
-   c.u *= .3, c.v *= .3, c.r *= .3, c.vx *= .3, c.vy *= .3, c.parked = !0, c.parkT = w.t, Math.abs(c.lat) < EDGE + 1 || c.bigCrash ? neutralize(w, c, "track") : neutralize(w, c,
+   c.u *= .3, c.v *= .3, c.r *= .3, c.vx *= .3, c.vy *= .3, c.parked = !0, c.parkT = w.t, Math.abs(c.lat) < hwAt(w.track, c.idx) + KERB + 1 || c.bigCrash ? neutralize(w, c, "track") : neutralize(w, c,
     "side")) : (c.fail = c.fail || {}, c.fail.noPower = !0))
  }
 
@@ -4838,8 +5177,18 @@
   const tc = w.wetLine > .7 ? "W" : w.wetLine > .25 ? "I" : "S";
   c.tire = newTire(tc, COMP[tc].topt), c.fuel = 8, c.batt = 1, c.muEst = 1.6, c.brakeT = 500, c.engT = 100, c.mode = 2, c.push = clamp(.62 + (c.drv.pace - 85) / 30 + (w.wetLine >
    .3 ? (c.drv.wet - 85) / 40 : 0), .2, .95), c.attack = .5, o.fuel != null && (c.fuel = o.fuel), o.mode != null && (c.mode = o.mode), o.batt != null && (c.batt = o.batt), o.tireT != null && (c.tire.tf = c.tire.tr = o.tireT), o.wear != null && (c.tire.wf = c.tire.wr = o.wear), o.push != null && (c.push = o.push);
-  const s0 = -450,
-   i0 = idxAt(track, (s0 % track.L + track.L) % track.L);
+  let s0 = -450;
+  /* se lanza desde una recta: 450 m antes de meta o, si ahí hay curva, el primer tramo recto hacia atrás */
+  for (let q = 0; q < 60; q++) {
+   const j = idxAt(track, ((s0 - q * 10) % track.L + track.L) % track.L);
+   let mk = 0;
+   for (let d = -4; d <= 8; d++) mk = Math.max(mk, Math.abs(track.k[(j + d + track.N) % track.N]));
+   if (mk < 1 / 350) {
+    s0 -= q * 10;
+    break
+   }
+  }
+  const i0 = idxAt(track, (s0 % track.L + track.L) % track.L);
   place(w, c, s0, track.rl[i0], Math.min(70, track.vref[i0] * .85)), w.cars = [c], w.all = w.cars, o.sys && (w.rngW = rng(11), w.failMul = 0, newSys(w, c), c.sys.TbF = c.sys.TbR = 500, c.sys.Toil = 115, c.sys.Tpis = 330);
   let t0 = null,
    time = 1 / 0,
@@ -4971,6 +5320,9 @@
   applyLab,
   latWarp,
   latUnwarp,
+  hwAt,
+  hwUse,
+  bankLoc,
   RUNOFF_PAINT,
   pitCap,
   playerControl,
@@ -5125,10 +5477,22 @@
   return f ? a + (tr.bank[(i + 1) % N] - a) * f : a
  }
 
- function bankOff(b, lat) {
+ /* altura que añade el peralte a `lat` metros del eje. Con peralte progresivo (i = nodo) la sección es una curva: la pendiente
+    crece hacia el exterior y la altura es la integral de tan(b + g·l). Pasado el borde (más 2,2 m) sigue plano */
+ function bankOff(b, lat, i, f) {
   if (!b) return 0;
-  const E = S.HW + 2.2;
-  return Math.tan(b) * Math.max(-E, Math.min(E, lat))
+  let g = 0,
+   E = S.HW + 2.2;
+  if (i != null) {
+   const N = tr.N,
+    ii = (Math.floor(i) % N + N) % N,
+    jj = (ii + 1) % N,
+    G = tr.bankG,
+    h0 = S.hwAt(tr, ii);
+   G && (g = G[ii], f && (g += (G[jj] - g) * f)), E = (f ? h0 + (S.hwAt(tr, jj) - h0) * f : h0) + 2.2
+  }
+  const l = Math.max(-E, Math.min(E, lat));
+  return g ? (Math.log(Math.cos(b)) - Math.log(Math.cos(b + g * l))) / g : Math.tan(b) * l
  }
 
  const PSD = () => tr && tr.pit && tr.pit.side || -1;
@@ -5147,7 +5511,7 @@
  function pt(i, lat, y) {
   i = (i % tr.N + tr.N) % tr.N, lat = S.latWarp(tr, i, lat);
   const h = tr.hd[i];
-  return [tr.x[i] - Math.sin(h) * lat, tr.z[i] + (y || 0) + bankOff(bankAt(i), lat), tr.y[i] + Math.cos(h) * lat]
+  return [tr.x[i] - Math.sin(h) * lat, tr.z[i] + (y || 0) + bankOff(bankAt(i), lat, i), tr.y[i] + Math.cos(h) * lat]
  }
 
  function ptS(s, lat, y) {
@@ -5158,14 +5522,16 @@
    lat = S.latWarp(tr, i, lat, f - i)
   }
   const p = S.ptAt(tr, s, lat);
-  let b = 0;
+  let b = 0,
+   bi = 0,
+   bf = 0;
   if (tr.bank) {
    const ss = (s % tr.L + tr.L) % tr.L,
     f = ss / tr.ds,
     i = Math.floor(f);
-   b = bankAt(i, f - i)
+   b = bankAt(i, f - i), bi = i, bf = f - i
   }
-  return [p[0], zAtS(s) + (y || 0) + bankOff(b, lat), p[1]]
+  return [p[0], zAtS(s) + (y || 0) + bankOff(b, lat, bi, bf), p[1]]
  }
 
  function canvasTex(w, h, draw, rep) {
@@ -5670,6 +6036,16 @@ void main(){
   const n = tr.N, a = tr.rl[(i % n + n) % n], b = tr.rl[((i + 1) % n + n) % n];
   return a + (b - a) * (f || 0)
  }
+ /* semiancho real de la pista en el punto i + f, y paso de metros reales a la coordenada nominal que esperan pt() y ribbon()
+    (que la devuelven a metros reales con latWarp): lo necesitan las cintas que se definen respecto a la trazada */
+ function hwL(i, f) {
+  const n = tr.N, ii = (i % n + n) % n, a = S.hwAt(tr, ii), b = S.hwAt(tr, (ii + 1) % n);
+  return a + (b - a) * (f || 0)
+ }
+
+ function nomL(i, f, l) {
+  return S.latUnwarp(tr, (i % tr.N + tr.N) % tr.N, l, f || 0)
+ }
 
  /* Cinta a lo largo de la pista entre dos desplazamientos laterales. Entre nodo y nodo el eje es un arco de circunferencia (rumbo
     lineal, como el de las normales) corregido para acabar en el nodo siguiente: antes era la cuerda y, con nodos cada 4 m, una
@@ -5740,7 +6116,7 @@ void main(){
     for (let m = 0; m <= cols; m++) {
      const t = m / cols,
       l = la + (lb - la) * t;
-     pos.push(x + nx * l, z + ya + (yb - ya) * t + bankOff(bkk, l), yy + ny * l), o.uvV ? uv.push(sd, o.uvV(l, i, f)) : o.uvLat ? uv.push(sd, Math.abs(l) / o.uvLat) : uv.push(sd, t), c && col.push(c[0], c[1], c[2])
+     pos.push(x + nx * l, z + ya + (yb - ya) * t + bankOff(bkk, l, i, f), yy + ny * l), o.uvV ? uv.push(sd, o.uvV(l, i, f)) : o.uvLat ? uv.push(sd, Math.abs(l) / o.uvLat) : uv.push(sd, t), c && col.push(c[0], c[1], c[2])
     }
     if (row > 0)
      for (let m = 0; m < cols; m++) {
@@ -8603,7 +8979,7 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
      lt0 = (x - tr.x[bi]) * -Math.sin(tr.hd[bi]) + (y - tr.y[bi]) * Math.cos(tr.hd[bi]),
      /* distancia nominal: con muros reales, toda la escapatoria cuenta como franja de pista y lo de fuera empieza en el muro */
      d = Math.abs(S.latUnwarp(tr, bi, lt0 < 0 ? -d0 : d0)),
-     zt = tr.z[bi] + (tr.bank && tr.bank[bi] ? bankOff(tr.bank[bi], lt0) : 0),
+     zt = tr.z[bi] + (tr.bank && tr.bank[bi] ? bankOff(tr.bank[bi], lt0, bi) : 0),
      n = Math.sin(x * .0061 + ph[0]) * Math.cos(y * .0053 + ph[1]) + .5 * Math.sin(x * .013 + y * .011 + ph[2]) + .25 * Math.sin(x * .031 - y * .027 + ph[3]);
     if (WD && WD.off != null) {
      const dm = wdDem(x, y),
@@ -8652,7 +9028,7 @@ gl_FragColor.a*=smoothstep(58.0,95.0,distance(vWp.xz,uFoc.xz));`)
       const lt = -ex * sn + ey * cs,
        dl = Math.abs(lt);
       if (dl > RM) continue;
-      const cap = tr.z[i] + (bk ? bankOff(bk, lt) : 0) - .45 + (dl > R0 ? .58 * (dl - R0) : 0),
+      const cap = tr.z[i] + (bk ? bankOff(bk, lt, i) : 0) - .45 + (dl > R0 ? .58 * (dl - R0) : 0),
        k = r * nx + c;
       hs[k] > cap && (hs[k] = cap, capN++)
      }
@@ -9211,7 +9587,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
        Lw = Math.abs(S.latWarp(tr, i, sd * L, f)),
        px = x + nx * Lw,
        py = yy + ny * Lw,
-       zb = z + bankOff(bankAt(i, f), sd * Lw);
+       zb = z + bankOff(bankAt(i, f), sd * Lw, i, f);
       /* en la calle de boxes de un urbano no hay bordillo ni acera: todo a la cota de la calzada hasta pasados los garajes */
       pos.push(px, c === 0 ? zb + .02 : tr.street && sd === PSD() && inPitI(i) && L < Math.abs(tr.pit.lane) + 9 ? zb - .02 : vergeY(zb, L, Rr, px, py), py), uv.push(px / 14, py / 14), groundTint(px, py, L, tmp), col.push(tmp[0], tmp[1], tmp[2]), la.push(L)
      }
@@ -10194,9 +10570,11 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
 
  function kerbAt(i, lat) {
   if (!kerbArr) return !1;
-  const k = kerbArr[(i % tr.N + tr.N) % tr.N],
-   al = Math.abs(lat);
-  return k && al > S.HW - .25 && al < S.HW + 1.7
+  const ii = (i % tr.N + tr.N) % tr.N,
+   k = kerbArr[ii],
+   al = Math.abs(lat),
+   hw = S.hwAt(tr, ii);
+  return k && al > hw - .25 && al < hw + 1.7
  }
  const panelTex = {};
 
@@ -10296,7 +10674,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
   for (const [a, b] of runs(i => ka[i] > 1 / 160))
    for (const sd of [1, -1]) {
     const g = ribbon({
-     latA: (i, f) => sd > 0 ? Math.min(HW - .45, Math.max(HW - 3.45, rlF(i, f) + 1.6)) : Math.max(-(HW - .45), Math.min(-(HW - 3.45), rlF(i, f) - 1.6)),
+     latA: (i, f) => { const h = hwL(i, f); return nomL(i, f, sd > 0 ? Math.min(h - .45, Math.max(h - 3.45, rlF(i, f) + 1.6)) : Math.max(-(h - .45), Math.min(-(h - 3.45), rlF(i, f) - 1.6))) },
      latB: sd * (HW - .45),
      y: .073,
      i0: a - 3,
@@ -10304,7 +10682,7 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
      uvLen: 5,
      cols: 3,
      /* v = 1 en el borde y 0 a 3 m de él: la miga mide lo mismo sea cual sea el ancho de la franja */
-     uvV: l => 1 - (HW - .45 - sd * l) / 3,
+     uvV: (l, i, f) => 1 - (hwL(i, f) - .45 - sd * l) / 3,
      /* mismas secciones que el asfalto: con una por tramo, en las curvas cerradas y en cuesta quedaba hasta 6 cm por encima */
      sub: 2
     });
@@ -10318,8 +10696,8 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
   for (const ap of apex) {
    const len = Math.min(ap.i - ap.bs, Math.round(160 / tr.ds));
    if (group.add(new THREE.Mesh(ribbon({
-     latA: (i, f) => rlF(i, f) - 1.05,
-     latB: (i, f) => rlF(i, f) + 1.05,
+     latA: (i, f) => nomL(i, f, rlF(i, f) - 1.05),
+     latB: (i, f) => nomL(i, f, rlF(i, f) + 1.05),
      y: .072,
      i0: ap.i - len,
      i1: ap.i - 2,
@@ -10550,8 +10928,8 @@ diffuseColor.rgb=mix(diffuseColor.rgb,mix(tc,cc,curb),k);}
    cap,
    n: 0
   }, dryLine = new THREE.Mesh(ribbon({
-   latA: (i, f) => rlF(i, f) - 1.25,
-   latB: (i, f) => rlF(i, f) + 1.25,
+   latA: (i, f) => nomL(i, f, rlF(i, f) - 1.25),
+   latB: (i, f) => nomL(i, f, rlF(i, f) + 1.25),
    y: .068,
    sub: 2,
    uvLen: 9
@@ -13396,8 +13774,8 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
   const rub = new THREE.Mesh(ribbon({
    /* la goma llega como mucho al arranque del piano (HW + 0,3): más allá quedaba pintada sobre el césped o, en el interior de una
       horquilla en cuesta, flotando sobre el asfalto */
-   latA: (i, f) => Math.max(-HW - .3, rlF(i, f) - 2.7),
-   latB: (i, f) => Math.min(HW + .3, rlF(i, f) + 2.7),
+   latA: (i, f) => nomL(i, f, Math.max(-hwL(i, f) - .3, rlF(i, f) - 2.7)),
+   latB: (i, f) => nomL(i, f, Math.min(hwL(i, f) + .3, rlF(i, f) + 2.7)),
    uvV: (l, i, f) => (l - rlF(i, f) + 2.7) / 5.4,
    y: .07,
    sub: 2,
@@ -13425,8 +13803,8 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
      let j = i;
      for (; heavy[j % Nn] && j - i < Nn;) j++;
      j - i > 2 && trackGroup.add(new THREE.Mesh(ribbon({
-      latA: (q, f) => Math.max(-HW - .3, rlF(q, f) - 2.4),
-      latB: (q, f) => Math.min(HW + .3, rlF(q, f) + 2.4),
+      latA: (q, f) => nomL(q, f, Math.max(-hwL(q, f) - .3, rlF(q, f) - 2.4)),
+      latB: (q, f) => nomL(q, f, Math.min(hwL(q, f) + .3, rlF(q, f) + 2.4)),
       uvV: (l, q, f) => (l - rlF(q, f) + 2.4) / 4.8,
       y: .072,
       i0: i - 2,
@@ -13513,12 +13891,12 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
   });
   for (const sd of [1, -1]) {
    const dm = new THREE.Mesh(ribbon({
-    latA: (i, f) => sd > 0 ? Math.min(HW - .32, Math.max(HW - 3.45, rlF(i, f) + .9)) : Math.max(-HW + .32, Math.min(-(HW - 3.45), rlF(i, f) - .9)),
+    latA: (i, f) => { const h = hwL(i, f); return nomL(i, f, sd > 0 ? Math.min(h - .32, Math.max(h - 3.45, rlF(i, f) + .9)) : Math.max(-h + .32, Math.min(-(h - 3.45), rlF(i, f) - .9))) },
     latB: sd * (HW - .25),
     y: .066,
     sub: 2,
     cols: 3,
-    uvV: l => 1 - (HW - .25 - sd * l) / 3.2,
+    uvV: (l, i, f) => 1 - (hwL(i, f) - .25 - sd * l) / 3.2,
     uvLen: 10
    }), matDust);
    dm.receiveShadow = !0, trackGroup.add(dm)
@@ -13834,7 +14212,7 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hsh
    const latL = i => {
      const r = reachAt(i, sd),
       Wl = WALL + wx(i, sd);
-     return r >= Wl + 1.2 ? Wl : Math.min(Wl, Math.max(S.EDGE + (tr.street ? .6 : 2), r - .6))
+     return r >= Wl + 1.2 ? Wl : Math.min(Wl, Math.max(S.hwAt(tr, (i % tr.N + tr.N) % tr.N) + S.KERB + (tr.street ? .6 : 2), r - .6))
     },
     lf = (i, f) => sd * (latL(i) + (f ? (latL(i + 1) - latL(i)) * f : 0));
    /* en los circuitos permanentes no se dibuja por el interior de una curva cerrada, donde ese límite es solo el centro de la propia
@@ -18227,7 +18605,7 @@ void main(){
   const ss = (c.s % tr.L + tr.L) % tr.L,
    f = ss / tr.ds,
    i = Math.floor(f);
-  return zAtS(c.s) + bankOff(bankAt(i, f - i), c.lat || 0)
+  return zAtS(c.s) + bankOff(bankAt(i, f - i), c.lat || 0, i, f - i)
  }
 
  /* ===================== CÁMARA TÉRMICA RADIOMÉTRICA =====================
@@ -18581,7 +18959,7 @@ void main(){
    vib = onKerb ? .006 * Math.sin(tv * 95) * clamp(u / 30, .3, 1) : 6e-4 * clamp(u / 80, 0, 1) * (Math.sin(tv * 41) + .6 * Math.sin(tv * 67 + 1));
   /* carga aerodinámica: el coche se aplasta contra el suelo con el cuadrado de la velocidad (rigidez de plataforma ~600 N/mm) */
   const aero = o.rg ? Math.min(.026, .6 * (root.Sim && root.Sim.CAR && root.Sim.CAR.cla || 4) * (c.drs ? .6 : 1) * u * u / 6e5) : 0,
-   bkA = c.inPit ? 0 : bankAt(c.idx || 0);
+   bkA = c.inPit || !tr.bank ? 0 : S.bankLoc(tr, c.idx || 0, c.lat || 0);
   o.aeroS = (o.aeroS || 0) + (aero - (o.aeroS || 0)) * Math.min(1, dt * 5);
   if (o.body.position.y = .05 + heave + vib * .6 - o.aeroS, o.rg ? (o.root.rotation.set(-bkA, -c.h, Math.atan(sl)), o.body.rotation.set(o.rollS + vib, 0, o.pitchS + vib * .5)) : o.root.rotation.set(o.rollS + vib - bkA, -c.h, Math.atan(sl) + o.pitchS + vib * .5), o.kerb =
    onKerb, o.isSC) {
@@ -18811,7 +19189,7 @@ void main(){
   const h = tr.hd[bi],
    lat = -(x - tr.x[bi]) * Math.sin(h) + (y - tr.y[bi]) * Math.cos(h),
    th = terrainH(x, y);
-  return Math.abs(lat) < S.WALL + (tr.wallX && !tr.street ? tr.wallX[lat > 0 ? 0 : 1][bi] : 0) ? Math.max(th, tr.z[bi] + bankOff(bankAt(bi), lat)) + .012 : th + .03
+  return Math.abs(lat) < S.WALL + (tr.wallX && !tr.street ? tr.wallX[lat > 0 ? 0 : 1][bi] : 0) ? Math.max(th, tr.z[bi] + bankOff(bankAt(bi), lat, bi)) + .012 : th + .03
  }
 
  function debrisAdd(x, y, imp, col, vx, vy) {
@@ -20689,7 +21067,7 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
  }
 
  function ptAt(tr, i, lat) {
-  i = (i % tr.N + tr.N) % tr.N;
+  i = (i % tr.N + tr.N) % tr.N, lat = S.latWarp(tr, i, lat);
   const h = tr.hd[i];
   return [tr.x[i] - Math.sin(h) * lat, tr.y[i] + Math.cos(h) * lat]
  }
@@ -20732,7 +21110,22 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
  function buildGfx(tr) {
   const g = {},
    N = tr.N;
-  g.center = closed(tr, 0), g.wallL = pathRange(tr, 0, tr.N, q => S.latWarp(tr, q, S.WALL)), g.wallR = pathRange(tr, 0, tr.N, q => S.latWarp(tr, q, -S.WALL)), g.edgeL = closed(tr, S.HW - .4), g.edgeR = closed(tr, -(S.HW - .4));
+  g.center = closed(tr, 0), g.wallL = pathRange(tr, 0, tr.N, S.WALL), g.wallR = pathRange(tr, 0, tr.N, -S.WALL), g.edgeL = closed(tr, S.HW - .4), g.edgeR = closed(tr, -(S.HW - .4));
+  if (tr.hwv) {
+   /* ancho real punto a punto: el asfalto es el polígono entre los dos bordes, no una línea de grosor fijo */
+   const p = new Path2D;
+   for (let i = 0; i <= N; i++) {
+    const [x, y] = ptAt(tr, i, S.HW);
+    i ? p.lineTo(x, y) : p.moveTo(x, y)
+   }
+   for (let i = N; i >= 0; i--) {
+    const [x, y] = ptAt(tr, i, -S.HW);
+    p.lineTo(x, y)
+   }
+   p.closePath(), g.asph = p;
+   const q = Array.from(tr.hwv).sort((a, b) => a - b);
+   g.hwM = q[q.length >> 1]
+  }
   const ka = new Float32Array(N);
   for (let i = 0; i < N; i++) {
    let m = 0;
@@ -20964,7 +21357,7 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
   for (const gr of g.garages) ctx.save(), ctx.translate(gr.p[0], gr.p[1]), ctx.rotate(gr.h), ctx.fillStyle = "#22262b", ctx.fillRect(-8, -3.5, 16, 7), ctx.fillStyle = S.TEAMS[gr
    .team].c, ctx.fillRect(-7.5, -3.3, 15, 1.1), ctx.restore();
   if (ctx.strokeStyle = "#f2f2f2", ctx.lineWidth = 1.6, ctx.stroke(g.kerbs), ctx.setLineDash([2.4, 2.4]), ctx.strokeStyle = "#d8282e", ctx.stroke(g.kerbs), ctx.setLineDash([]),
-   ctx.strokeStyle = mix("#41464d", "#262d37", clamp(wetO, 0, 1)), ctx.lineWidth = 2 * S.HW, ctx.stroke(g.center), w && (wetO - wetL > .06 ? (ctx.strokeStyle = "rgba(78,82,88," +
+   ctx.strokeStyle = mix("#41464d", "#262d37", clamp(wetO, 0, 1)), g.asph ? (ctx.fillStyle = ctx.strokeStyle, ctx.lineWidth = .3, ctx.fill(g.asph), ctx.stroke(g.asph)) : (ctx.lineWidth = 2 * S.HW, ctx.stroke(g.center)), w && (wetO - wetL > .06 ? (ctx.strokeStyle = "rgba(78,82,88," +
     clamp((wetO - wetL) * 1.6, 0, .9) + ")", ctx.lineWidth = 3.2, ctx.stroke(g.rline)) : (ctx.strokeStyle = "rgba(18,20,23," + (.12 + .3 * w.rubber * (1 - wetL)) + ")", ctx
     .lineWidth = 2.6, ctx.stroke(g.rline)), w.marbles > .05 && s > .6)) {
    ctx.fillStyle = "rgba(20,20,22," + clamp(w.marbles * .9, 0, .8) + ")";
@@ -20972,9 +21365,9 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
     r = .35;
    for (let i = 0; i < m.length; i += 2) ctx.fillRect(m[i] - r, m[i + 1] - r, r * 2, r * 2)
   }
-  if (wet > .05 && (ctx.strokeStyle = "rgba(150,190,230," + .14 * wet + ")", ctx.lineWidth = 2 * S.HW - 4, ctx.setLineDash([9, 7]), ctx.stroke(g.center), ctx.setLineDash([])),
+  if (wet > .05 && (ctx.strokeStyle = "rgba(150,190,230," + .14 * wet + ")", ctx.lineWidth = 2 * (g.hwM || S.HW) - 4, ctx.setLineDash([9, 7]), ctx.stroke(g.center), ctx.setLineDash([])),
    w && w.mode === "race") {
-   ctx.lineCap = "butt", ctx.strokeStyle = "rgba(47,209,108,.14)", ctx.lineWidth = 2 * S.HW - 1;
+   ctx.lineCap = "butt", ctx.strokeStyle = "rgba(47,209,108,.14)", ctx.lineWidth = 2 * (g.hwM || S.HW) - 1;
    for (const d of g.drs) ctx.stroke(d.p);
    ctx.lineCap = "round"
   }
@@ -20996,9 +21389,10 @@ Con SOLO estos datos del momento actual, di en voz alta 2 o 3 frases cortas (má
   }), ctx.save();
   const p0 = ptAt(tr, 0, 0);
   ctx.translate(p0[0], p0[1]), ctx.rotate(tr.hd[0]);
-  const sq = S.HW * 2 / 10;
+  const hw0 = S.hwAt(tr, 0),
+   sq = hw0 * 2 / 10;
   for (let j = 0; j < 10; j++)
-   for (let i = 0; i < 2; i++) ctx.fillStyle = (i + j) % 2 ? "#111" : "#f4f4f4", ctx.fillRect(i * sq - sq, -S.HW + j * sq, sq, sq);
+   for (let i = 0; i < 2; i++) ctx.fillStyle = (i + j) % 2 ? "#111" : "#f4f4f4", ctx.fillRect(i * sq - sq, -hw0 + j * sq, sq, sq);
   ctx.restore(), ctx.strokeStyle = "rgba(255,255,255,.75)", ctx.lineWidth = .3;
   for (const sl of g.slots) ctx.save(), ctx.translate(sl.p[0], sl.p[1]), ctx.rotate(sl.h), ctx.beginPath(), ctx.moveTo(3, -1.3), ctx.lineTo(3, 1.3), ctx.moveTo(3, -1.3), ctx
    .lineTo(1.8, -1.3), ctx.moveTo(3, 1.3), ctx.lineTo(1.8, 1.3), ctx.stroke(), ctx.restore();
@@ -24121,18 +24515,19 @@ registerProcessor('engine-proc',EngineProc);`;
   }), renderChamp(), updateTrainNote(), renderSeason(),
   function() {
    const V = window.VALID || [],
+    VC = window.VALIDC || null,
     el = $("validBody");
    if (!el) return;
    const byKey = {};
    for (const t of REAL) byKey[t.key] = t;
-   const ok = V.filter(v => v.sim),
+   const ok = V.filter(v => v.sim && v.err != null && v.key !== "Monaco"),
     mean = ok.reduce((a, v) => a + Math.abs(v.err), 0) / Math.max(1, ok.length);
    el.innerHTML =
     "<p><b>Reglamento 2026</b> (por defecto, elegible en la carrera): motor térmico de ~400 kW y MGU-K de 350 kW que se recorta de 290 a 355 km/h, sin MGU-H; hasta 8,5 MJ recuperados por vuelta (frenada, recorte en recta y gas parcial) con 4 MJ de ventana de batería; la centralita despliega por debajo de una velocidad umbral que se ajusta sola para que la energía cuadre. Aerodinámica activa: en las rectas todos abren los alerones delantero y trasero (modo recta); a menos de 1 s del de delante en el punto de detección se gana el modo adelantamiento (350 kW hasta 337 km/h y 0,5 MJ más). Calibrado para que la vuelta rápida sea un 3–6 % más lenta que en 2025, como en las primeras carreras de 2026.</p>" +
-    "<p><b>Correspondencia con datos reales</b>: cada circuito trae la telemetría de su pole real (velocidad, marcha, gas y freno). La trazada se reoptimiza a curvatura mínima con todo el ancho de la pista partiendo de la del TUM, los codos de los tramos reconstruidos se alisan donde la curvatura sería imposible para la velocidad real medida, y en la carrera la gráfica de velocidad compara cada vuelta con la real curva a curva. La IA sigue la trazada con un control predictivo (anticipa la curvatura, corrige el error lateral y de rumbo, frena con la deceleración que pide el perfil de velocidad) al límite de su agarre, con un margen según el talento de cada piloto; con coches cerca decide la táctica —seguir, atacar, defender, esquivar un coche parado— y la red neuronal de cada piloto matiza por dónde pasa (±0,35 m) y cuánto aprieta (±1,2 % de agarre). Cada piloto tiene además un estilo propio (punto de frenada, uso del piano, agresividad al atacar, dureza al defender, finura con el volante y el gas, aguante bajo presión): son rasgos de diseño de pilotos de ficción, no datos reales, pero cada uno cambia de verdad su conducción. Un adelantamiento solo se intenta con ventaja real de velocidad (medida contra la traza del coche de delante) y sitio. Fuera de la trazada cada coche va por un carril paralelo a los bordes de la pista, con el giro y la velocidad que ese carril permite (más lento por dentro), y vuelve a la trazada donde esta cruza su carril; en paralelo se guardan 4,3 m entre centros y, ya en la curva, cede el que va por fuera salvo que lleve medio coche de ventaja. Un coche con una rueda pinchada se aparta a un lado y los demás le pasan por el otro. En el modo Entrenar, y con los pilotos que entrenes tú, la red lleva el volante y los pedales directamente.</p><p><b>Neumáticos</b>: ventanas de trabajo publicadas por Pirelli (C2 110–135 °C, C3 105–135 °C, C4 90–120 °C); mantas a 70 °C; presiones de salida y de marcha de las notas FIA-Pirelli del GP de Gran Bretaña 2023 (26,5/23,0 psi y ≥ 28,5/25,0 psi). El neumático se calienta por deslizamiento, frenos e histéresis de rodadura y se enfría con el aire y el asfalto; el graining aparece al deslizar por debajo de la ventana y se limpia dentro de ella. La duración se calibró con las tandas del GP de Baréin 2024 (primeras paradas entre las vueltas 9 y 17, tanda más larga con blando 21 vueltas y con duro 30).</p><p><b>Estrategia</b>: cada muro resuelve por programación dinámica el plan más rápido hasta la bandera con un modelo de tiempo por vuelta hecho con la sensibilidad al agarre del propio circuito, el desgaste que mide en su coche y la pérdida real en la calle de boxes; lo recalcula cada vuelta y con coche de seguridad.</p>" +
-    "<p>Los 17 circuitos son reales: línea central del <b>TUM racetrack-database</b> (Universidad Técnica de Múnich; OpenStreetMap + imágenes de satélite, licencia LGPL-3.0), alineada por ICP con la <b>telemetría oficial de posición de la F1 de 2024</b> (vía FastF1 / TracingInsights). De esa telemetría salen la elevación, la trazada de la vuelta de referencia, las zonas DRS, la numeración de curvas, la temperatura, la presión y la humedad (densidad del aire).</p><p class=\"note\">Pendiente de corregir: el ancho de pista que usa hoy el simulador es un valor constante por circuito y mayor que el real (el TUM lo da punto a punto: 9-14 m según el trazado).</p><p>La física del coche se calibró con esas mismas vueltas: potencia en rueda y resistencia por circuito ajustadas a las aceleraciones en recta, curva de potencia según el caudal de combustible del reglamento, sensibilidad a la carga del neumático, elipse de fricción y eficiencia aerodinámica ajustadas para reproducir las vueltas reales. Error medio del modelo dinámico: <b>" +
+    "<p><b>Correspondencia con datos reales</b>: cada circuito trae la telemetría de su pole real (velocidad, marcha, gas y freno). La trazada se calcula a curvatura mínima (método K1999) dentro del ancho real de cada punto de la pista, partiendo de la trazada real de la telemetría; los codos de los tramos reconstruidos se alisan donde la curvatura sería imposible para la velocidad real medida, y en la carrera la gráfica de velocidad compara cada vuelta con la real curva a curva. La IA sigue la trazada con un control predictivo (anticipa la curvatura, corrige el error lateral y de rumbo, frena con la deceleración que pide el perfil de velocidad) al límite de su agarre, con un margen según el talento de cada piloto; con coches cerca decide la táctica —seguir, atacar, defender, esquivar un coche parado— y la red neuronal de cada piloto matiza por dónde pasa (±0,35 m) y cuánto aprieta (±1,2 % de agarre). Cada piloto tiene además un estilo propio (punto de frenada, uso del piano, agresividad al atacar, dureza al defender, finura con el volante y el gas, aguante bajo presión): son rasgos de diseño de pilotos de ficción, no datos reales, pero cada uno cambia de verdad su conducción. Un adelantamiento solo se intenta con ventaja real de velocidad (medida contra la traza del coche de delante) y sitio. Fuera de la trazada cada coche va por un carril paralelo a los bordes de la pista, con el giro y la velocidad que ese carril permite (más lento por dentro), y vuelve a la trazada donde esta cruza su carril; en paralelo se guardan entre 3,3 y 4,3 m entre centros según el ancho real de ese tramo y, ya en la curva, cede el que va por fuera salvo que lleve medio coche de ventaja. Un coche con una rueda pinchada se aparta a un lado y los demás le pasan por el otro. En el modo Entrenar, y con los pilotos que entrenes tú, la red lleva el volante y los pedales directamente.</p><p><b>Neumáticos</b>: ventanas de trabajo publicadas por Pirelli (C2 110–135 °C, C3 105–135 °C, C4 90–120 °C); mantas a 70 °C; presiones de salida y de marcha de las notas FIA-Pirelli del GP de Gran Bretaña 2023 (26,5/23,0 psi y ≥ 28,5/25,0 psi). El neumático se calienta por deslizamiento, frenos e histéresis de rodadura y se enfría con el aire y el asfalto; el graining aparece al deslizar por debajo de la ventana y se limpia dentro de ella. La duración se calibró con las tandas del GP de Baréin 2024 (primeras paradas entre las vueltas 9 y 17, tanda más larga con blando 21 vueltas y con duro 30).</p><p><b>Estrategia</b>: cada muro resuelve por programación dinámica el plan más rápido hasta la bandera con un modelo de tiempo por vuelta hecho con la sensibilidad al agarre del propio circuito, el desgaste que mide en su coche y la pérdida real en la calle de boxes; lo recalcula cada vuelta y con coche de seguridad.</p>" +
+    "<p>Los 17 circuitos son reales: línea central del <b>TUM racetrack-database</b> (Universidad Técnica de Múnich; OpenStreetMap + imágenes de satélite, licencia LGPL-3.0), alineada por ICP con la <b>telemetría oficial de posición de la F1 de 2024</b> (vía FastF1 / TracingInsights). De esa telemetría salen la elevación, la trazada de la vuelta de referencia, las zonas DRS, la numeración de curvas, la temperatura, la presión y la humedad (densidad del aire).</p><p><b>Ancho de pista</b>: el real, punto a punto (TUM racetrack-database, medido cada 20 m y suavizado): de 7,8 a 20 m según el tramo; hasta ahora era un valor constante por circuito, entre un 25 y un 60 % mayor que el real. <b>Peralte</b>: Zandvoort lleva el de su reforma de 2020 (Hugenholtz progresivo, de 4,5° por dentro a 19° por fuera, y la última curva de 15° a 18°) y allí la trazada pasa por arriba, como en la realidad; el coche nota el peralte del punto exacto por el que pasa.</p><p>La física del coche se calibró con esas mismas vueltas: potencia en rueda y resistencia por circuito ajustadas a las aceleraciones en recta, curva de potencia según el caudal de combustible del reglamento, sensibilidad a la carga del neumático, elipse de fricción y eficiencia aerodinámica ajustadas para reproducir las vueltas reales. Error medio del modelo dinámico: <b>" +
     mean.toFixed(1).replace(".", ",") +
-    ' %</b> en tiempo de vuelta.</p><p>Encima de esa dinámica, cada coche lleva un <b>modelo físico de sus sistemas</b> que se integra en tiempo real: aceite (ecuación de Vogel, película de cojinete tipo Sommerfeld, aireación y descebe por G), refrigeración (presión de vapor de Antoine, ebullición nucleada frente a crítica, cavitación por NPSH), pistón y segmentos (dilatación diferencial acero/aluminio), detonación con control de picado, muelles neumáticos de válvula, torsión del cigüeñal por órdenes, tornillería (fluencia de Arrhenius y autoaflojamiento de Junker), retenes, caja (Basquin y picado por marcha), frenos por eje (convección, radiación de Stefan-Boltzmann y oxidación del carbono), presión del neumático (gas ideal), altura al suelo y tablón, rebote de rueda, flameo del alerón, piloto y latencia de la telemetría. La fiabilidad usa vidas de Weibull con factores de aceleración: las averías salen del estado de cada pieza. Se ve en «Ingeniería en vivo» desde la telemetría de cualquier coche.</p><table class="tbl"><thead><tr><th>Circuito</th><th style="text-align:right">Simulado</th><th style="text-align:right">Real 2024</th><th style="text-align:right">Error</th><th style="text-align:right">V. punta</th></tr></thead><tbody>' +
+    ' %</b> en tiempo de vuelta (tabla de abajo, calculada con el reglamento 2014-2025, que es el de los coches de esa telemetría).</p>' + (VC ? "<p><b>Curva a curva</b>: velocidad mínima del simulador frente a la real en " + VC.curvas + " curvas de " + VC.circuitos + ' circuitos, agrupadas por la velocidad real de paso. Hasta el 24-11 los tiempos por vuelta cuadraban por compensación: la trazada no aprovechaba el ancho y un agarre mecánico demasiado alto lo tapaba (las curvas de menos de 90 km/h salían un 20 % rápidas y las de 170-210, un 10 % lentas). Ahora la trazada está bien resuelta, el agarre del neumático es un 13 % menor, la carga aerodinámica un 16 % mayor (L/D 3,93) y el agarre longitudinal es el 95 % del lateral.</p><table class="tbl"><thead><tr><th>Velocidad real de paso</th><th style="text-align:right">Curvas</th><th style="text-align:right">Error medio</th><th style="text-align:right">Error típico</th></tr></thead><tbody>' + VC.tramos.filter(t => t.n).map(t => "<tr><td>" + (t.de ? t.a >= 400 ? "más de " + t.de + " km/h" : t.de + "–" + t.a + " km/h" : "menos de " + t.a + " km/h") + '</td><td style="text-align:right">' + t.n + '</td><td style="text-align:right" class="' + (Math.abs(t.err) < 3 ? "ok" : Math.abs(t.err) < 6 ? "mid" : "bad") + '">' + (t.err > 0 ? "+" : "") + t.err.toFixed(1).replace(".", ",") + ' %</td><td style="text-align:right">±' + t.abs.toFixed(1).replace(".", ",") + " %</td></tr>").join("") + '</tbody></table><p class="note">El error típico por curva (8-12 %) viene sobre todo de la geometría: la línea central disponible no coincide al metro con la pista real. Las curvas de menos de 48 m de radio llevan una corrección empírica ajustada a estos datos (los pilotos las trazan en V —frenan más tarde, giran en menos radio y aceleran antes— y pasan más despacio que por la trazada de curvatura mínima): es un ajuste, no un modelo de la maniobra.</p>' : "") + '<p>Encima de esa dinámica, cada coche lleva un <b>modelo físico de sus sistemas</b> que se integra en tiempo real: aceite (ecuación de Vogel, película de cojinete tipo Sommerfeld, aireación y descebe por G), refrigeración (presión de vapor de Antoine, ebullición nucleada frente a crítica, cavitación por NPSH), pistón y segmentos (dilatación diferencial acero/aluminio), detonación con control de picado, muelles neumáticos de válvula, torsión del cigüeñal por órdenes, tornillería (fluencia de Arrhenius y autoaflojamiento de Junker), retenes, caja (Basquin y picado por marcha), frenos por eje (convección, radiación de Stefan-Boltzmann y oxidación del carbono), presión del neumático (gas ideal), altura al suelo y tablón, rebote de rueda, flameo del alerón, piloto y latencia de la telemetría. La fiabilidad usa vidas de Weibull con factores de aceleración: las averías salen del estado de cada pieza. Se ve en «Ingeniería en vivo» desde la telemetría de cualquier coche.</p><table class="tbl"><thead><tr><th>Circuito</th><th style="text-align:right">Simulado</th><th style="text-align:right">Real 2024</th><th style="text-align:right">Error</th><th style="text-align:right">V. punta</th></tr></thead><tbody>' +
     V.map(v => {
      const t = byKey[v.key] || {},
       e = v.err,
@@ -24142,7 +24537,7 @@ registerProcessor('engine-proc',EngineProc);`;
       S.fmtLap(v.real) + '</td><td style="text-align:right" class="' + cl + '">' + (e > 0 ? "+" : "") + e.toFixed(1).replace(".", ",") + ' %</td><td style="text-align:right">' +
       Math.round(v.vmax) + "/" + Math.round(v.rvmax) + "</td></tr>"
     }).join("") +
-    '</tbody></table><p class="note">Motor gráfico: Three.js r180 (MIT) con oclusión ambiental N8AO (ISC), mapa de tonos ACES, iluminación por imagen con cielos HDR fotografiados de Poly Haven (CC0, vía pmndrs/assets y el repositorio de three.js) y texturas de asfalto, grava, hierba, carbono y árboles generadas por código para este simulador.</p><p class="note">Limitaciones honestas: Albert Park y Yas Marina tienen tramos reconstruidos con la telemetría tras sus cambios de trazado y son los de mayor error; el peralte (Zandvoort) no está modelado; el entorno (árboles, gradas, relieve fuera de la pista) es aproximado; la posición del pit lane es genérica.</p>'
+    '</tbody></table><p class="note">Motor gráfico: Three.js r180 (MIT) con oclusión ambiental N8AO (ISC), mapa de tonos ACES, iluminación por imagen con cielos HDR fotografiados de Poly Haven (CC0, vía pmndrs/assets y el repositorio de three.js) y texturas de asfalto, grava, hierba, carbono y árboles generadas por código para este simulador.</p><p class="note">Limitaciones honestas: Mónaco sale un 7 % más rápido que su pole real (su línea central está demasiado suavizada en las chicanes y no tiene anchos medidos; no entra en la media); Albert Park y Yas Marina tienen tramos reconstruidos con la telemetría tras sus cambios de trazado; los anchos proceden de una base de datos de 2020 y pueden no recoger reformas posteriores; solo Zandvoort tiene peralte modelado; el simulador frena antes y más fuerte al principio de la frenada que un piloto real (en las frenadas va de media unos 18 km/h por debajo de la telemetría); el entorno (árboles, gradas, relieve fuera de la pista) es aproximado.</p>'
   }(), window.claude && window.claude.use && window.claude.use("sample").then(sm => {
    sm && (app.sample = sm, buildCamCtl())
   }).catch(() => {}), (() => {
