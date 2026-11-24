@@ -1583,6 +1583,8 @@
    res = 200,
    dX = 1e9,
    dCl = 1e9;
+  let kM = 0,
+   Lb = 0;
   if (mA > .02 && yA != null && car.laneW) {
    /* el que espera a la trazada: dónde cruza la trazada su carril (a partir de ahí la sigue). El que va por un carril por
       táctica (un coche al lado, un ataque) sigue en él: con él se supuso lo mismo y, al pasar el cruce, la velocidad
@@ -1595,6 +1597,12 @@
       dX = d;
       break
      }
+   if (dX < 1e8) {
+    /* incorporarse a la trazada es girar el ángulo con el que cruza el carril, repartido en unos 25-40 m: esa curvatura
+       se suma alrededor del cruce (sin ella se llegaba con el coche ya girando y sin poder frenar: alcance en Yas Marina) */
+    const jx = (car.idx + Math.round((dX + lead) / tr.ds)) % N;
+    Lb = Math.max(24, u * .6), kM = Math.abs(tr.rl[(jx + 2) % N] - tr.rl[(jx - 2 + N) % N]) / (4 * tr.ds) / Lb
+   }
   }
   for (let d = 344; d >= 0; d -= step) {
    const j = (car.idx + Math.round((d + lead) / tr.ds)) % N,
@@ -1624,6 +1632,7 @@
     const kl = Math.max(k0, ko);
     k += mA * (kl - k), yj += mA * (yA - yj)
    }
+   kM && Math.abs(d - dX) < Lb / 2 + step && (k += kM);
    const gJ = G(clamp((Math.abs(yj - rlj) - 2.5) / 3, 0, 1)) / g0,
     muJ = mu * gJ;
    const kvj = tr.kv[j],
@@ -1963,7 +1972,11 @@
    let dS = ((o.s - car.s) % tr.L + tr.L) % tr.L;
    dS > tr.L / 2 && (dS -= tr.L);
    const wideFast = HW >= 6.6 && (Zn ? Zn.vMin : 99) > 52 && Math.abs(tr.k[car.idx]) < 1 / 90,
-    yield_ = inside ? dS > 4 : dS > -2.7 && !wideFast;
+    /* nunca se cede ante quien ya está cediendo o quedándose detrás de uno: si no, el de dentro frenaba para ponerse a
+       rueda del de fuera mientras el de fuera frenaba para cederle la curva, y los dos acababan casi parados a la salida
+       (medido en la curva 5 de Catalunya: de 145 a 68 km/h, y dos coches que llegaban detrás se los llevaron a 77 km/h) */
+    oBack = !o.atkSide && (o.yieldT != null && tNow - o.yieldT < .5 || o.ahead === car && o.vCap < o.u + 1),
+    yield_ = !oBack && (inside ? dS > 4 : dS > -2.7 && !wideFast);
    /* (el que cede se queda detrás antes: con 1,6 m/s menos que el otro tardaba dos segundos en dejar de ir en paralelo) */
    yield_ && (vCap = Math.min(vCap, Math.max(11, alongV(tr, o) - 3.2)), car.yieldT = tNow, car.atkSide && (car.atkEnd = "cede", AS.lost++, car.atkCool = tNow + 2.5), car.atkSide = 0, car.atkTgt = null)
   }
@@ -1997,15 +2010,23 @@
       próximos 2 s: lo normal en el que ha defendido o atacado por dentro y llega al giro), no sale a buscarla: mantiene
       el carril hasta que la trazada llega a donde está él. Si se acerca pero no llega, va hasta donde llegue. Si se aleja
       o no se mueve, vuelve a ella cerrando el desvío, que es lo que se hacía siempre */
-   const D = Math.max(40, u * 2.2) / tr.ds;
+   const D = Math.max(40, u * 2.2) / tr.ds,
+    d0 = Math.abs(yP - rl0);
    let lo = rl0,
-    hi = rl0;
+    hi = rl0,
+    away = !1,
+    near = !1;
    for (let q = 1; q <= 6; q++) {
-    const v = lerpN(tr.rl, fC + D * q / 6, N);
-    v < lo ? lo = v : v > hi && (hi = v)
+    const v = lerpN(tr.rl, fC + D * q / 6, N),
+     dq = Math.abs(yP - v);
+    v < lo ? lo = v : v > hi && (hi = v);
+    /* ¿se acerca, o antes se va más lejos (al vértice del otro lado) y ya volverá? En ese caso no se la espera a medio
+       carril en plena curva (medido en Yas Marina: 30 km/h más lento que los demás y en mitad de la pista): se la sigue */
+    near || (dq > d0 + .8 ? away = !0 : (dq < d0 - .3 || (yP - rl0) * (yP - v) <= 0) && (near = !0));
+    if (away && !near) break
    }
    const yT = clamp(yP, lo, hi);
-   Math.abs(yT - rl0) < .05 || (yN = yP + clamp(yT - yP, -rate, rate), lane = !0, wait = !0)
+   away && !near || Math.abs(yT - rl0) < .05 || (yN = yP + clamp(yT - yP, -rate, rate), lane = !0, wait = !0)
   }
   if (!lane) {
    const o = yP - rl0;
@@ -2028,7 +2049,8 @@
   car.laneM = lane ? 1 : 0, car.laneW = wait ? 1 : 0, car.laneY = yN, car.offS = yN - rl0, car.yRef = yN;
   /* cuánto de «carril» y cuánto de «trazada» (0…1) para la curvatura y el rumbo de referencia: el cambio se reparte en
      tres décimas (la posición de referencia no salta: es la misma en los dos modos) */
-  car.absW = clamp((car.absW || 0) + (lane ? DT : -DT) / .3, 0, 1);
+  car.wW = wait ? 1 : lane ? 0 : car.wW;
+  car.absW = clamp((car.absW || 0) + (lane ? DT / .3 : -DT / (car.wW ? .6 : .3)), 0, 1);
   const useLat = yN;
   car.latT = null, car.latS = useLat, car.intent = useLat, car.look = look, car.vCap = vCap, car.inp[34] = clamp((useLat - car.lat) / HW, -2, 2), car.inp[
    35] = clamp((vCap - u) / 30, -1, 1)
